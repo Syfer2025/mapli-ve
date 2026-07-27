@@ -63,6 +63,20 @@ export {
   projectorFromSnapshot,
 } from "./projector.js";
 
+export {
+  GEO_MESH_FORMAT_VERSION,
+  GeoMeshError,
+  createGeoMesh,
+  type GeoFeature,
+  type GeoFeatureEntry,
+  type GeoFeatureKind,
+  type GeoMesh,
+  type GeoMeshIndex,
+  type GeoRingEntry,
+} from "./geo-mesh.js";
+
+export { createRegionCatalog, type RegionCatalog, type RegionHit } from "./region-catalog.js";
+
 export { BUILTIN_GAZETTEER_PLACES } from "./gazetteer-data.js";
 
 export {
