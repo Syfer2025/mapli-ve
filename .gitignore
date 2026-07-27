@@ -14,9 +14,10 @@ data/terrain/
 # malha compilada por tools/build-geo.ts — derivada da origem fixada por hash
 data/geo/
 
-# biblioteca 3D local do usuário: junção para uma pasta fora do repositório.
-# Gigabytes de GLB não entram no controle de versão nem viajam para o remoto.
-data/models/
+# Biblioteca 3D local do usuário: raízes nomeadas apontando para fora do
+# repositório, e o índice derivado delas. Gigabytes de GLB não entram no
+# controle de versão nem viajam para o remoto.
+data/library-roots.json
 data/models-index.json
 
 # saída de teste

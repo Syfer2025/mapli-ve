@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -20,6 +21,14 @@ import {
 import type { AssetDescriptor } from "@theatrum/schema";
 import { assetThumbnailUrl } from "../../assets/asset-media.js";
 import { editorActions } from "../../document/editor-session.js";
+import {
+  filterLocalModels,
+  groupLocalModels,
+  importLocalModel,
+  loadLocalModelIndex,
+  localModelLabel,
+  type LocalModel,
+} from "../../assets/local-models.js";
 import { useEditorSession } from "../../document/useEditorSession.js";
 import { Button, Panel } from "../../ui/index.js";
 import "./LibraryPanel.css";
@@ -179,8 +188,106 @@ export function LibraryPanel(): ReactNode {
             ))}
           </div>
         )}
+
+        <LocalModelsSection query={query} />
       </div>
     </Panel>
+  );
+}
+
+/**
+ * Modelos que estão no disco da máquina mas ainda não no projeto.
+ *
+ * Existe porque a fronteira importa: o AssetStore guarda bytes dentro do
+ * `.theatrum`, e a biblioteca local do dono do projeto tem 2,7 GB. Listar não
+ * custa nada; importar traz um modelo para dentro, e só o que atravessou viaja com
+ * o arquivo de projeto.
+ *
+ * Máquina sem biblioteca local não vê a seção. Índice ausente é ausência de um
+ * recurso opcional, não erro — um editor que reclama do que é opcional treina o
+ * usuário a ignorar avisos.
+ */
+function LocalModelsSection({ query }: { readonly query: string }): ReactNode {
+  const [models, setModels] = useState<readonly LocalModel[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void loadLocalModelIndex().then((index) => {
+      if (active) setModels(index?.models ?? []);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (models === null || models.length === 0) return null;
+
+  const visible = filterLocalModels(models, query);
+  const groups = groupLocalModels(visible);
+  const bytes = models.reduce((sum, model) => sum + model.bytes, 0);
+
+  const bringIn = async (model: LocalModel): Promise<void> => {
+    setBusy(model.file);
+    setStatus(null);
+    const result = await importLocalModel(model, (files) =>
+      editorActions.importAssetFiles([...files]),
+    );
+    setBusy(null);
+    setStatus(
+      result.ok
+        ? `${result.label} entrou no projeto · ${formatAssetSize(result.bytes)}`
+        : `${result.label} não entrou: ${result.message ?? "motivo desconhecido"}`,
+    );
+  };
+
+  return (
+    <section className="library__local">
+      <button
+        type="button"
+        className="library__local-toggle"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span>{open ? "▾" : "▸"} Biblioteca 3D da máquina</span>
+        <small>
+          {models.length} modelos · {formatAssetSize(bytes)} · fora do projeto
+        </small>
+      </button>
+
+      {status === null ? null : <p className="library__local-status">{status}</p>}
+
+      {!open ? null : visible.length === 0 ? (
+        <p className="library__local-status">Nenhum modelo local corresponde à busca.</p>
+      ) : (
+        groups.map(([category, list]) => (
+          <div key={category} className="library__local-group">
+            <h4>
+              {category} <small>{list.length}</small>
+            </h4>
+            <ul role="list">
+              {list.map((model) => (
+                <li key={model.file}>
+                  <button
+                    type="button"
+                    disabled={busy !== null}
+                    title={`${model.file} · ${formatAssetSize(model.bytes)}`}
+                    onClick={() => void bringIn(model)}
+                  >
+                    <span>{localModelLabel(model)}</span>
+                    <small>
+                      {busy === model.file ? "importando…" : formatAssetSize(model.bytes)}
+                    </small>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))
+      )}
+    </section>
   );
 }
 

@@ -1,16 +1,21 @@
 /**
  * Indexa a biblioteca 3D local do usuário.
  *
- * `data/models/` é uma **junção** para uma pasta fora do repositório, não uma
- * cópia: os modelos somam gigabytes e o projeto vive dentro de uma pasta
- * sincronizada, então copiar duplicaria o tráfego de nuvem sem ganho nenhum. A
- * junção é criada uma vez, à mão:
+ * Os modelos ficam **fora do repositório**: somam gigabytes e o projeto vive numa
+ * pasta sincronizada em nuvem, então copiar para dentro duplicaria o tráfego sem
+ * ganho nenhum. A pasta é declarada em `data/library-roots.json`, a mesma
+ * configuração que o protocolo local usa para servi-la:
  *
- *   mklink /J "data\models" "C:\caminho\para\seus\modelos"
+ *   { "models": "C:\\caminho\\para\\seus\\modelos" }
  *
- * Este script varre o que estiver lá e escreve `data/models-index.json`, que o
- * painel Biblioteca lê para listar sem tocar em um byte de geometria. Nada aqui
- * entra no controle de versão — índice e junção são locais da máquina.
+ * Uma junção em `data/models` **não** funciona, e por bom motivo: o protocolo
+ * resolve `realpath` e recusa o que escapa da raiz, justamente para que um link
+ * não vire um buraco de leitura arbitrária. A raiz nomeada é a versão declarada
+ * disso.
+ *
+ * Este script varre a pasta e escreve `data/models-index.json`, que o painel
+ * Biblioteca lê para listar sem tocar em um byte de geometria. Nada aqui entra no
+ * controle de versão — configuração e índice são locais da máquina.
  *
  * O nome de arquivo é a única fonte de metadados que existe, então a
  * categorização é heurística e **declaradamente falível**: ela ordena a lista, não
@@ -21,13 +26,28 @@
  *   node tools/build-model-index.ts --verify
  */
 
+import { readFileSync } from "node:fs";
 import { readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const MODELS_ROOT = path.join(ROOT, "data", "models");
+/**
+ * Raiz dos modelos, lida de `data/library-roots.json` — a mesma configuração que o
+ * protocolo local usa para servir os arquivos. Ter duas fontes de verdade para
+ * "onde estão os modelos" seria pedir para elas divergirem.
+ */
+function modelsRoot(): string | null {
+  try {
+    const raw = readFileSync(path.join(ROOT, "data", "library-roots.json"), "utf8");
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const value = parsed["models"];
+    return typeof value === "string" && path.isAbsolute(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
 const INDEX_PATH = path.join(ROOT, "data", "models-index.json");
 const VERIFY_ONLY = process.argv.includes("--verify");
 
@@ -143,9 +163,11 @@ interface ModelEntry {
 }
 
 async function collect(): Promise<readonly ModelEntry[]> {
+  const root = modelsRoot();
+  if (root === null) return [];
   let names: string[];
   try {
-    names = await readdir(MODELS_ROOT);
+    names = await readdir(root);
   } catch {
     return [];
   }
@@ -153,7 +175,7 @@ async function collect(): Promise<readonly ModelEntry[]> {
   const entries: ModelEntry[] = [];
   for (const name of names) {
     if (!MODEL_EXTENSIONS.has(path.extname(name).toLowerCase())) continue;
-    const info = await stat(path.join(MODELS_ROOT, name));
+    const info = await stat(path.join(root, name));
     if (!info.isFile()) continue;
     const { label, variant } = labelOf(name);
     entries.push({ file: name, label, category: categoryOf(name), bytes: info.size, variant });
@@ -175,8 +197,8 @@ async function main(): Promise<void> {
 
   if (models.length === 0) {
     const message =
-      `Nenhum modelo em data/models. Crie a junção para a sua pasta de modelos:\n` +
-      `  mklink /J "data\\models" "C:\\caminho\\para\\seus\\modelos"`;
+      "Nenhum modelo indexado. Declare a raiz em data/library-roots.json:\n" +
+      '  { "models": "C:\\\\caminho\\\\para\\\\seus\\\\modelos" }';
     if (VERIFY_ONLY) {
       console.log(`— ${message}`);
       return;

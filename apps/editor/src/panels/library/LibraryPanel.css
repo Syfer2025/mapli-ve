@@ -124,3 +124,81 @@
   gap: 4px;
   margin-top: auto;
 }
+
+/* Biblioteca 3D da máquina: o que existe no disco mas não no projeto ainda. */
+.library__local {
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.library__local-toggle {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 2px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.library__local-toggle small,
+.library__local-group small {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.library__local-status {
+  margin: 4px 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.library__local-group h4 {
+  margin: 8px 2px 2px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.library__local-group ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.library__local-group button {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 3px 6px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.library__local-group button:hover:not(:disabled),
+.library__local-group button:focus-visible {
+  background: var(--surface-hover);
+}
+
+.library__local-group button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

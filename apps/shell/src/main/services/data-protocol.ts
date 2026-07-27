@@ -7,6 +7,7 @@
  */
 
 import { app, net, protocol } from "electron";
+import { readFileSync } from "node:fs";
 import { realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -51,6 +52,64 @@ function dataRoot(): string {
     : path.join(app.getAppPath(), "data");
 }
 
+/**
+ * Raízes extras, nomeadas, além de `data/`.
+ *
+ * Existe porque a biblioteca 3D do usuário pode ter gigabytes e viver fora do
+ * projeto — copiar para dentro de `data/` duplicaria tudo, e apontar para lá com
+ * uma junção é justamente o que o `realpath` abaixo barra, de propósito.
+ *
+ * A saída não é enfraquecer a contenção: é declarar **quais** pastas o protocolo
+ * serve. Cada nome vira um prefixo de URL, e a contenção continua valendo dentro
+ * de cada raiz — um caminho com `..` ou uma junção que escape da raiz nomeada
+ * continua recusado.
+ *
+ * O arquivo é local da máquina e não entra no repositório:
+ *
+ *   data/library-roots.json → { "models": "C:\\caminho\\para\\modelos" }
+ */
+let extraRootsCache: Readonly<Record<string, string>> | undefined;
+
+function extraRoots(): Readonly<Record<string, string>> {
+  if (extraRootsCache !== undefined) return extraRootsCache;
+  try {
+    const raw = readFileSync(path.join(dataRoot(), "library-roots.json"), "utf8");
+    const parsed: unknown = JSON.parse(raw);
+    const roots: Record<string, string> = {};
+    if (typeof parsed === "object" && parsed !== null) {
+      for (const [name, value] of Object.entries(parsed as Record<string, unknown>)) {
+        // Nome de raiz é um segmento simples: nada de barra, nada de `..`.
+        if (!/^[a-z0-9_-]+$/i.test(name)) continue;
+        if (typeof value === "string" && path.isAbsolute(value)) roots[name] = path.resolve(value);
+      }
+    }
+    extraRootsCache = Object.freeze(roots);
+  } catch {
+    extraRootsCache = Object.freeze({});
+  }
+  return extraRootsCache;
+}
+
+/**
+ * Confere que o alvo está mesmo dentro da raiz, lexicalmente e depois de resolver
+ * links. As duas checagens são necessárias: a primeira barra `..`, a segunda barra
+ * junção e symlink que escapem em silêncio no Windows.
+ */
+async function containedIn(root: string, target: string): Promise<string | null> {
+  const relative = path.relative(root, target);
+  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) return null;
+  try {
+    const [realRoot, realTarget] = await Promise.all([realpath(root), realpath(target)]);
+    const realRelative = path.relative(realRoot, realTarget);
+    if (realRelative === "" || realRelative.startsWith("..") || path.isAbsolute(realRelative)) {
+      return null;
+    }
+    return realTarget;
+  } catch {
+    return null;
+  }
+}
+
 async function safeDataPath(url: URL): Promise<string | null> {
   if (
     url.hostname !== DATA_HOST ||
@@ -70,24 +129,19 @@ async function safeDataPath(url: URL): Promise<string | null> {
     return null;
   }
 
-  const root = path.resolve(dataRoot());
-  const target = path.resolve(root, decoded);
-  const relative = path.relative(root, target);
-  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) return null;
-  if (!ALLOWED_EXTENSIONS.has(path.extname(target).toLowerCase())) return null;
+  if (!ALLOWED_EXTENSIONS.has(path.extname(decoded).toLowerCase())) return null;
 
-  // A checagem lexical acima barra `..`; realpath também barra junctions e
-  // symlinks que escapem silenciosamente da raiz no Windows.
-  try {
-    const [realRoot, realTarget] = await Promise.all([realpath(root), realpath(target)]);
-    const realRelative = path.relative(realRoot, realTarget);
-    if (realRelative === "" || realRelative.startsWith("..") || path.isAbsolute(realRelative)) {
-      return null;
-    }
-    return realTarget;
-  } catch {
-    return null;
+  // Primeiro segmento pode nomear uma raiz extra; senão, tudo cai sob `data/`.
+  const separator = decoded.indexOf("/");
+  const head = separator < 0 ? decoded : decoded.slice(0, separator);
+  const named = extraRoots()[head];
+  if (named !== undefined && separator > 0) {
+    const rest = decoded.slice(separator + 1);
+    return containedIn(named, path.resolve(named, rest));
   }
+
+  const root = path.resolve(dataRoot());
+  return containedIn(root, path.resolve(root, decoded));
 }
 
 function responseHeaders(source: Headers, target: string): Headers {
