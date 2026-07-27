@@ -28,7 +28,7 @@ import { editorActions } from "../../document/editor-session.js";
 import { useEditorSession } from "../../document/useEditorSession.js";
 import { Button } from "../../ui/index.js";
 import { createMapLibreProjectorPort } from "./maplibre-adapters.js";
-import { collectModel3dNodes, syncModel3dLayer } from "./model3d-layer.js";
+import { collectModel3dNodes, collectRoute3dNodes, syncScene3dLayer } from "./scene3d-layer.js";
 import { expandParticleEffects, type ParticleExpansion } from "./particle-nodes.js";
 import {
   addVertex,
@@ -352,8 +352,11 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
         const screen = particles.scene;
         renderer.render(screen, PREVIEW_SLOT_ORDER);
         // Nós 3D: a camada Three.js do mapa recebe a cena avaliada (âncora e
-        // rumo já resolvidos pelos comportamentos) e repinta sob demanda.
-        syncModel3dLayer(map, collectModel3dNodes(evaluated));
+        // rumo já resolvidos pelos comportamentos) e repinta sob demanda. As
+        // rotas precisam também dos caminhos do projeto — a geometria delas mora
+        // em `document.paths`, não na cena avaliada.
+        const routes = collectRoute3dNodes(evaluated, session.document.paths);
+        syncScene3dLayer(map, { models: collectModel3dNodes(evaluated), routes });
         const renderedAt = performance.now();
         renderCountRef.current += 1;
         frameRef.current = {
@@ -367,7 +370,12 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
           particles: particles.particles,
           filters: particles.filters,
           mattes: particles.mattes,
-          paths: projectPaths(session.document.paths, projector, compToScreen),
+          paths: projectPaths(
+            session.document.paths,
+            projector,
+            compToScreen,
+            new Set(routes.map((route) => route.pathId)),
+          ),
           metrics: {
             evaluateMs: evaluatedAt - startedAt,
             layoutMs: laidOutAt - evaluatedAt,
@@ -737,15 +745,22 @@ function eventPoint(event: PointerEvent, container: HTMLElement): Vec2 {
  * Amostra cada caminho do projeto e projeta na tela. A amostragem é por
  * `progress`, então bezier e geodésico saem com a mesma densidade de pontos e o
  * desenho mostra a curva real, não a poligonal dos vértices.
+ *
+ * Caminho já traçado por um nó `route3d` visível é omitido: a rota dele existe
+ * no espaço, com altitude e volume, e repetir a mesma trajetória como linha
+ * projetada no terreno é justamente o "adesivo" que a camada 3D veio substituir.
+ * O que sobra aqui é andaime de autoria — caminho sem rota 3D montada.
  */
 function projectPaths(
   paths: Readonly<Record<string, PathData>>,
   projector: ReturnType<typeof createMapLibreProjectorPort>,
   compToScreen: Mat2D,
+  drawnIn3d: ReadonlySet<string>,
 ): readonly ProjectedPath[] {
   const SAMPLES = 64;
   const result: ProjectedPath[] = [];
   for (const path of Object.values(paths)) {
+    if (drawnIn3d.has(path.id)) continue;
     const geometry = pathGeometry(path);
     if (geometry.segments.length === 0) continue;
     const toScreen = (point: Vec2): Vec2 =>
@@ -865,13 +880,18 @@ function drawHandle(context: CanvasRenderingContext2D, bounds: Rect, mode: Gizmo
   context.fillRect(handle[0] - 3, handle[1] - 3, 6, 6);
 }
 
-/** Caminhos do projeto: linha contínua discreta mais os vértices. */
+/**
+ * Guia dos caminhos sem rota 3D montada: tracejado fino mais os vértices.
+ * Tracejado de propósito — isto é andaime de autoria, não a rota da animação.
+ * A rota da animação é o tubo volumétrico da camada 3D.
+ */
 function drawPaths(context: CanvasRenderingContext2D, paths: readonly ProjectedPath[]): void {
   if (paths.length === 0) return;
   context.save();
-  context.strokeStyle = "#c9963f";
-  context.fillStyle = "#c9963f";
-  context.lineWidth = 1.5;
+  context.strokeStyle = "rgb(201 150 63 / 0.6)";
+  context.fillStyle = "rgb(201 150 63 / 0.75)";
+  context.lineWidth = 1;
+  context.setLineDash([6, 4]);
   for (const path of paths) {
     const [start, ...rest] = path.points;
     if (start === undefined || rest.length === 0) continue;
@@ -880,9 +900,10 @@ function drawPaths(context: CanvasRenderingContext2D, paths: readonly ProjectedP
     for (const point of rest) context.lineTo(point[0], point[1]);
     context.stroke();
     for (const vertex of path.vertices) {
-      context.fillRect(vertex[0] - 2.5, vertex[1] - 2.5, 5, 5);
+      context.fillRect(vertex[0] - 2, vertex[1] - 2, 4, 4);
     }
   }
+  context.setLineDash([]);
   context.restore();
 }
 

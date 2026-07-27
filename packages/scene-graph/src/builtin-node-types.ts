@@ -302,6 +302,25 @@ const Model3dPropsSchema = z
   })
   .passthrough();
 
+const Route3dPropsSchema = z
+  .object({
+    /** Caminho compartilhado do projeto (`document.paths`) que a rota traça. */
+    pathId: StringPropertySchema,
+    color: ColorPropertySchema,
+    /** Diâmetro do tubo em metros de terreno. */
+    widthMeters: PositiveNumberPropertySchema,
+    /** Altitude da rota inteira; some no perfil junto com `arcMeters`. */
+    altitudeMeters: NumberPropertySchema,
+    /** Ápice somado no meio do caminho — é isto que dá a parábola balística. */
+    arcMeters: NonNegativeNumberPropertySchema,
+    /** Trecho visível do caminho. Animar os dois dá desenho progressivo e rastro. */
+    progressStart: NonNegativeNumberPropertySchema,
+    progressEnd: NonNegativeNumberPropertySchema,
+    /** Opacidade da cortina vertical até o terreno. 0 desliga. */
+    curtainOpacity: NonNegativeNumberPropertySchema,
+  })
+  .passthrough();
+
 const ASSET_ID_PROPERTY = property({
   path: "props.assetId",
   label: "Asset",
@@ -759,7 +778,7 @@ export const UNIT_INFANTRY_NODE_TYPE = defineNodeType({
 
 /**
  * Modelo 3D (GLB/glTF da Biblioteca). O Pixi não desenha nada para este tipo:
- * o visual sai da camada Three.js do viewport (`model3d-layer.ts`), que lê a
+ * o visual sai da camada Three.js do viewport (`scene3d-layer.ts`), que lê a
  * âncora geo e o rumo avaliados — inclusive os do comportamento `motion-path`.
  * Export determinístico do 3D fica para a Fase 8; aqui é preview de viewport.
  */
@@ -815,6 +834,130 @@ export const MODEL3D_NODE_TYPE = defineNodeType({
   defaultSizeMode: "screen",
 });
 
+/**
+ * Rota 3D: a trajetória de um caminho do projeto desenhada como tubo
+ * volumétrico em altitude, não como linha colada no mapa. Igual ao `model3d`,
+ * não tem primitiva Pixi — quem desenha é a camada Three.js do viewport
+ * (`scene3d-layer.ts`), no mesmo depth buffer da aeronave, então rota e modelo
+ * se ocluem entre si.
+ *
+ * A geometria vem do caminho compartilhado (`pathId`), o mesmo que o
+ * `motion-path` percorre: a rota desenhada é a trajetória de verdade, não uma
+ * cópia parecida. O perfil de altura é `altitudeMeters` mais um ápice senoidal
+ * de `arcMeters` no meio do caminho — voo de cruzeiro é ápice zero, míssil
+ * balístico é ápice grande.
+ *
+ * A âncora do nó não posiciona nada (o caminho já é geográfico) e existe só
+ * porque todo nó tem uma; `transform.opacity` é respeitado.
+ */
+export const ROUTE3D_NODE_TYPE = defineNodeType({
+  type: "route3d",
+  category: "geo",
+  label: "Rota 3D",
+  icon: "route",
+  defaultProps: {
+    pathId: animatable(""),
+    color: animatable("#f2a13cff"),
+    widthMeters: animatable(6_000),
+    altitudeMeters: animatable(0),
+    arcMeters: animatable(0),
+    progressStart: animatable(0),
+    progressEnd: animatable(1),
+    curtainOpacity: animatable(0.22),
+  },
+  propertySchema: Route3dPropsSchema,
+  properties: [
+    ...COMMON_PROPERTIES,
+    property({
+      path: "props.pathId",
+      label: "Caminho",
+      kind: "text",
+      group: "content",
+      binding: "animatable",
+      animatable: false,
+    }),
+    property({
+      path: "props.color",
+      label: "Cor",
+      kind: "color",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+    }),
+    property({
+      path: "props.widthMeters",
+      label: "Espessura (m)",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 1,
+      step: 500,
+      unit: "meters",
+    }),
+    property({
+      path: "props.altitudeMeters",
+      label: "Altitude",
+      kind: "number",
+      group: "layout",
+      binding: "animatable",
+      animatable: true,
+      step: 1000,
+      unit: "meters",
+    }),
+    property({
+      path: "props.arcMeters",
+      label: "Ápice do arco",
+      kind: "number",
+      group: "layout",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      step: 1000,
+      unit: "meters",
+    }),
+    property({
+      path: "props.progressStart",
+      label: "Início do trecho",
+      kind: "number",
+      group: "content",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      unit: "ratio",
+    }),
+    property({
+      path: "props.progressEnd",
+      label: "Fim do trecho",
+      kind: "number",
+      group: "content",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      unit: "ratio",
+    }),
+    property({
+      path: "props.curtainOpacity",
+      label: "Cortina até o terreno",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      unit: "percent",
+    }),
+  ],
+  supportsChildren: false,
+  defaultAnchorSpace: "geo",
+  defaultSizeMode: "screen",
+});
+
 export const BUILTIN_NODE_TYPE_IDS = Object.freeze([
   "group",
   "null",
@@ -830,6 +973,7 @@ export const BUILTIN_NODE_TYPE_IDS = Object.freeze([
   "unit.armor",
   "unit.infantry",
   "model3d",
+  "route3d",
 ] as const);
 
 export type BuiltinNodeType = (typeof BUILTIN_NODE_TYPE_IDS)[number];
@@ -849,6 +993,7 @@ export const BUILTIN_NODE_TYPES: readonly NodeTypeDefinition[] = Object.freeze([
   UNIT_ARMOR_NODE_TYPE,
   UNIT_INFANTRY_NODE_TYPE,
   MODEL3D_NODE_TYPE,
+  ROUTE3D_NODE_TYPE,
 ]);
 
 export function createBuiltinNodeTypeRegistry(): NodeTypeRegistry {

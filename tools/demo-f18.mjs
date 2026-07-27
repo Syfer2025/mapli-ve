@@ -32,6 +32,14 @@ const WAYPOINTS = [
   [37.6176, 55.7558],
 ];
 
+/** [lng, lat] — Kaliningrado → Kiev, o par de lançamento do arco balístico. */
+const MISSILE_LAUNCH = [20.5106, 54.7104];
+const MISSILE_IMPACT = [30.5234, 50.4501];
+
+/** Altitude de cruzeiro do caça e ápice do míssil, em metros. */
+const CRUISE_ALTITUDE = 90_000;
+const BALLISTIC_APEX = 260_000;
+
 async function pageTarget() {
   let response;
   try {
@@ -151,7 +159,7 @@ const atFrame = async (frame) => {
 const waitModel3d = async (minLoaded) => {
   const deadline = Date.now() + 60000;
   while (Date.now() < deadline) {
-    const surface = window.__theatrumModel3d;
+    const surface = window.__theatrumScene3d;
     if (surface) {
       const status = surface.status();
       if (status.loaded >= minLoaded) return status;
@@ -178,67 +186,97 @@ async function waitForRenderer(client) {
   throw new Error("editor não ficou pronto a tempo");
 }
 
-/** Monta o cenário (idempotente: reutiliza um cenário demo já existente). */
+/**
+ * Monta o cenário. Idempotente por objeto, não por cenário: um bloco novo do
+ * demo entra numa sessão que já tem os antigos, em vez de ser engolido por um
+ * `return` de reuso lá no começo.
+ */
 async function setupScenario(client) {
   return client.evaluate(`(async()=>{
     const S = session();
     const actions = S.actions;
     const snap0 = S.getSnapshot();
-    const comp = snap0.document.compositions.find((c) => c.id === snap0.selectedCompositionId);
+    const compId = snap0.selectedCompositionId;
+    const comp = snap0.document.compositions.find((c) => c.id === compId);
     if (!comp) throw new Error('sem composição selecionada');
     const duration = comp.duration;
     const waypoints = ${JSON.stringify(WAYPOINTS)};
-
-    const existing = Object.values(comp.nodes).find((n) => n.name === 'F/A-18F Super Hornet');
-    if (existing !== undefined) {
-      return { reused: true, nodeId: existing.id, duration };
-    }
-
-    // 1. Asset: o GLB servido pelo Vite entra na Biblioteca (dedupe por hash).
-    const before = new Set(snap0.document.assets.map((a) => a.src));
-    const response = await fetch('/models/fa-18f.glb');
-    if (!response.ok) throw new Error('GLB não servido pelo dev server: ' + response.status);
-    const bytes = await response.arrayBuffer();
-    await actions.importAssetFiles([
-      new File([bytes], 'fa-18f-super-hornet.glb', { type: 'model/gltf-binary' }),
-    ]);
-    const snap1 = S.getSnapshot();
-    const asset =
-      snap1.document.assets.find((a) => !before.has(a.src) && a.kind === 'model') ??
-      snap1.document.assets.find((a) => a.kind === 'model');
-    if (!asset) throw new Error('asset do modelo não entrou no documento');
-
-    // 2. Nó model3d com o asset aplicado.
-    const nodeId = actions.addNodeOfType('model3d');
-    if (!nodeId) throw new Error('addNodeOfType model3d falhou');
-    actions.renameNode(nodeId, 'F/A-18F Super Hornet');
-    if (!actions.setPropertyValue(nodeId, 'props.assetId', asset.src)) {
-      throw new Error('props.assetId não aceitou o src do asset');
-    }
-    actions.setPropertyValue(nodeId, 'props.scaleMeters', 160000);
-    // Altitude real no mundo: sem ela o modelo fica colado no terreno (parece
-    // recorte 2D em qualquer pitch). A 90 km a câmera baixa enxerga o ventre,
-    // a fuselagem e as deriva — o volume 3D de verdade.
-    actions.setPropertyValue(nodeId, 'props.altitudeMeters', 90000);
-
-    // 3. Rota curva: catmull-rom geo pelos cinco pontos — nada de reta.
-    const pathId = actions.createPath({
-      name: 'Rota Kiev → Moscou',
-      space: 'geo',
-      interpolation: 'catmull-rom',
-      vertices: waypoints.map((point) => ({ point, inHandle: null, outHandle: null })),
-    });
-    if (!pathId) throw new Error('createPath falhou');
-    const behaviorId = actions.assignMotionPath(nodeId, pathId, { from: 0, to: duration });
-    if (!behaviorId) throw new Error('assignMotionPath falhou');
-
-    // 4. Marcadores: círculos geo-ancorados. Passagens (amarelo) aparecem no
-    //    instante da passada; extremidades (ciano/vermelho) sempre visíveis.
     const bus = S.commandBus;
-    const compId = snap0.selectedCompositionId;
     const kf = (id, frame, value) => ({
       id, frame, value, in: { kind: 'linear' }, out: { kind: 'linear' },
     });
+    /** Keyframes de uma propriedade: [[frame, valor], ...]. */
+    const setKeyframes = (nodeId, path, entries) => {
+      for (const [frame, value] of entries) {
+        bus.dispatch({
+          type: 'keyframe.set',
+          payload: {
+            compositionId: compId,
+            target: { kind: 'node', nodeId },
+            path,
+            keyframe: kf('kf_demo_' + nodeId + '_' + path.join('.') + '_' + frame, frame, value),
+          },
+          source: 'user',
+        });
+      }
+    };
+    const nodes = () =>
+      Object.values(S.getSnapshot().document.compositions.find((c) => c.id === compId).nodes);
+    const nodeNamed = (name) => nodes().find((n) => n.name === name);
+    const pathNamed = (name) =>
+      Object.values(S.getSnapshot().document.paths).find((p) => p.name === name);
+
+    const created = [];
+    const aircraftName = 'F/A-18F Super Hornet';
+    const routeName = 'Rota Kiev → Moscou';
+    let nodeId = nodeNamed(aircraftName)?.id ?? null;
+    let pathId = pathNamed(routeName)?.id ?? null;
+    const reused = nodeId !== null;
+
+    if (nodeId === null) {
+      // 1. Asset: o GLB servido pelo Vite entra na Biblioteca (dedupe por hash).
+      const before = new Set(snap0.document.assets.map((a) => a.src));
+      const response = await fetch('/models/fa-18f.glb');
+      if (!response.ok) throw new Error('GLB não servido pelo dev server: ' + response.status);
+      const bytes = await response.arrayBuffer();
+      await actions.importAssetFiles([
+        new File([bytes], 'fa-18f-super-hornet.glb', { type: 'model/gltf-binary' }),
+      ]);
+      const snap1 = S.getSnapshot();
+      const asset =
+        snap1.document.assets.find((a) => !before.has(a.src) && a.kind === 'model') ??
+        snap1.document.assets.find((a) => a.kind === 'model');
+      if (!asset) throw new Error('asset do modelo não entrou no documento');
+
+      // 2. Nó model3d com o asset aplicado.
+      nodeId = actions.addNodeOfType('model3d');
+      if (!nodeId) throw new Error('addNodeOfType model3d falhou');
+      actions.renameNode(nodeId, aircraftName);
+      if (!actions.setPropertyValue(nodeId, 'props.assetId', asset.src)) {
+        throw new Error('props.assetId não aceitou o src do asset');
+      }
+      actions.setPropertyValue(nodeId, 'props.scaleMeters', 160000);
+      // Altitude real no mundo: sem ela o modelo fica colado no terreno (parece
+      // recorte 2D em qualquer pitch). A 90 km a câmera baixa enxerga o ventre,
+      // a fuselagem e as deriva — o volume 3D de verdade.
+      actions.setPropertyValue(nodeId, 'props.altitudeMeters', ${CRUISE_ALTITUDE});
+      created.push('model3d');
+
+      // 3. Rota curva: catmull-rom geo pelos cinco pontos — nada de reta.
+      pathId = actions.createPath({
+        name: routeName,
+        space: 'geo',
+        interpolation: 'catmull-rom',
+        vertices: waypoints.map((point) => ({ point, inHandle: null, outHandle: null })),
+      });
+      if (!pathId) throw new Error('createPath falhou');
+      const behaviorId = actions.assignMotionPath(nodeId, pathId, { from: 0, to: duration });
+      if (!behaviorId) throw new Error('assignMotionPath falhou');
+      created.push('path');
+    }
+
+    // 4. Marcadores: círculos geo-ancorados. Passagens (amarelo) aparecem no
+    //    instante da passada; extremidades (ciano/vermelho) sempre visíveis.
     let markerSeq = 0;
     const marker = (point, color, stroke, radius, appearFrame) => {
       const id = actions.addNodeOfType('shape.circle');
@@ -267,14 +305,72 @@ async function setupScenario(client) {
       return id;
     };
 
-    marker(waypoints[0], '#38bdf8cc', '#7dd3fcff', 10, null);
-    marker(waypoints[4], '#ef4444cc', '#f87171ff', 10, null);
-    for (const index of [1, 2, 3]) {
-      const frame = Math.round((duration * index) / 4);
-      marker(waypoints[index], '#facc15aa', '#fde047ff', 13, frame);
+    if (!reused) {
+      marker(waypoints[0], '#38bdf8cc', '#7dd3fcff', 10, null);
+      marker(waypoints[4], '#ef4444cc', '#f87171ff', 10, null);
+      for (const index of [1, 2, 3]) {
+        const frame = Math.round((duration * index) / 4);
+        marker(waypoints[index], '#facc15aa', '#fde047ff', 13, frame);
+      }
     }
 
-    return { reused: false, nodeId, pathId, assetId: asset.id, duration };
+    // 5. Rota 3D do caça: o MESMO caminho do motion-path, desenhado como tubo
+    //    volumétrico na altitude de cruzeiro. \`progressEnd\` animado de 0 a 1 faz
+    //    a rota se desenhar atrás da aeronave em vez de já estar toda lá — e a
+    //    cortina até o terreno é o que amarra os 90 km de altitude ao mapa.
+    const aircraftRouteName = 'Rota 3D · caça';
+    if (pathId !== null && nodeNamed(aircraftRouteName) === undefined) {
+      const routeId = actions.addNodeOfType('route3d');
+      if (!routeId) throw new Error('addNodeOfType route3d falhou');
+      actions.renameNode(routeId, aircraftRouteName);
+      if (!actions.setPropertyValue(routeId, 'props.pathId', pathId)) {
+        throw new Error('props.pathId não aceitou o caminho');
+      }
+      actions.setPropertyValue(routeId, 'props.altitudeMeters', ${CRUISE_ALTITUDE});
+      actions.setPropertyValue(routeId, 'props.widthMeters', 11000);
+      actions.setPropertyValue(routeId, 'props.color', '#f2a13cff');
+      actions.setPropertyValue(routeId, 'props.curtainOpacity', 0.22);
+      setKeyframes(routeId, ['props', 'progressEnd'], [[0, 0], [duration, 1]]);
+      created.push('route3d/caça');
+    }
+
+    // 6. Rota balística do míssil: geodésica de dois pontos com ápice de 260 km.
+    //    É o caso que denuncia rota chapada — uma parábola só existe se a rota
+    //    tiver altura de verdade. Desenha no primeiro terço da composição.
+    const missilePathName = 'Trajetória Kaliningrado → Kiev';
+    const missileRouteName = 'Rota 3D · míssil';
+    let missilePathId = pathNamed(missilePathName)?.id ?? null;
+    if (missilePathId === null) {
+      missilePathId = actions.createPath({
+        name: missilePathName,
+        space: 'geo',
+        interpolation: 'linear',
+        geodesic: true,
+        vertices: [${JSON.stringify(MISSILE_LAUNCH)}, ${JSON.stringify(MISSILE_IMPACT)}].map(
+          (point) => ({ point, inHandle: null, outHandle: null }),
+        ),
+      });
+      if (!missilePathId) throw new Error('createPath do míssil falhou');
+      created.push('path/míssil');
+    }
+    if (nodeNamed(missileRouteName) === undefined) {
+      const missileRouteId = actions.addNodeOfType('route3d');
+      if (!missileRouteId) throw new Error('addNodeOfType route3d (míssil) falhou');
+      actions.renameNode(missileRouteId, missileRouteName);
+      actions.setPropertyValue(missileRouteId, 'props.pathId', missilePathId);
+      actions.setPropertyValue(missileRouteId, 'props.arcMeters', ${BALLISTIC_APEX});
+      actions.setPropertyValue(missileRouteId, 'props.widthMeters', 9000);
+      actions.setPropertyValue(missileRouteId, 'props.color', '#ef4444ff');
+      actions.setPropertyValue(missileRouteId, 'props.curtainOpacity', 0.18);
+      setKeyframes(
+        missileRouteId,
+        ['props', 'progressEnd'],
+        [[0, 0], [Math.round(duration / 3), 1]],
+      );
+      created.push('route3d/míssil');
+    }
+
+    return { reused, created, nodeId, pathId, missilePathId, duration };
   })()`);
 }
 
@@ -353,8 +449,13 @@ async function main() {
     const scenario = await setupScenario(client);
     console.log(
       scenario.reused
-        ? `Cenário demo já existia — reutilizado (nó ${scenario.nodeId}).`
-        : `Cenário montado: asset ${scenario.assetId}, nó ${scenario.nodeId}, caminho ${scenario.pathId}.`,
+        ? `Aeronave reaproveitada da sessão (nó ${scenario.nodeId}).`
+        : `Aeronave montada: nó ${scenario.nodeId}, caminho ${scenario.pathId}.`,
+    );
+    console.log(
+      scenario.created.length === 0
+        ? "Nada novo a criar — cenário já completo."
+        : `Criado neste passe: ${scenario.created.join(", ")}.`,
     );
 
     const { countriesUrl } = await setupMap(client);

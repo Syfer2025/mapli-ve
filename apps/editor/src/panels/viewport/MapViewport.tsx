@@ -28,7 +28,7 @@ import {
 import { Button } from "../../ui/index.js";
 import { createMapLibreCameraPort } from "./maplibre-adapters.js";
 import { createMapStyle, MAP_STYLE_OPTIONS, type MapStyleId } from "./map-styles.js";
-import { attachModel3dLayer, detachModel3dLayer } from "./model3d-layer.js";
+import { attachScene3dLayer, detachScene3dLayer } from "./scene3d-layer.js";
 import { loadNaturalEarthGazetteer } from "./natural-earth-gazetteer.js";
 import { SceneOverlay } from "./SceneOverlay.js";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -250,7 +250,7 @@ export function MapViewport(): ReactNode {
     };
     // Camada 3D volta a cada setStyle: trocar de estilo descarta custom layers.
     const onStyleLoad = (): void => {
-      attachModel3dLayer(map);
+      attachScene3dLayer(map);
     };
     const onError = (event: { readonly error?: Error }): void => {
       const message = event.error?.message ?? "falha desconhecida";
@@ -274,7 +274,7 @@ export function MapViewport(): ReactNode {
       map.off("styledata", onStyleData);
       map.off("style.load", onStyleLoad);
       map.off("error", onError);
-      detachModel3dLayer(map);
+      detachScene3dLayer(map);
       map.remove();
       mapRef.current = null;
       setMapInstance(null);

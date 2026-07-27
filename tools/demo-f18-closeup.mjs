@@ -55,7 +55,7 @@ const center = await evaluate(`(async()=>{
   const deadline = Date.now() + 8000;
   let ndc = null;
   while (Date.now() < deadline) {
-    const status = window.__theatrumModel3d.status();
+    const status = window.__theatrumScene3d.status();
     if (status.ndc && status.loaded >= 1) { ndc = status.ndc; break; }
     await new Promise((r) => setTimeout(r, 150));
   }

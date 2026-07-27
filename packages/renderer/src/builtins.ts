@@ -174,6 +174,7 @@ export const BUILTIN_RENDERABLE_TYPES = [
   "unit.armor",
   "unit.infantry",
   "model3d",
+  "route3d",
 ] as const;
 
 const BUILTIN_EVALUATORS: Readonly<
@@ -195,9 +196,12 @@ const BUILTIN_EVALUATORS: Readonly<
   "symbol.icon": iconVisual,
   "unit.armor": armorVisual,
   "unit.infantry": infantryVisual,
-  // Modelo 3D não tem primitiva Pixi: quem desenha é a camada Three.js do
-  // viewport, direto no canvas do MapLibre.
+  // Modelo 3D e rota 3D não têm primitiva Pixi: quem desenha é a camada
+  // Three.js do viewport, direto no canvas do MapLibre. Uma rota tem altitude e
+  // volume, então não cabe no overlay 2D — o lugar dela é o depth buffer da
+  // cena 3D, junto do modelo que a percorre.
   model3d: noVisual,
+  route3d: noVisual,
 };
 
 /**

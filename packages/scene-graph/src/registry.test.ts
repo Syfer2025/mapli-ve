@@ -42,9 +42,9 @@ function rootNode(): Node {
 }
 
 describe("builtin node type registry", () => {
-  it("registra exatamente os catorze tipos base em ordem explícita", () => {
+  it("registra exatamente os quinze tipos base em ordem explícita", () => {
     const registry = createBuiltinNodeTypeRegistry();
-    expect(registry.size).toBe(14);
+    expect(registry.size).toBe(15);
     expect(registry.list().map((item) => item.type)).toEqual(BUILTIN_NODE_TYPE_IDS);
     expect(BUILTIN_NODE_TYPES.map((item) => item.type)).toEqual(BUILTIN_NODE_TYPE_IDS);
   });
@@ -75,6 +75,49 @@ describe("builtin node type registry", () => {
       stroke: { value: "#60a5faff", keyframes: [], expression: null },
       strokeWidth: { value: 2, keyframes: [], expression: null },
     });
+  });
+
+  /**
+   * Os caminhos deste tipo são contrato com a camada 3D do viewport
+   * (`scene3d-layer.ts` lê `props.pathId`, `props.arcMeters` e companhia por
+   * nome). Renomear uma prop aqui e esquecer lá não quebra tipagem — a rota só
+   * some da tela. Este teste é o que transforma isso em falha de build.
+   */
+  it("expõe route3d com as props que a camada 3D lê por nome", () => {
+    const registry = createBuiltinNodeTypeRegistry();
+    const definition = registry.get("route3d");
+    expect(definition?.label).toBe("Rota 3D");
+    expect(definition?.category).toBe("geo");
+    expect(definition?.defaultAnchorSpace).toBe("geo");
+    expect(
+      definition?.properties
+        .map((descriptor) => descriptor.path)
+        .filter((path) => path.startsWith("props.")),
+    ).toEqual([
+      "props.pathId",
+      "props.color",
+      "props.widthMeters",
+      "props.altitudeMeters",
+      "props.arcMeters",
+      "props.progressStart",
+      "props.progressEnd",
+      "props.curtainOpacity",
+    ]);
+    expect(registry.createDefaultProps("route3d")).toEqual({
+      pathId: { value: "", keyframes: [], expression: null },
+      color: { value: "#f2a13cff", keyframes: [], expression: null },
+      widthMeters: { value: 6_000, keyframes: [], expression: null },
+      altitudeMeters: { value: 0, keyframes: [], expression: null },
+      arcMeters: { value: 0, keyframes: [], expression: null },
+      progressStart: { value: 0, keyframes: [], expression: null },
+      progressEnd: { value: 1, keyframes: [], expression: null },
+      curtainOpacity: { value: 0.22, keyframes: [], expression: null },
+    });
+    // `pathId` referencia um caminho do projeto: animar isso não significa nada
+    // e viraria trilha morta na Timeline.
+    expect(
+      definition?.properties.find((descriptor) => descriptor.path === "props.pathId")?.animatable,
+    ).toBe(false);
   });
 
   it("lista por categoria sem expor o array interno", () => {

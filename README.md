@@ -15,12 +15,14 @@ _theatrum belli_ — teatro de operações.
 
 ## Estado atual
 
-**Bloco 7A+ — Preview 3D concluído (2026-07-27): modelos GLB/glTF da
-Biblioteca renderizam no mapa via camada Three.js e voam por `motion-path` —
-demo F/A-18F Kiev→Moscou em `tools/demo-f18.mjs`. Replanejamento vigente:
-explosões, tanques e elementos 3D entram como assets importados, não
-procedurais. Próximo: bloco 7B — contornos, estados e estradas; depois 7C
-(rotas e setas) e 7D (textos no mapa).**
+**Bloco 7A++ — 3D de verdade no viewport (2026-07-27): a camada Three.js
+renderiza modelos GLB/glTF **com volume** e rotas como tubo volumétrico em
+altitude. Três defeitos que faziam tudo parecer adesivo colado no mapa foram
+corrigidos de uma vez — ver "O que era o 3D chapado" abaixo. Demo F/A-18F
+Kiev→Moscou mais arco balístico Kaliningrado→Kiev em `tools/demo-f18.mjs`.
+Replanejamento vigente: explosões, tanques e elementos 3D entram como assets
+importados, não procedurais. Próximo: bloco 7B — contornos, estados e estradas;
+depois 7C (setas de avanço) e 7D (textos no mapa).**
 
 O monorepo, os guardrails arquiteturais, o núcleo matemático/temporal, o shell
 Electron e o workspace dockável estão implementados. O viewport já é um painel
@@ -28,7 +30,7 @@ real: MapLibre + PMTiles offline, três estilos, busca geográfica e câmera
 animável com transporte. O documento possui schemas Zod, Command Bus com
 undo/redo, projeto `.theatrum` determinístico, escrita atômica, autosave com
 recuperação de crash e painéis reais de Projeto e Histórico. Agora há objetos de
-verdade sobre o mapa: treze tipos de nó no registry, overlay Pixi com âncoras geo
+verdade sobre o mapa: quinze tipos de nó no registry, overlay Pixi com âncoras geo
 e comp, seleção por clique/marquee, gizmos de mover/rotacionar/escalar, timeline
 em canvas com trilhas, keyframes, marcadores, zoom e snap, e um Inspector gerado
 a partir de `PropertyDescriptor[]`. Os painéis das fases seguintes continuam como
@@ -50,10 +52,47 @@ caminho de arquivo externo. O bloco 7A+ ligou os modelos 3D ao mapa: tipo de nó
 rumo vindos da cena avaliada, incluindo `motion-path` em `geo-bearing`), GLTF
 carregado por `parse` de buffer com texturas embutidas (a CSP libera `blob:` em
 `connect-src` para o decodificador do three), iluminação por environment map
-(`RoomEnvironment` + tone mapping ACES) e a prova de conceito completa com o
-F/A-18F do usuário voando de Kiev a Moscou a 90 km de altitude em rota curva
-com marcadores de passagem — com `altitudeMeters` e câmera baixa o modelo
-aparece com volume 3D real (ventre, fuselagem, deriva), não só o topo das asas.
+(`RoomEnvironment` + tone mapping ACES) e a prova de conceito com o F/A-18F do
+usuário voando de Kiev a Moscou em rota curva com marcadores de passagem. O bloco
+7A++ consertou o que estava errado nesse caminho e acrescentou o tipo de nó
+`route3d`: rota traçada a partir do mesmo caminho compartilhado que o
+`motion-path` percorre, como tubo com raio em metros, perfil de altitude com
+ápice senoidal (voo de cruzeiro é ápice zero; míssil balístico é ápice grande),
+desenho progressivo animável por `progressStart`/`progressEnd` e cortina vertical
+até o terreno.
+
+### O que era o 3D chapado
+
+Três defeitos somados, do mais grave ao menos:
+
+1. **Matriz errada — o modelo era literalmente prensado.** A camada usava
+   `args.modelViewProjectionMatrix` supondo que o z dela fosse "pixels mercator".
+   Não é: o `_calcMatrices` do MapLibre monta essa matriz com
+   `scale(m, m, [1, 1, _pixelPerMeter])`, ou seja o **z de entrada é em metros**.
+   Passar `coordinate.z * worldSize` fazia `pixelsPerMeter` entrar duas vezes e a
+   escala vertical sair ~2000× menor que a horizontal. O GLB virava um plano e
+   90 km de altitude viravam centímetros. A saída certa é
+   `args.defaultProjectionData.mainMatrix`, que a própria doc do MapLibre garante
+   ser conformal em z: "uma caixa com x, y e z iguais em unidades mercator
+   renderiza como um cubo". Espaço isotrópico traz de brinde matriz de normais
+   correta (logo iluminação correta) e geometria independente do zoom.
+2. **Depth test desligado — sem auto-oclusão.** Os materiais recebiam
+   `depthTest = false` para não perder a metade de baixo contra o depth buffer do
+   mapa. O efeito colateral era pintar todos os triângulos na ordem do buffer: a
+   asa de trás cobria a fuselagem, o bocal do motor cobria a asa. O correto é
+   manter o teste ligado e **limpar a profundidade** no início do render da
+   camada — a cena 3D fica com o buffer inteiro, continua por cima do mapa, e
+   cada fragmento é testado contra os outros dela. Modelo e rota compartilham o
+   buffer, então se ocluem entre si.
+3. **Iluminação lavada.** `RoomEnvironment` em intensidade cheia é um estúdio
+   branco, e a luz chave era quase zenital — num objeto horizontal visto de cima,
+   N·L igual em toda a superfície. Agora o environment entra a 0,4 e a chave é
+   rasante, com preenchimento frio do lado oposto.
+
+As rotas, por sua vez, não eram 3D em nenhum sentido: eram traçadas com
+`map.project()` num canvas 2D, no nível do terreno. Passaram para a camada 3D. A
+polilinha 2D continua existindo como **guia de autoria** — tracejada, e só para
+caminho que ainda não tem `route3d` montado.
 
 | Fase | Escopo                                    | Estado       |
 | ---: | ----------------------------------------- | ------------ |
@@ -66,8 +105,9 @@ aparece com volume 3D real (ventre, fuselagem, deriva), não só o topo das asas
 |    6 | Efeitos e partículas (congelada)          | ✅ concluída |
 |   7A | Biblioteca de ativos (import)             | ✅ concluída |
 |  7A+ | Preview 3D no viewport (model3d)          | ✅ concluída |
+| 7A++ | 3D com volume + rotas 3D (route3d)        | ✅ concluída |
 |   7B | Camadas geo: contornos, estados, estradas | ⏭️ próxima   |
-|   7C | Rotas e setas de avanço                   | ⬜           |
+|   7C | Setas de avanço e frente de batalha       | ⬜           |
 |   7D | Textos e rótulos no mapa                  | ⬜           |
 |    7 | Ações / simulações                        | ⬜           |
 |    8 | Exportação                                | ⬜           |
