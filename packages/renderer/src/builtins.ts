@@ -76,6 +76,42 @@ const polygonVisual: VisualEvaluator<Props> = (node) => {
   };
 };
 
+/**
+ * Anéis vêm em `props.rings`, já projetados em pixels de tela relativos à origem
+ * do nó. Quem projeta é o aplicativo, no mesmo passe que expande efeitos: o
+ * renderer não conhece geografia nem câmera.
+ *
+ * Sem `rings` o nó desenha nada em vez de um contorno inventado — região cujo
+ * `geoId` não resolveu tem de sumir, não virar um triângulo no meio do mapa.
+ */
+function ringsProp(props: Props, key: string): readonly (readonly Vec2[])[] {
+  const value = rawProp(props, key);
+  if (!Array.isArray(value)) return [];
+  const rings: (readonly Vec2[])[] = [];
+  for (const candidate of value) {
+    if (!Array.isArray(candidate)) continue;
+    const ring = pointsProp({ ring: candidate } as unknown as Props, "ring", []);
+    if (ring.length >= 2) rings.push(ring);
+  }
+  return Object.freeze(rings);
+}
+
+const geoShapeVisual: VisualEvaluator<Props> = (node) => {
+  const fill = splitHexAlpha(stringProp(node.props, "fill", "#38bdf83d"));
+  const stroke = splitHexAlpha(stringProp(node.props, "stroke", "#7dd3fcff"));
+  return {
+    kind: "geo-shape",
+    rings: ringsProp(node.props, "rings"),
+    // Rio manda `closed: false` explicitamente; região omite e fecha.
+    closed: rawProp(node.props, "closed") !== false,
+    fill: fill.color,
+    fillAlpha: unitProp(node.props, "fillAlpha", fill.alpha),
+    stroke: stroke.color,
+    strokeWidth: nonNegativeProp(node.props, "strokeWidth", 2),
+    strokeAlpha: unitProp(node.props, "strokeAlpha", stroke.alpha),
+  };
+};
+
 const iconVisual: VisualEvaluator<Props> = (node) => ({
   kind: "symbol",
   shape: enumProp(node.props, "shape", ["square", "diamond", "triangle", "circle"], "diamond"),
@@ -170,6 +206,8 @@ export const BUILTIN_RENDERABLE_TYPES = [
   "shape.line",
   "shape.polygon",
   "shape.circle",
+  "geo.region",
+  "geo.rivers",
   "symbol.icon",
   "unit.armor",
   "unit.infantry",
@@ -193,6 +231,9 @@ const BUILTIN_EVALUATORS: Readonly<
   "shape.line": lineVisual,
   "shape.polygon": polygonVisual,
   "shape.circle": circleVisual,
+  // Região e rio compartilham a primitiva: o que muda é `closed` nas props.
+  "geo.region": geoShapeVisual,
+  "geo.rivers": geoShapeVisual,
   "symbol.icon": iconVisual,
   "unit.armor": armorVisual,
   "unit.infantry": infantryVisual,

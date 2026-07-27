@@ -391,6 +391,7 @@ function ensureVisual(module: PixiModule, node: PixiNode, visual: VisualPrimitiv
       break;
     case "line":
     case "polygon":
+    case "geo-shape":
     case "circle":
     case "symbol":
       node.visual = new module.Graphics();
@@ -459,6 +460,30 @@ function updateVisual(
         if (point !== undefined) graphics.lineTo(point[0], point[1]);
       }
       graphics.stroke({ color: visual.color, width: visual.width });
+      return;
+    }
+
+    case "geo-shape": {
+      const graphics = node.visual as Graphics;
+      graphics.clear();
+      graphics.position.set(placement.position[0], placement.position[1]);
+      // Um caminho por anel, e preenchimento e traço aplicados por anel: no Pixi 8
+      // o `fill` consome os caminhos pendentes, então acumular todos os anéis
+      // antes de preencher funde ilhas separadas num polígono só.
+      for (const ring of visual.rings) {
+        if (ring.length < 2) continue;
+        graphics.poly(flattenPoints(ring), visual.closed);
+        if (visual.closed && visual.fillAlpha > 0) {
+          graphics.fill({ color: visual.fill, alpha: visual.fillAlpha });
+        }
+        if (visual.strokeWidth > 0 && visual.strokeAlpha > 0) {
+          graphics.stroke({
+            color: visual.stroke,
+            width: visual.strokeWidth,
+            alpha: visual.strokeAlpha,
+          });
+        }
+      }
       return;
     }
 

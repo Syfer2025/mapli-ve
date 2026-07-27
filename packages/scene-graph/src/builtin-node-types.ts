@@ -13,6 +13,7 @@ const NumberPropertySchema = animatablePropertySchema(z.number().finite());
 const PositiveNumberPropertySchema = animatablePropertySchema(z.number().finite().positive());
 const NonNegativeNumberPropertySchema = animatablePropertySchema(z.number().finite().nonnegative());
 const ColorPropertySchema = animatablePropertySchema(ColorSchema);
+const UnitNumberPropertySchema = animatablePropertySchema(z.number().finite().min(0).max(1));
 
 const COMMON_PROPERTIES: readonly PropertyDescriptor[] = Object.freeze([
   {
@@ -299,6 +300,28 @@ const Model3dPropsSchema = z
     altitudeMeters: NumberPropertySchema,
     /** Correção do eixo do nariz do modelo, somada ao rumo do caminho. */
     headingOffset: NumberPropertySchema,
+  })
+  .passthrough();
+
+/**
+ * Região e rio compartilham as props porque compartilham a primitiva. O que muda
+ * é o padrão: região fecha e preenche, rio só traça.
+ *
+ * Preenchimento e contorno são **independentes de propósito**. `fillAlpha: 0` dá
+ * só contorno; `strokeWidth: 0` dá só área pintada. Nenhum dos dois é o modo
+ * canônico — mapa de guerra usa os dois, às vezes no mesmo nó ao longo do tempo.
+ * O brilho neon em volta não é prop: é o filtro `glow` da Fase 6, que funciona
+ * aqui porque o nó tem contêiner Pixi próprio (ver ADR-009).
+ */
+const GeoShapePropsSchema = z
+  .object({
+    /** Identidade na malha compilada, como `c:UKR` ou `s:BR-PR`. */
+    geoId: StringPropertySchema,
+    fill: ColorPropertySchema,
+    fillAlpha: UnitNumberPropertySchema,
+    stroke: ColorPropertySchema,
+    strokeWidth: NonNegativeNumberPropertySchema,
+    strokeAlpha: UnitNumberPropertySchema,
   })
   .passthrough();
 
@@ -850,6 +873,117 @@ export const MODEL3D_NODE_TYPE = defineNodeType({
  * A âncora do nó não posiciona nada (o caminho já é geográfico) e existe só
  * porque todo nó tem uma; `transform.opacity` é respeitado.
  */
+/** Descriptors compartilhados por região e rio: cor e opacidade separadas. */
+const GEO_SHAPE_PROPERTIES: readonly PropertyDescriptor[] = Object.freeze([
+  property({
+    path: "props.geoId",
+    label: "Território",
+    kind: "text",
+    group: "content",
+    binding: "animatable",
+    animatable: false,
+  }),
+  property({
+    path: "props.fill",
+    label: "Preenchimento",
+    kind: "color",
+    group: "appearance",
+    binding: "animatable",
+    animatable: true,
+  }),
+  property({
+    path: "props.fillAlpha",
+    label: "Opacidade do preenchimento",
+    kind: "number",
+    group: "appearance",
+    binding: "animatable",
+    animatable: true,
+    min: 0,
+    max: 1,
+    step: 0.01,
+    unit: "percent",
+  }),
+  property({
+    path: "props.stroke",
+    label: "Cor do contorno",
+    kind: "color",
+    group: "appearance",
+    binding: "animatable",
+    animatable: true,
+  }),
+  property({
+    path: "props.strokeWidth",
+    label: "Espessura do contorno",
+    kind: "number",
+    group: "appearance",
+    binding: "animatable",
+    animatable: true,
+    min: 0,
+    step: 0.5,
+    unit: "px",
+  }),
+  property({
+    path: "props.strokeAlpha",
+    label: "Opacidade do contorno",
+    kind: "number",
+    group: "appearance",
+    binding: "animatable",
+    animatable: true,
+    min: 0,
+    max: 1,
+    step: 0.01,
+    unit: "percent",
+  }),
+]);
+
+/**
+ * País, estado ou província como nó do documento — não decoração do basemap.
+ *
+ * A âncora é geográfica e nasce no centro da caixa envolvente do território: os
+ * anéis chegam projetados **relativos a ela**, então mover, girar ou escalar a
+ * região funciona como em qualquer outro nó.
+ */
+export const GEO_REGION_NODE_TYPE = defineNodeType({
+  type: "geo.region",
+  category: "geo",
+  label: "Território",
+  icon: "map",
+  defaultProps: {
+    geoId: animatable(""),
+    fill: animatable("#38bdf83d"),
+    fillAlpha: animatable(0.24),
+    stroke: animatable("#7dd3fcff"),
+    strokeWidth: animatable(2),
+    strokeAlpha: animatable(1),
+  },
+  propertySchema: GeoShapePropsSchema,
+  properties: [...COMMON_PROPERTIES, ...GEO_SHAPE_PROPERTIES],
+  supportsChildren: false,
+  defaultAnchorSpace: "geo",
+  defaultSizeMode: "screen",
+});
+
+/** Rio: mesma primitiva, anel aberto e sem preenchimento por padrão. */
+export const GEO_RIVERS_NODE_TYPE = defineNodeType({
+  type: "geo.rivers",
+  category: "geo",
+  label: "Rio",
+  icon: "waves",
+  defaultProps: {
+    geoId: animatable(""),
+    fill: animatable("#00000000"),
+    fillAlpha: animatable(0),
+    stroke: animatable("#60a5faff"),
+    strokeWidth: animatable(1.5),
+    strokeAlpha: animatable(0.9),
+  },
+  propertySchema: GeoShapePropsSchema,
+  properties: [...COMMON_PROPERTIES, ...GEO_SHAPE_PROPERTIES],
+  supportsChildren: false,
+  defaultAnchorSpace: "geo",
+  defaultSizeMode: "screen",
+});
+
 export const ROUTE3D_NODE_TYPE = defineNodeType({
   type: "route3d",
   category: "geo",
@@ -969,6 +1103,8 @@ export const BUILTIN_NODE_TYPE_IDS = Object.freeze([
   "shape.line",
   "shape.polygon",
   "shape.circle",
+  "geo.region",
+  "geo.rivers",
   "symbol.icon",
   "unit.armor",
   "unit.infantry",
@@ -989,6 +1125,8 @@ export const BUILTIN_NODE_TYPES: readonly NodeTypeDefinition[] = Object.freeze([
   SHAPE_LINE_NODE_TYPE,
   SHAPE_POLYGON_NODE_TYPE,
   SHAPE_CIRCLE_NODE_TYPE,
+  GEO_REGION_NODE_TYPE,
+  GEO_RIVERS_NODE_TYPE,
   SYMBOL_ICON_NODE_TYPE,
   UNIT_ARMOR_NODE_TYPE,
   UNIT_INFANTRY_NODE_TYPE,

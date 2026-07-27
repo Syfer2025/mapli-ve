@@ -258,6 +258,8 @@ function cloneVisual(visual: VisualPrimitive): VisualPrimitive {
       return { ...visual, points: clonePoints(visual.points) };
     case "polygon":
       return { ...visual, points: clonePoints(visual.points) };
+    case "geo-shape":
+      return { ...visual, rings: visual.rings.map(clonePoints) };
     case "circle":
       return { ...visual };
     case "symbol":

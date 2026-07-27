@@ -136,6 +136,30 @@ export interface PolygonPrimitive {
   readonly strokeWidth: number;
 }
 
+/**
+ * Geometria geográfica de muitos anéis, já projetada em pixels de tela relativos
+ * à origem do nó.
+ *
+ * Não dá para reaproveitar `PolygonPrimitive` porque ele tem **um** contorno, e um
+ * país é MultiPolygon: a Rússia tem cerca de cem anéis contando ilhas. Um nó por
+ * anel encheria a árvore de cem contêineres para desenhar um país, então a
+ * primitiva carrega a lista.
+ *
+ * `closed` separa os dois usos com a mesma estrutura: região fecha o anel e pode
+ * preencher, rio não fecha e só traça. Preenchimento e traço são independentes —
+ * `fillAlpha: 0` dá só contorno, `strokeWidth: 0` dá só preenchimento.
+ */
+export interface GeoShapePrimitive {
+  readonly kind: "geo-shape";
+  readonly rings: readonly (readonly Vec2[])[];
+  readonly closed: boolean;
+  readonly fill: string;
+  readonly fillAlpha: number;
+  readonly stroke: string;
+  readonly strokeWidth: number;
+  readonly strokeAlpha: number;
+}
+
 export interface CirclePrimitive {
   readonly kind: "circle";
   readonly radius: number;
@@ -201,6 +225,7 @@ export type VisualPrimitive =
   | ImagePrimitive
   | LinePrimitive
   | PolygonPrimitive
+  | GeoShapePrimitive
   | CirclePrimitive
   | SymbolPrimitive
   | ParticlesPrimitive;
