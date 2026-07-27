@@ -29,6 +29,8 @@ import { useEditorSession } from "../../document/useEditorSession.js";
 import { Button } from "../../ui/index.js";
 import { createMapLibreProjectorPort } from "./maplibre-adapters.js";
 import { collectModel3dNodes, collectRoute3dNodes, syncScene3dLayer } from "./scene3d-layer.js";
+import { expandGeoNodes, type GeoExpansion, type GeoViewport } from "./geo-nodes.js";
+import { onGeoLayerLoaded } from "../../geo/geo-data.js";
 import { expandParticleEffects, type ParticleExpansion } from "./particle-nodes.js";
 import {
   addVertex,
@@ -70,6 +72,32 @@ interface ProjectedPath {
   readonly vertices: readonly Vec2[];
 }
 
+/**
+ * Caixa visível e zoom, do mapa para o passe geográfico.
+ *
+ * A caixa ganha folga de dez por cento: descartar exatamente na borda faria o
+ * território piscar ao entrar em cena, e um contorno que aparece atrasado é pior
+ * que um projetado a mais.
+ */
+function geoViewportOf(map: MapLibreMap): GeoViewport {
+  const bounds = map.getBounds();
+  const west = bounds.getWest();
+  const east = bounds.getEast();
+  const south = bounds.getSouth();
+  const north = bounds.getNorth();
+  const padX = Math.abs(east - west) * 0.1;
+  const padY = Math.abs(north - south) * 0.1;
+  return {
+    zoom: map.getZoom(),
+    bounds: {
+      west: west - padX,
+      east: east + padX,
+      south: south - padY,
+      north: north + padY,
+    },
+  };
+}
+
 interface OverlayFrame {
   readonly composition: Composition;
   readonly evaluated: EvaluatedScene;
@@ -81,6 +109,7 @@ interface OverlayFrame {
   readonly particles: number;
   readonly filters: number;
   readonly mattes: number;
+  readonly geo: Omit<GeoExpansion, "scene">;
   readonly paths: readonly ProjectedPath[];
   readonly metrics: RenderMetrics;
 }
@@ -195,6 +224,8 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
   const [gizmoMode, setGizmoMode] = useState<GizmoMode>("position");
   const [penState, setPenState] = useState<PenState | null>(null);
   const [rendererStatus, setRendererStatus] = useState("preparando GPU…");
+  /** Incrementa quando uma camada geográfica chega, para refazer o frame. */
+  const [geoRevision, setGeoRevision] = useState(0);
 
   sessionRef.current = session;
   gizmoModeRef.current = gizmoMode;
@@ -342,8 +373,13 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
         });
         // Efeitos de partícula entram como nós sintéticos: um por instância,
         // logo depois do nó dono na ordem de desenho.
+        // Territórios e rios recebem a geometria projetada antes dos efeitos: o
+        // nó já existe no documento, o que falta é `props.rings`.
+        const geo = expandGeoNodes(composed, evaluated, layout, geoViewportOf(map), (lngLat) =>
+          projector.project([lngLat[0], lngLat[1]]),
+        );
         const particles = expandParticleEffects(
-          composed,
+          geo.scene,
           evaluated,
           layout,
           composition,
@@ -370,6 +406,13 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
           particles: particles.particles,
           filters: particles.filters,
           mattes: particles.mattes,
+          geo: {
+            diagnostics: geo.diagnostics,
+            drawn: geo.drawn,
+            culled: geo.culled,
+            vertices: geo.vertices,
+            level: geo.level,
+          },
           paths: projectPaths(
             session.document.paths,
             projector,
@@ -408,12 +451,20 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
   }, [
     map,
     cameraRevision,
+    geoRevision,
     session.document,
     session.playheadFrame,
     session.selectedCompositionId,
     session.selectedNodeIds,
     surfaceSize,
   ]);
+
+  /**
+   * A malha geográfica entra sob demanda, então o primeiro frame que pede um
+   * território ainda não tem geometria. Sem este gatilho o contorno só apareceria
+   * no próximo movimento de câmera — parecendo que o comando falhou.
+   */
+  useEffect(() => onGeoLayerLoaded(() => setGeoRevision((value) => value + 1)), []);
 
   useEffect(() => {
     if (map === null) return;
@@ -976,6 +1027,8 @@ interface SerializedDebugFrame {
   /** Passes de filtro e recortes ativos no frame. */
   readonly filters?: number;
   readonly mattes?: number;
+  /** Territórios desenhados, vértices projetados e nível de simplificação. */
+  readonly geo?: Omit<GeoExpansion, "scene">;
   /** Caminhos projetados neste frame, resumidos. */
   readonly paths?: readonly {
     readonly id: string;
@@ -1027,6 +1080,7 @@ function serializeDebugFrame(
     particles: frame.particles,
     filters: frame.filters,
     mattes: frame.mattes,
+    geo: frame.geo,
     paths: frame.paths.map((path) => ({
       id: path.id,
       name: path.name,

@@ -152,6 +152,26 @@ Limitações honestas (preview, não export):
 
 ### 7B — Camadas geográficas: contornos, estados, estradas
 
+> 🚧 **Em curso.** Entregue: malha compilada (ADR-009 e ADR-010), leitor,
+> catálogo de busca, tipos de nó `geo.region` e `geo.rivers`, e o passe que
+> projeta a geometria por frame. Verificado no Electron real: o contorno da
+> Ucrânia cai sobre as fronteiras do basemap, o nível de simplificação segue o
+> zoom, e território fora da vista não é projetado.
+>
+> **Limite medido, ainda aberto:** zoom de cidade (z13) com um país inteiro na
+> cena custa ~16 ms de frame, no teto dos 16,6 ms. O anel continental da Rússia
+> tem caixa que **contém** a vista, então nem o descarte por feição nem o por anel
+> alcançam — projeta-se 25 mil vértices dos quais nenhum aparece. O zoom
+> geopolítico de verdade (z2–z9) fica em 3,4 a 11,2 ms, dentro do orçamento.
+> Conserto identificado: recortar a geometria contra a vista em graus
+> (Sutherland–Hodgman) antes de projetar, o que reduz o anel ao que é visível mais
+> os cantos. Fica para o 7B.3c.
+>
+> **Falta também:** hit test e gizmo usam a caixa do nó, que o estágio de layout
+> ainda calcula como 64×64 na âncora — clicar no meio da Ucrânia não seleciona o
+> território. O passe já corrige `size` para o renderer, mas a caixa do
+> `scene-graph` continua a do nó padrão.
+
 **Objetivo.** País, estado, rio e estrada viram nós animáveis, não decoração do
 basemap.
 

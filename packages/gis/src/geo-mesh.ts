@@ -28,6 +28,16 @@ export interface GeoRingEntry {
   /** Índice do primeiro vértice no buffer, em vértices — não em bytes. */
   readonly offset: number;
   readonly count: number;
+  /** Caixa do anel, `[oeste, sul, leste, norte]`. Ver `tools/build-geo.ts`. */
+  readonly bbox: readonly number[];
+}
+
+/** Caixa visível para descarte, em graus. */
+export interface GeoViewBounds {
+  readonly west: number;
+  readonly south: number;
+  readonly east: number;
+  readonly north: number;
 }
 
 export interface GeoFeatureEntry {
@@ -37,6 +47,8 @@ export interface GeoFeatureEntry {
   readonly props: Readonly<Record<string, string>>;
   /** `[oeste, sul, leste, norte]` em graus. */
   readonly bbox: readonly number[];
+  /** Ponto representativo em graus, do maior anel. Ver `tools/build-geo.ts`. */
+  readonly center: readonly number[];
   readonly rings: readonly GeoRingEntry[];
   /** Vértices que sobrevivem em cada nível, do mais grosseiro ao mais fino. */
   readonly levelCounts: readonly number[];
@@ -70,7 +82,11 @@ export interface GeoFeature {
   readonly kind: GeoFeatureKind;
   readonly props: Readonly<Record<string, string>>;
   readonly bounds: GeoBounds;
-  /** Centro da caixa envolvente — âncora padrão do nó que usa a feição. */
+  /**
+   * Âncora padrão do nó que usa a feição: o ponto representativo do maior anel,
+   * não o centro da caixa. Para Rússia, EUA e Fiji a caixa vai de −180 a 180 por
+   * causa do antimeridiano, e o centro dela cairia no oceano errado.
+   */
   readonly center: LngLat;
   readonly ringCount: number;
   readonly vertexCount: number;
@@ -102,6 +118,12 @@ export interface GeoMesh {
     level: number,
     onRing: (ringIndex: number, vertexCount: number) => void,
     onVertex: (lng: number, lat: number) => void,
+    /**
+     * Descarte por anel. Cada anel cuja caixa não cruza a vista é pulado antes de
+     * um único vértice ser lido — o que importa para país que cruza o
+     * antimeridiano, cuja caixa de feição cobre o mundo e nunca descartaria.
+     */
+    view?: GeoViewBounds,
   ): void;
 }
 
@@ -112,6 +134,15 @@ function boundsOf(bbox: readonly number[]): GeoBounds {
     east: bbox[2] ?? 0,
     north: bbox[3] ?? 0,
   });
+}
+
+/** Cruzamento de caixas em graus: o teste mais barato que existe, e conservador. */
+function ringInView(ring: GeoRingEntry, view: GeoViewBounds): boolean {
+  const west = ring.bbox[0] ?? -180;
+  const south = ring.bbox[1] ?? -90;
+  const east = ring.bbox[2] ?? 180;
+  const north = ring.bbox[3] ?? 90;
+  return !(east < view.west || west > view.east || north < view.south || south > view.north);
 }
 
 function isFeatureKind(value: string): value is GeoFeatureKind {
@@ -158,10 +189,7 @@ export function createGeoMesh(index: GeoMeshIndex, bytes: ArrayBuffer): GeoMesh 
         kind: isFeatureKind(entry.kind) ? entry.kind : "country",
         props: entry.props,
         bounds: boundsOf(entry.bbox),
-        center: Object.freeze([
-          ((entry.bbox[0] ?? 0) + (entry.bbox[2] ?? 0)) / 2,
-          ((entry.bbox[1] ?? 0) + (entry.bbox[3] ?? 0)) / 2,
-        ] as const) as LngLat,
+        center: Object.freeze([entry.center[0] ?? 0, entry.center[1] ?? 0] as const) as LngLat,
         ringCount: entry.rings.length,
         vertexCount,
       }),
@@ -227,12 +255,14 @@ export function createGeoMesh(index: GeoMeshIndex, bytes: ArrayBuffer): GeoMesh 
       level: number,
       onRing: (ringIndex: number, vertexCount: number) => void,
       onVertex: (lng: number, lat: number) => void,
+      view?: GeoViewBounds,
     ): void {
       const entry = requireEntry(id);
       const wanted = clampLevel(level);
       for (let ringIndex = 0; ringIndex < entry.rings.length; ringIndex += 1) {
         const ring = entry.rings[ringIndex];
         if (ring === undefined) continue;
+        if (view !== undefined && !ringInView(ring, view)) continue;
         // Contar antes de abrir o anel: quem desenha precisa dimensionar o buffer
         // sem uma segunda passada.
         let surviving = 0;

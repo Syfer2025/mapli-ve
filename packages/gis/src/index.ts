@@ -73,6 +73,7 @@ export {
   type GeoMesh,
   type GeoMeshIndex,
   type GeoRingEntry,
+  type GeoViewBounds,
 } from "./geo-mesh.js";
 
 export { createRegionCatalog, type RegionCatalog, type RegionHit } from "./region-catalog.js";

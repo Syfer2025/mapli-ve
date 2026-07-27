@@ -13,6 +13,8 @@ import { pathToFileURL } from "node:url";
 import { DATA_HOST, DATA_SCHEME } from "../../ipc/contracts.js";
 
 const MIME_TYPES: Readonly<Record<string, string>> = {
+  // Malha geográfica compilada por tools/build-geo.ts (ADR-010).
+  ".bin": "application/octet-stream",
   ".geojson": "application/geo+json",
   ".json": "application/json",
   ".pbf": "application/x-protobuf",

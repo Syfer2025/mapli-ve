@@ -209,6 +209,15 @@ function quantizeLevel(significance: number): number {
 interface RingEntry {
   readonly offset: number;
   readonly count: number;
+  /**
+   * Caixa do anel, `[oeste, sul, leste, norte]`.
+   *
+   * Existe porque a caixa da **feição** é inútil para descarte quando ela cruza o
+   * antimeridiano: a da Rússia vai de −180 a 180, então ela nunca seria
+   * descartada e um zoom sobre Kiev projetaria trinta e cinco mil vértices
+   * siberianos fora da tela. Por anel, a Chukotka sai sem levar o continente.
+   */
+  readonly bbox: readonly number[];
 }
 
 interface FeatureEntry {
@@ -217,6 +226,16 @@ interface FeatureEntry {
   readonly kind: string;
   readonly props: Record<string, string>;
   readonly bbox: readonly number[];
+  /**
+   * Ponto representativo em graus — a âncora do nó que usa a feição.
+   *
+   * **Não é o centro da caixa envolvente.** A Rússia tem caixa de −180 a 180
+   * porque a Chukotka cruza o antimeridiano, e o centro dessa caixa cai na
+   * longitude 0, no Atlântico. Estados Unidos e Fiji têm o mesmo problema. Aqui é
+   * a média dos vértices do **maior anel**, que cai na massa continental — o que
+   * mantém as coordenadas locais pequenas e a âncora perto do que se vê.
+   */
+  readonly center: readonly number[];
   readonly rings: readonly RingEntry[];
   /** Vértices que sobrevivem em cada nível, do mais grosseiro ao mais fino. */
   readonly levelCounts: readonly number[];
@@ -264,10 +283,41 @@ async function compileLayer(source: LayerSource): Promise<CompiledLayer> {
     let minLat = Infinity;
     let maxLng = -Infinity;
     let maxLat = -Infinity;
+    // Maior anel = massa continental. É dele que sai o ponto representativo.
+    let largestRingSize = 0;
+    let centerLng = 0;
+    let centerLat = 0;
 
     for (const ring of rings) {
       const significance = vertexSignificance(ring);
-      entries.push({ offset, count: ring.length });
+      let ringW = Infinity;
+      let ringS = Infinity;
+      let ringE = -Infinity;
+      let ringN = -Infinity;
+      for (const point of ring) {
+        const lng = point[0] ?? 0;
+        const lat = point[1] ?? 0;
+        if (lng < ringW) ringW = lng;
+        if (lat < ringS) ringS = lat;
+        if (lng > ringE) ringE = lng;
+        if (lat > ringN) ringN = lat;
+      }
+      entries.push({
+        offset,
+        count: ring.length,
+        bbox: [ringW, ringS, ringE, ringN].map((value) => Math.round(value * 1e5) / 1e5),
+      });
+      if (ring.length > largestRingSize) {
+        largestRingSize = ring.length;
+        let sumLng = 0;
+        let sumLat = 0;
+        for (const point of ring) {
+          sumLng += point[0] ?? 0;
+          sumLat += point[1] ?? 0;
+        }
+        centerLng = sumLng / ring.length;
+        centerLat = sumLat / ring.length;
+      }
       for (let index = 0; index < ring.length; index += 1) {
         const point = ring[index];
         const lng = point?.[0] ?? 0;
@@ -292,6 +342,7 @@ async function compileLayer(source: LayerSource): Promise<CompiledLayer> {
       kind: source.kind,
       props,
       bbox: [minLng, minLat, maxLng, maxLat].map((value) => Math.round(value * 1e6) / 1e6),
+      center: [centerLng, centerLat].map((value) => Math.round(value * 1e6) / 1e6),
       rings: entries,
       levelCounts,
     });

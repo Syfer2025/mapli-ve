@@ -431,6 +431,30 @@ export const editorActions = Object.freeze({
     return ok ? nodeId : null;
   },
 
+  /**
+   * Cria um território ou rio a partir de uma feição do catálogo.
+   *
+   * Três comandos num só gesto do usuário — criar, nomear, apontar o `geoId` — e
+   * a âncora vai para o centro da caixa envolvente da feição, porque é a partir
+   * dela que os anéis são projetados. Sem isso o contorno nasceria deslocado.
+   *
+   * Cada comando entra no histórico separado, então `Ctrl+Z` desfaz por etapa.
+   * Agrupar num comando composto é assunto do bloco 7C, quando a caneta também
+   * precisar disso.
+   */
+  addGeoFeature(
+    feature: { readonly id: string; readonly name: string; readonly kind: string },
+    center: readonly [number, number],
+  ): string | null {
+    const type = feature.kind === "river" ? "geo.rivers" : "geo.region";
+    const nodeId = this.addNodeOfType(type);
+    if (nodeId === null) return null;
+    this.renameNode(nodeId, feature.name);
+    this.setNodeAnchor(nodeId, { space: "geo", lngLat: [center[0], center[1]] });
+    if (!this.setPropertyValue(nodeId, "props.geoId", feature.id)) return null;
+    return nodeId;
+  },
+
   renameNode(nodeId: string, name: string): void {
     this.dispatch({
       type: "node.rename",
