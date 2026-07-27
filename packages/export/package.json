@@ -1,0 +1,18 @@
+{
+  "name": "@theatrum/export",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "theatrum": {
+    "layer": 4
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@theatrum/document": "workspace:*",
+    "@theatrum/schema": "workspace:*",
+    "@theatrum/core-time": "workspace:*",
+    "@theatrum/core-utils": "workspace:*"
+  }
+}

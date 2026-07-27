@@ -1,0 +1,103 @@
+import type { AnimatableProperty, Keyframe } from "@theatrum/schema";
+import { describe, expect, it } from "vitest";
+
+import {
+  applyEasingPreset,
+  evaluateProperty,
+  keyframeSegment,
+  moveKeyframe,
+  removeKeyframe,
+  setKeyframeEasing,
+  upsertKeyframe,
+} from "./property.js";
+
+const linear = { kind: "linear" } as const;
+
+function keyframe<T>(id: string, frame: number, value: T): Keyframe<T> {
+  return { id, frame, value, in: linear, out: linear };
+}
+
+function property<T>(value: T, keyframes: Keyframe<T>[] = []): AnimatableProperty<T> {
+  return { value, keyframes, expression: null };
+}
+
+describe("avaliação de propriedades", () => {
+  it("usa valor estático e interpola número/vetor linearmente", () => {
+    expect(evaluateProperty(property(7), 20)).toBe(7);
+    expect(
+      evaluateProperty(property(0, [keyframe("kf_a", 10, 10), keyframe("kf_b", 20, 30)]), 15),
+    ).toBe(20);
+    expect(
+      evaluateProperty(
+        property<[number, number]>(
+          [0, 0],
+          [keyframe("kf_a", 0, [0, 10]), keyframe("kf_b", 10, [20, 30])],
+        ),
+        5,
+      ),
+    ).toEqual([10, 20]);
+  });
+
+  it("segura hold, limita extremos e trata valores discretos", () => {
+    const held = property(0, [
+      { ...keyframe("kf_a", 0, 2), out: { kind: "hold" } },
+      keyframe("kf_b", 10, 8),
+    ]);
+    expect(evaluateProperty(held, -1)).toBe(2);
+    expect(evaluateProperty(held, 9)).toBe(2);
+    expect(evaluateProperty(held, 10)).toBe(8);
+
+    const discrete = property("a", [keyframe("kf_a", 0, "a"), keyframe("kf_b", 10, "b")]);
+    expect(evaluateProperty(discrete, 5)).toBe("a");
+  });
+
+  it("avalia bezier deterministicamente e independente da ordem", () => {
+    const eased = applyEasingPreset(
+      property(0, [keyframe("kf_a", 0, 0), keyframe("kf_b", 100, 1)]),
+      "kf_a",
+      "easeInOut",
+    );
+    const direct = evaluateProperty(eased, 50);
+    for (let frame = 0; frame <= 50; frame++) evaluateProperty(eased, frame);
+    expect(evaluateProperty(eased, 50)).toBe(direct);
+    expect(direct).toBeGreaterThan(0);
+    expect(direct).toBeLessThan(1);
+  });
+
+  it("localiza segmento por busca binária", () => {
+    const value = property(0, [
+      keyframe("kf_0", 0, 0),
+      keyframe("kf_1", 10, 1),
+      keyframe("kf_2", 20, 2),
+    ]);
+    expect(keyframeSegment(value, 15)).toMatchObject({
+      left: { id: "kf_1" },
+      right: { id: "kf_2" },
+      progress: 0.5,
+    });
+    expect(keyframeSegment(value, 20)).toBeNull();
+  });
+});
+
+describe("edição imutável de keyframes", () => {
+  it("insere, substitui, move, remove e altera easing sem mutar a entrada", () => {
+    const initial = property(0, [keyframe("kf_a", 0, 1), keyframe("kf_b", 10, 2)]);
+    const snapshot = structuredClone(initial);
+    const inserted = upsertKeyframe(initial, keyframe("kf_c", 5, 3));
+    const moved = moveKeyframe(inserted, "kf_c", 7);
+    const eased = setKeyframeEasing(moved, "kf_c", { out: { kind: "hold" } });
+    const removed = removeKeyframe(eased, "kf_a");
+
+    expect(initial).toEqual(snapshot);
+    expect(inserted.keyframes.map(({ id }) => id)).toEqual(["kf_a", "kf_c", "kf_b"]);
+    expect(moved.keyframes.map(({ frame }) => frame)).toEqual([0, 7, 10]);
+    expect(eased.keyframes[1]?.out).toEqual({ kind: "hold" });
+    expect(removed.keyframes.map(({ id }) => id)).toEqual(["kf_c", "kf_b"]);
+  });
+
+  it("substitui colisão de frame para manter unicidade", () => {
+    const initial = property(0, [keyframe("kf_a", 0, 1), keyframe("kf_b", 10, 2)]);
+    const replaced = upsertKeyframe(initial, keyframe("kf_c", 10, 9));
+    expect(replaced.keyframes).toEqual([keyframe("kf_a", 0, 1), keyframe("kf_c", 10, 9)]);
+  });
+});

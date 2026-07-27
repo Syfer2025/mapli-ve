@@ -1,0 +1,112 @@
+/**
+ * Design tokens.
+ *
+ * Tela escura porque o operador passa horas aqui e o conteúdo é um mapa —
+ * interface clara ao redor de um mapa escuro cansa e falseia a percepção de cor
+ * do que está sendo produzido.
+ *
+ * Contraste mínimo 4,5:1 para texto (docs/07-CONVENTIONS.md § 10). Os valores
+ * de `--fg-*` foram escolhidos contra `--bg-panel`, não contra preto puro.
+ */
+
+:root {
+  /* ---- Superfícies, do fundo para a frente ---- */
+  --bg-app: #0b0e11;
+  --bg-panel: #14181d;
+  --bg-panel-raised: #1b2027;
+  --bg-input: #0e1216;
+  --bg-hover: #232a33;
+  --bg-active: #2b333e;
+  --bg-selected: #1d3a4d;
+
+  /* ---- Bordas ---- */
+  --border-subtle: #1f252c;
+  --border: #2a323b;
+  --border-strong: #3a444f;
+
+  /* ---- Texto ---- */
+  --fg: #dfe4ea;
+  --fg-muted: #8d99a6;
+  --fg-faint: #75828f;
+  --fg-inverse: #0b0e11;
+
+  /* ---- Acento: teal de hidrografia cartográfica ---- */
+  --accent: #2f9e93;
+  --accent-hover: #3ab5a8;
+  --accent-active: #268b81;
+  --accent-fg: #04120f;
+  --accent-subtle: #16302e;
+
+  /* ---- Semântico ---- */
+  --danger: #cf5a4f;
+  --warning: #c9963f;
+  --success: #4f9d5f;
+  --info: #4a8fc7;
+
+  /* ---- Cores de label de layer (estilo After Effects) ---- */
+  --label-none: #5e6a76;
+  --label-red: #b5443c;
+  --label-orange: #b57334;
+  --label-yellow: #b5a034;
+  --label-green: #4a9550;
+  --label-teal: #35948c;
+  --label-blue: #3f7bb5;
+  --label-purple: #7a52a8;
+  --label-pink: #ab4b81;
+
+  /* ---- Tipografia ---- */
+  --font-ui: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "Cascadia Mono", Consolas, "Courier New", monospace;
+
+  --text-xs: 10px;
+  --text-sm: 11px;
+  --text-base: 12px;
+  --text-md: 13px;
+  --text-lg: 15px;
+  --text-xl: 18px;
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+
+  /* ---- Espaçamento: escala de 4 px ---- */
+  --space-0: 0;
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 12px;
+  --space-6: 16px;
+  --space-7: 24px;
+  --space-8: 32px;
+
+  /* ---- Raio: mínimo. Ferramenta densa, não cartão de dashboard ---- */
+  --radius-sm: 2px;
+  --radius: 3px;
+  --radius-lg: 4px;
+
+  /* ---- Alturas de controle: densas o bastante para caber muita coisa ---- */
+  --control-height-sm: 20px;
+  --control-height: 24px;
+  --control-height-lg: 28px;
+  --header-height: 28px;
+  --track-height: 22px;
+
+  /* ---- Elevação ---- */
+  --shadow-panel: 0 2px 8px rgb(0 0 0 / 0.35);
+  --shadow-popover: 0 6px 20px rgb(0 0 0 / 0.5);
+
+  /* ---- Transições: nada acima de 200 ms numa ferramenta profissional ---- */
+  --transition-fast: 80ms;
+  --transition: 140ms;
+  --easing: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ---- Foco: sempre visível ---- */
+  --focus-ring: 0 0 0 1px var(--accent), 0 0 0 3px var(--accent-subtle);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition-fast: 0ms;
+    --transition: 0ms;
+  }
+}

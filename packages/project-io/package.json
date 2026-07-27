@@ -1,0 +1,17 @@
+{
+  "name": "@theatrum/project-io",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "theatrum": {
+    "layer": 4
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@theatrum/document": "workspace:*",
+    "@theatrum/schema": "workspace:*",
+    "@theatrum/core-utils": "workspace:*"
+  }
+}

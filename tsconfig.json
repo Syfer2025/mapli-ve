@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "//": "Arquivo-solução: só referências. Nenhum arquivo compila por aqui.",
+  "files": [],
+  "references": [
+    { "path": "packages/core-math" },
+    { "path": "packages/core-utils" },
+    { "path": "packages/core-time" },
+    { "path": "packages/schema" },
+    { "path": "packages/document" },
+    { "path": "packages/scene-graph" },
+    { "path": "packages/animation" },
+    { "path": "packages/gis" },
+    { "path": "packages/assets" },
+    { "path": "packages/renderer" },
+    { "path": "packages/effects" },
+    { "path": "packages/camera" },
+    { "path": "packages/behaviors" },
+    { "path": "packages/commands" },
+    { "path": "packages/project-io" },
+    { "path": "packages/export" },
+    { "path": "packages/scripting" },
+    { "path": "packages/plugin-host" },
+    { "path": "packages/engine" }
+  ]
+}

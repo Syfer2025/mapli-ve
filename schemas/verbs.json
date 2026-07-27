@@ -1,0 +1,806 @@
+{
+  "format": "theatrum-verb-catalog",
+  "verbs": [
+    {
+      "category": "camera",
+      "description": "Move a câmera para um ponto.",
+      "example": {
+        "at": "0s",
+        "do": "camera.focus",
+        "duration": "1s",
+        "on": [
+          0,
+          0
+        ]
+      },
+      "name": "camera.focus",
+      "required": [
+        "at",
+        "on",
+        "duration"
+      ]
+    },
+    {
+      "category": "camera",
+      "description": "Enquadra vários pontos.",
+      "example": {
+        "at": "0s",
+        "do": "camera.frame",
+        "duration": "1s",
+        "on": [
+          [
+            0,
+            0
+          ],
+          [
+            10,
+            10
+          ]
+        ]
+      },
+      "name": "camera.frame",
+      "required": [
+        "at",
+        "on",
+        "duration"
+      ]
+    },
+    {
+      "category": "camera",
+      "description": "Orbita ao redor de um ponto.",
+      "example": {
+        "at": "0s",
+        "do": "camera.orbit",
+        "duration": "1s",
+        "on": [
+          0,
+          0
+        ]
+      },
+      "name": "camera.orbit",
+      "required": [
+        "at",
+        "on",
+        "duration"
+      ]
+    },
+    {
+      "category": "camera",
+      "description": "Segue uma unidade.",
+      "example": {
+        "at": "0s",
+        "do": "camera.follow",
+        "duration": "1s",
+        "unit": "unit-1"
+      },
+      "name": "camera.follow",
+      "required": [
+        "at",
+        "unit",
+        "duration"
+      ]
+    },
+    {
+      "category": "camera",
+      "description": "Aplica tremor de impacto.",
+      "example": {
+        "at": "0s",
+        "do": "camera.shake",
+        "duration": "1s",
+        "intensity": 0.5
+      },
+      "name": "camera.shake",
+      "required": [
+        "at",
+        "intensity",
+        "duration"
+      ]
+    },
+    {
+      "category": "camera",
+      "description": "Restaura o enquadramento inicial.",
+      "example": {
+        "at": "0s",
+        "do": "camera.reset",
+        "duration": "1s"
+      },
+      "name": "camera.reset",
+      "required": [
+        "at",
+        "duration"
+      ]
+    },
+    {
+      "category": "units",
+      "description": "Faz uma unidade aparecer.",
+      "example": {
+        "at": "0s",
+        "at_place": [
+          0,
+          0
+        ],
+        "do": "unit.spawn",
+        "unit": "unit-1"
+      },
+      "name": "unit.spawn",
+      "required": [
+        "at",
+        "unit",
+        "at_place"
+      ]
+    },
+    {
+      "category": "units",
+      "description": "Avança uma unidade por path ou destino.",
+      "example": {
+        "at": "0s",
+        "do": "unit.advance",
+        "unit": "unit-1"
+      },
+      "name": "unit.advance",
+      "required": [
+        "at",
+        "unit"
+      ]
+    },
+    {
+      "category": "units",
+      "description": "Recua uma unidade.",
+      "example": {
+        "at": "0s",
+        "do": "unit.retreat",
+        "unit": "unit-1"
+      },
+      "name": "unit.retreat",
+      "required": [
+        "at",
+        "unit"
+      ]
+    },
+    {
+      "category": "units",
+      "description": "Patrulha um path.",
+      "example": {
+        "along": "path-1",
+        "at": "0s",
+        "do": "unit.patrol",
+        "duration": "1s",
+        "unit": "unit-1"
+      },
+      "name": "unit.patrol",
+      "required": [
+        "at",
+        "unit",
+        "along",
+        "duration"
+      ]
+    },
+    {
+      "category": "units",
+      "description": "Avança e engaja um alvo.",
+      "example": {
+        "at": "0s",
+        "do": "unit.attack",
+        "target": "unit-2",
+        "unit": "unit-1"
+      },
+      "name": "unit.attack",
+      "required": [
+        "at",
+        "unit",
+        "target"
+      ]
+    },
+    {
+      "category": "units",
+      "description": "Traça curso de interceptação.",
+      "example": {
+        "at": "0s",
+        "do": "unit.intercept",
+        "target": "unit-2",
+        "unit": "unit-1"
+      },
+      "name": "unit.intercept",
+      "required": [
+        "at",
+        "unit",
+        "target"
+      ]
+    },
+    {
+      "category": "units",
+      "description": "Cria combate aéreo.",
+      "example": {
+        "at": "0s",
+        "at_place": [
+          0,
+          0
+        ],
+        "do": "unit.dogfight",
+        "duration": "1s",
+        "units": [
+          "unit-1",
+          "unit-2"
+        ]
+      },
+      "name": "unit.dogfight",
+      "required": [
+        "at",
+        "units",
+        "at_place",
+        "duration"
+      ]
+    },
+    {
+      "category": "units",
+      "description": "Remove uma unidade.",
+      "example": {
+        "at": "0s",
+        "do": "unit.destroy",
+        "unit": "unit-1"
+      },
+      "name": "unit.destroy",
+      "required": [
+        "at",
+        "unit"
+      ]
+    },
+    {
+      "category": "units",
+      "description": "Divide uma unidade.",
+      "example": {
+        "at": "0s",
+        "at_place": [
+          0,
+          0
+        ],
+        "do": "unit.split",
+        "into": [
+          "unit-a",
+          "unit-b"
+        ],
+        "unit": "unit-1"
+      },
+      "name": "unit.split",
+      "required": [
+        "at",
+        "unit",
+        "into",
+        "at_place"
+      ]
+    },
+    {
+      "category": "units",
+      "description": "Reúne unidades.",
+      "example": {
+        "at": "0s",
+        "at_place": [
+          0,
+          0
+        ],
+        "do": "unit.merge",
+        "into": "unit-merged",
+        "units": [
+          "unit-1",
+          "unit-2"
+        ]
+      },
+      "name": "unit.merge",
+      "required": [
+        "at",
+        "units",
+        "into",
+        "at_place"
+      ]
+    },
+    {
+      "category": "combat",
+      "description": "Cria batalha com efeitos.",
+      "example": {
+        "at": "0s",
+        "at_place": [
+          0,
+          0
+        ],
+        "do": "battle",
+        "duration": "1s",
+        "intensity": "medium"
+      },
+      "name": "battle",
+      "required": [
+        "at",
+        "at_place",
+        "intensity",
+        "duration"
+      ]
+    },
+    {
+      "category": "combat",
+      "description": "Cria bombardeio.",
+      "example": {
+        "at": "0s",
+        "at_place": [
+          0,
+          0
+        ],
+        "do": "bombard",
+        "duration": "1s"
+      },
+      "name": "bombard",
+      "required": [
+        "at",
+        "at_place",
+        "duration"
+      ]
+    },
+    {
+      "category": "combat",
+      "description": "Cria ataque aéreo.",
+      "example": {
+        "at": "0s",
+        "at_place": [
+          0,
+          0
+        ],
+        "do": "airstrike",
+        "duration": "1s"
+      },
+      "name": "airstrike",
+      "required": [
+        "at",
+        "at_place",
+        "duration"
+      ]
+    },
+    {
+      "category": "combat",
+      "description": "Lança míssil.",
+      "example": {
+        "at": "0s",
+        "do": "missile.launch",
+        "duration": "1s",
+        "from": [
+          0,
+          0
+        ],
+        "to": [
+          10,
+          10
+        ]
+      },
+      "name": "missile.launch",
+      "required": [
+        "at",
+        "from",
+        "to",
+        "duration"
+      ]
+    },
+    {
+      "category": "combat",
+      "description": "Cria cerco.",
+      "example": {
+        "at": "0s",
+        "at_place": [
+          0,
+          0
+        ],
+        "do": "siege",
+        "duration": "1s"
+      },
+      "name": "siege",
+      "required": [
+        "at",
+        "at_place",
+        "duration"
+      ]
+    },
+    {
+      "category": "combat",
+      "description": "Cria desembarque.",
+      "example": {
+        "at": "0s",
+        "at_place": [
+          0,
+          0
+        ],
+        "do": "amphibious.landing",
+        "duration": "1s",
+        "from": [
+          0,
+          0
+        ]
+      },
+      "name": "amphibious.landing",
+      "required": [
+        "at",
+        "from",
+        "at_place",
+        "duration"
+      ]
+    },
+    {
+      "category": "combat",
+      "description": "Lança paraquedistas.",
+      "example": {
+        "at": "0s",
+        "at_place": [
+          0,
+          0
+        ],
+        "do": "airdrop",
+        "duration": "1s",
+        "from": [
+          0,
+          0
+        ]
+      },
+      "name": "airdrop",
+      "required": [
+        "at",
+        "from",
+        "at_place",
+        "duration"
+      ]
+    },
+    {
+      "category": "combat",
+      "description": "Cria bloqueio naval.",
+      "example": {
+        "at": "0s",
+        "at_place": [
+          0,
+          0
+        ],
+        "do": "naval.blockade",
+        "duration": "1s",
+        "radius": 25
+      },
+      "name": "naval.blockade",
+      "required": [
+        "at",
+        "at_place",
+        "radius",
+        "duration"
+      ]
+    },
+    {
+      "category": "geography",
+      "description": "Destaca uma região.",
+      "example": {
+        "at": "0s",
+        "do": "area.highlight",
+        "duration": "1s",
+        "region": "region-1"
+      },
+      "name": "area.highlight",
+      "required": [
+        "at",
+        "region",
+        "duration"
+      ]
+    },
+    {
+      "category": "geography",
+      "description": "Transfere controle territorial.",
+      "example": {
+        "at": "0s",
+        "do": "area.transfer",
+        "duration": "1s",
+        "from": "faction-a",
+        "region": "region-1",
+        "to": "faction-b"
+      },
+      "name": "area.transfer",
+      "required": [
+        "at",
+        "region",
+        "from",
+        "to",
+        "duration"
+      ]
+    },
+    {
+      "category": "geography",
+      "description": "Desenha uma linha de frente.",
+      "example": {
+        "at": "0s",
+        "do": "frontline.set",
+        "duration": "1s",
+        "through": [
+          [
+            0,
+            0
+          ],
+          [
+            10,
+            10
+          ]
+        ]
+      },
+      "name": "frontline.set",
+      "required": [
+        "at",
+        "through",
+        "duration"
+      ]
+    },
+    {
+      "category": "geography",
+      "description": "Move uma linha de frente.",
+      "example": {
+        "at": "0s",
+        "do": "frontline.shift",
+        "duration": "1s",
+        "to": [
+          [
+            0,
+            0
+          ],
+          [
+            10,
+            10
+          ]
+        ]
+      },
+      "name": "frontline.shift",
+      "required": [
+        "at",
+        "to",
+        "duration"
+      ]
+    },
+    {
+      "category": "geography",
+      "description": "Mostra fronteiras de um dataset.",
+      "example": {
+        "at": "0s",
+        "dataset": "borders.geojson",
+        "do": "border.show",
+        "duration": "1s"
+      },
+      "name": "border.show",
+      "required": [
+        "at",
+        "dataset",
+        "duration"
+      ]
+    },
+    {
+      "category": "geography",
+      "description": "Anima um cerco.",
+      "example": {
+        "at": "0s",
+        "do": "encircle",
+        "duration": "1s"
+      },
+      "name": "encircle",
+      "required": [
+        "at",
+        "duration"
+      ]
+    },
+    {
+      "category": "geography",
+      "description": "Cria linha de suprimento.",
+      "example": {
+        "at": "0s",
+        "do": "supply.line",
+        "duration": "1s",
+        "from": [
+          0,
+          0
+        ],
+        "to": [
+          10,
+          10
+        ]
+      },
+      "name": "supply.line",
+      "required": [
+        "at",
+        "from",
+        "to",
+        "duration"
+      ]
+    },
+    {
+      "category": "text",
+      "description": "Mostra um título.",
+      "example": {
+        "at": "0s",
+        "do": "text.title",
+        "duration": "1s",
+        "text": "Texto"
+      },
+      "name": "text.title",
+      "required": [
+        "at",
+        "text",
+        "duration"
+      ]
+    },
+    {
+      "category": "text",
+      "description": "Mostra uma legenda.",
+      "example": {
+        "at": "0s",
+        "do": "text.caption",
+        "duration": "1s",
+        "text": "Texto"
+      },
+      "name": "text.caption",
+      "required": [
+        "at",
+        "text",
+        "duration"
+      ]
+    },
+    {
+      "category": "text",
+      "description": "Mostra chamada ligada a um ponto.",
+      "example": {
+        "at": "0s",
+        "at_place": [
+          0,
+          0
+        ],
+        "do": "text.callout",
+        "duration": "1s",
+        "text": "Texto"
+      },
+      "name": "text.callout",
+      "required": [
+        "at",
+        "text",
+        "at_place",
+        "duration"
+      ]
+    },
+    {
+      "category": "text",
+      "description": "Mostra uma data.",
+      "example": {
+        "at": "0s",
+        "date": "1941-06-22",
+        "do": "text.date",
+        "duration": "1s"
+      },
+      "name": "text.date",
+      "required": [
+        "at",
+        "date",
+        "duration"
+      ]
+    },
+    {
+      "category": "text",
+      "description": "Anima um contador.",
+      "example": {
+        "at": "0s",
+        "do": "text.counter",
+        "duration": "1s",
+        "from": 0,
+        "to": 100
+      },
+      "name": "text.counter",
+      "required": [
+        "at",
+        "from",
+        "to",
+        "duration"
+      ]
+    },
+    {
+      "category": "text",
+      "description": "Rotula um lugar.",
+      "example": {
+        "at": "0s",
+        "do": "label.place",
+        "duration": "1s",
+        "place": [
+          0,
+          0
+        ]
+      },
+      "name": "label.place",
+      "required": [
+        "at",
+        "place",
+        "duration"
+      ]
+    },
+    {
+      "category": "text",
+      "description": "Desenha uma seta.",
+      "example": {
+        "at": "0s",
+        "do": "arrow.draw",
+        "duration": "1s"
+      },
+      "name": "arrow.draw",
+      "required": [
+        "at",
+        "duration"
+      ]
+    },
+    {
+      "category": "text",
+      "description": "Mostra uma legenda de facções.",
+      "example": {
+        "at": "0s",
+        "do": "legend.show",
+        "duration": "1s",
+        "items": [
+          {
+            "color": "#8b2635",
+            "label": "Facção"
+          }
+        ]
+      },
+      "name": "legend.show",
+      "required": [
+        "at",
+        "items",
+        "duration"
+      ]
+    },
+    {
+      "category": "control",
+      "description": "Cria um espaçador temporal.",
+      "example": {
+        "at": "0s",
+        "do": "wait",
+        "duration": "1s"
+      },
+      "name": "wait",
+      "required": [
+        "at",
+        "duration"
+      ]
+    },
+    {
+      "category": "control",
+      "description": "Cria marcador na timeline.",
+      "example": {
+        "at": "0s",
+        "do": "marker",
+        "label": "Marcador"
+      },
+      "name": "marker",
+      "required": [
+        "at",
+        "label"
+      ]
+    },
+    {
+      "category": "control",
+      "description": "Inicia um grupo.",
+      "example": {
+        "at": "0s",
+        "do": "group.begin",
+        "label": "Marcador"
+      },
+      "name": "group.begin",
+      "required": [
+        "at",
+        "label"
+      ]
+    },
+    {
+      "category": "control",
+      "description": "Encerra um grupo.",
+      "example": {
+        "at": "0s",
+        "do": "group.end",
+        "label": "Marcador"
+      },
+      "name": "group.end",
+      "required": [
+        "at",
+        "label"
+      ]
+    }
+  ],
+  "version": 1
+}

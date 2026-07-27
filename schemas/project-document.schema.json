@@ -1,0 +1,4293 @@
+{
+  "$id": "https://theatrum.local/schemas/project-document.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": {},
+  "properties": {
+    "assets": {
+      "items": {
+        "additionalProperties": {},
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "meta": {
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "src": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "src",
+          "meta"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "compositions": {
+      "items": {
+        "additionalProperties": {},
+        "properties": {
+          "background": {
+            "pattern": "^#[0-9a-f]{6}(?:[0-9a-f]{2})?$",
+            "type": "string"
+          },
+          "camera": {
+            "additionalProperties": {},
+            "properties": {
+              "bearing": {
+                "additionalProperties": {},
+                "properties": {
+                  "expression": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "keyframes": {
+                    "items": {
+                      "additionalProperties": {},
+                      "properties": {
+                        "frame": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "id": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "in": {
+                          "oneOf": [
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "kind": {
+                                  "const": "hold",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "kind": {
+                                  "const": "linear",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "handle": {
+                                  "prefixItems": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ],
+                                  "type": "array"
+                                },
+                                "kind": {
+                                  "const": "bezier",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "handle"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        },
+                        "out": {
+                          "oneOf": [
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "kind": {
+                                  "const": "hold",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "kind": {
+                                  "const": "linear",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "handle": {
+                                  "prefixItems": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ],
+                                  "type": "array"
+                                },
+                                "kind": {
+                                  "const": "bezier",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "handle"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        },
+                        "roving": {
+                          "type": "boolean"
+                        },
+                        "spatial": {
+                          "additionalProperties": {},
+                          "properties": {
+                            "in": {
+                              "anyOf": [
+                                {
+                                  "prefixItems": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ],
+                                  "type": "array"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "out": {
+                              "anyOf": [
+                                {
+                                  "prefixItems": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ],
+                                  "type": "array"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "in",
+                            "out"
+                          ],
+                          "type": "object"
+                        },
+                        "value": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "frame",
+                        "value",
+                        "out",
+                        "in"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "value": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "value",
+                  "keyframes",
+                  "expression"
+                ],
+                "type": "object"
+              },
+              "center": {
+                "additionalProperties": {},
+                "properties": {
+                  "expression": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "keyframes": {
+                    "items": {
+                      "additionalProperties": {},
+                      "properties": {
+                        "frame": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "id": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "in": {
+                          "oneOf": [
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "kind": {
+                                  "const": "hold",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "kind": {
+                                  "const": "linear",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "handle": {
+                                  "prefixItems": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ],
+                                  "type": "array"
+                                },
+                                "kind": {
+                                  "const": "bezier",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "handle"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        },
+                        "out": {
+                          "oneOf": [
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "kind": {
+                                  "const": "hold",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "kind": {
+                                  "const": "linear",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "handle": {
+                                  "prefixItems": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ],
+                                  "type": "array"
+                                },
+                                "kind": {
+                                  "const": "bezier",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "handle"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        },
+                        "roving": {
+                          "type": "boolean"
+                        },
+                        "spatial": {
+                          "additionalProperties": {},
+                          "properties": {
+                            "in": {
+                              "anyOf": [
+                                {
+                                  "prefixItems": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ],
+                                  "type": "array"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "out": {
+                              "anyOf": [
+                                {
+                                  "prefixItems": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ],
+                                  "type": "array"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "in",
+                            "out"
+                          ],
+                          "type": "object"
+                        },
+                        "value": {
+                          "prefixItems": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ],
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "frame",
+                        "value",
+                        "out",
+                        "in"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "value": {
+                    "prefixItems": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "value",
+                  "keyframes",
+                  "expression"
+                ],
+                "type": "object"
+              },
+              "follow": {
+                "anyOf": [
+                  {
+                    "additionalProperties": {},
+                    "properties": {
+                      "damping": {
+                        "maximum": 1,
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      "matchBearing": {
+                        "type": "boolean"
+                      },
+                      "nodeId": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "offset": {
+                        "prefixItems": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ],
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "nodeId",
+                      "offset",
+                      "damping",
+                      "matchBearing"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "fov": {
+                "additionalProperties": {},
+                "properties": {
+                  "expression": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "keyframes": {
+                    "items": {
+                      "additionalProperties": {},
+                      "properties": {
+                        "frame": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "id": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "in": {
+                          "oneOf": [
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "kind": {
+                                  "const": "hold",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "kind": {
+                                  "const": "linear",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "handle": {
+                                  "prefixItems": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ],
+                                  "type": "array"
+                                },
+                                "kind": {
+                                  "const": "bezier",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "handle"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        },
+                        "out": {
+                          "oneOf": [
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "kind": {
+                                  "const": "hold",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "kind": {
+                                  "const": "linear",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "handle": {
+                                  "prefixItems": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ],
+                                  "type": "array"
+                                },
+                                "kind": {
+                                  "const": "bezier",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "handle"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        },
+                        "roving": {
+                          "type": "boolean"
+                        },
+                        "spatial": {
+                          "additionalProperties": {},
+                          "properties": {
+                            "in": {
+                              "anyOf": [
+                                {
+                                  "prefixItems": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ],
+                                  "type": "array"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "out": {
+                              "anyOf": [
+                                {
+                                  "prefixItems": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ],
+                                  "type": "array"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "in",
+                            "out"
+                          ],
+                          "type": "object"
+                        },
+                        "value": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "frame",
+                        "value",
+                        "out",
+                        "in"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "value": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "value",
+                  "keyframes",
+                  "expression"
+                ],
+                "type": "object"
+              },
+              "path": {
+                "anyOf": [
+                  {
+                    "additionalProperties": {},
+                    "properties": {
+                      "orientToPath": {
+                        "type": "boolean"
+                      },
+                      "pathId": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "progress": {
+                        "additionalProperties": {},
+                        "properties": {
+                          "expression": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "keyframes": {
+                            "items": {
+                              "additionalProperties": {},
+                              "properties": {
+                                "frame": {
+                                  "maximum": 9007199254740991,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                },
+                                "id": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "in": {
+                                  "oneOf": [
+                                    {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "kind": {
+                                          "const": "hold",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "kind"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "kind": {
+                                          "const": "linear",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "kind"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "handle": {
+                                          "prefixItems": [
+                                            {
+                                              "type": "number"
+                                            },
+                                            {
+                                              "type": "number"
+                                            }
+                                          ],
+                                          "type": "array"
+                                        },
+                                        "kind": {
+                                          "const": "bezier",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "kind",
+                                        "handle"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  ]
+                                },
+                                "out": {
+                                  "oneOf": [
+                                    {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "kind": {
+                                          "const": "hold",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "kind"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "kind": {
+                                          "const": "linear",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "kind"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "handle": {
+                                          "prefixItems": [
+                                            {
+                                              "type": "number"
+                                            },
+                                            {
+                                              "type": "number"
+                                            }
+                                          ],
+                                          "type": "array"
+                                        },
+                                        "kind": {
+                                          "const": "bezier",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "kind",
+                                        "handle"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  ]
+                                },
+                                "roving": {
+                                  "type": "boolean"
+                                },
+                                "spatial": {
+                                  "additionalProperties": {},
+                                  "properties": {
+                                    "in": {
+                                      "anyOf": [
+                                        {
+                                          "prefixItems": [
+                                            {
+                                              "type": "number"
+                                            },
+                                            {
+                                              "type": "number"
+                                            }
+                                          ],
+                                          "type": "array"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "out": {
+                                      "anyOf": [
+                                        {
+                                          "prefixItems": [
+                                            {
+                                              "type": "number"
+                                            },
+                                            {
+                                              "type": "number"
+                                            }
+                                          ],
+                                          "type": "array"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "in",
+                                    "out"
+                                  ],
+                                  "type": "object"
+                                },
+                                "value": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "frame",
+                                "value",
+                                "out",
+                                "in"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "value": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "value",
+                          "keyframes",
+                          "expression"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "pathId",
+                      "progress"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "pitch": {
+                "additionalProperties": {},
+                "properties": {
+                  "expression": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "keyframes": {
+                    "items": {
+                      "additionalProperties": {},
+                      "properties": {
+                        "frame": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "id": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "in": {
+                          "oneOf": [
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "kind": {
+                                  "const": "hold",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "kind": {
+                                  "const": "linear",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "handle": {
+                                  "prefixItems": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ],
+                                  "type": "array"
+                                },
+                                "kind": {
+                                  "const": "bezier",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "handle"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        },
+                        "out": {
+                          "oneOf": [
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "kind": {
+                                  "const": "hold",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "kind": {
+                                  "const": "linear",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "handle": {
+                                  "prefixItems": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ],
+                                  "type": "array"
+                                },
+                                "kind": {
+                                  "const": "bezier",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "handle"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        },
+                        "roving": {
+                          "type": "boolean"
+                        },
+                        "spatial": {
+                          "additionalProperties": {},
+                          "properties": {
+                            "in": {
+                              "anyOf": [
+                                {
+                                  "prefixItems": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ],
+                                  "type": "array"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "out": {
+                              "anyOf": [
+                                {
+                                  "prefixItems": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ],
+                                  "type": "array"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "in",
+                            "out"
+                          ],
+                          "type": "object"
+                        },
+                        "value": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "frame",
+                        "value",
+                        "out",
+                        "in"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "value": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "value",
+                  "keyframes",
+                  "expression"
+                ],
+                "type": "object"
+              },
+              "roll": {
+                "additionalProperties": {},
+                "properties": {
+                  "expression": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "keyframes": {
+                    "items": {
+                      "additionalProperties": {},
+                      "properties": {
+                        "frame": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "id": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "in": {
+                          "oneOf": [
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "kind": {
+                                  "const": "hold",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "kind": {
+                                  "const": "linear",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "handle": {
+                                  "prefixItems": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ],
+                                  "type": "array"
+                                },
+                                "kind": {
+                                  "const": "bezier",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "handle"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        },
+                        "out": {
+                          "oneOf": [
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "kind": {
+                                  "const": "hold",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "kind": {
+                                  "const": "linear",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "handle": {
+                                  "prefixItems": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ],
+                                  "type": "array"
+                                },
+                                "kind": {
+                                  "const": "bezier",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "handle"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        },
+                        "roving": {
+                          "type": "boolean"
+                        },
+                        "spatial": {
+                          "additionalProperties": {},
+                          "properties": {
+                            "in": {
+                              "anyOf": [
+                                {
+                                  "prefixItems": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ],
+                                  "type": "array"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "out": {
+                              "anyOf": [
+                                {
+                                  "prefixItems": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ],
+                                  "type": "array"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "in",
+                            "out"
+                          ],
+                          "type": "object"
+                        },
+                        "value": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "frame",
+                        "value",
+                        "out",
+                        "in"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "value": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "value",
+                  "keyframes",
+                  "expression"
+                ],
+                "type": "object"
+              },
+              "zoom": {
+                "additionalProperties": {},
+                "properties": {
+                  "expression": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "keyframes": {
+                    "items": {
+                      "additionalProperties": {},
+                      "properties": {
+                        "frame": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "id": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "in": {
+                          "oneOf": [
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "kind": {
+                                  "const": "hold",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "kind": {
+                                  "const": "linear",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "handle": {
+                                  "prefixItems": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ],
+                                  "type": "array"
+                                },
+                                "kind": {
+                                  "const": "bezier",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "handle"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        },
+                        "out": {
+                          "oneOf": [
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "kind": {
+                                  "const": "hold",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "kind": {
+                                  "const": "linear",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "handle": {
+                                  "prefixItems": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ],
+                                  "type": "array"
+                                },
+                                "kind": {
+                                  "const": "bezier",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "handle"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        },
+                        "roving": {
+                          "type": "boolean"
+                        },
+                        "spatial": {
+                          "additionalProperties": {},
+                          "properties": {
+                            "in": {
+                              "anyOf": [
+                                {
+                                  "prefixItems": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ],
+                                  "type": "array"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "out": {
+                              "anyOf": [
+                                {
+                                  "prefixItems": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ],
+                                  "type": "array"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "in",
+                            "out"
+                          ],
+                          "type": "object"
+                        },
+                        "value": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "frame",
+                        "value",
+                        "out",
+                        "in"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "value": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "value",
+                  "keyframes",
+                  "expression"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "center",
+              "zoom",
+              "bearing",
+              "pitch",
+              "roll",
+              "fov",
+              "follow",
+              "path"
+            ],
+            "type": "object"
+          },
+          "duration": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "fps": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "guides": {
+            "items": {
+              "additionalProperties": {},
+              "properties": {
+                "color": {
+                  "pattern": "^#[0-9a-f]{6}(?:[0-9a-f]{2})?$",
+                  "type": "string"
+                },
+                "locked": {
+                  "type": "boolean"
+                },
+                "orientation": {
+                  "enum": [
+                    "horizontal",
+                    "vertical"
+                  ],
+                  "type": "string"
+                },
+                "position": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "orientation",
+                "position"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "height": {
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "type": "integer"
+          },
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "map": {
+            "additionalProperties": {},
+            "properties": {
+              "fadeDuration": {
+                "minimum": 0,
+                "type": "number"
+              },
+              "projection": {
+                "enum": [
+                  "mercator",
+                  "globe",
+                  "albers",
+                  "equal-earth"
+                ],
+                "type": "string"
+              },
+              "styleId": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "terrain": {
+                "anyOf": [
+                  {
+                    "additionalProperties": {},
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "exaggeration": {
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      "sourceId": {
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "exaggeration",
+                      "sourceId"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "visible": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "styleId",
+              "projection",
+              "terrain",
+              "visible",
+              "fadeDuration"
+            ],
+            "type": "object"
+          },
+          "markers": {
+            "items": {
+              "additionalProperties": {},
+              "properties": {
+                "color": {
+                  "pattern": "^#[0-9a-f]{6}(?:[0-9a-f]{2})?$",
+                  "type": "string"
+                },
+                "comment": {
+                  "type": "string"
+                },
+                "duration": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "frame": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "frame",
+                "label",
+                "color"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nodes": {
+            "additionalProperties": {
+              "additionalProperties": {},
+              "properties": {
+                "actions": {
+                  "items": {
+                    "additionalProperties": {},
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "id": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "mode": {
+                        "enum": [
+                          "live",
+                          "baked"
+                        ],
+                        "type": "string"
+                      },
+                      "params": {
+                        "additionalProperties": {},
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "type": "object"
+                      },
+                      "startFrame": {
+                        "maximum": 9007199254740991,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": {
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "type",
+                      "enabled",
+                      "mode",
+                      "startFrame",
+                      "params"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "anchor": {
+                  "oneOf": [
+                    {
+                      "additionalProperties": {},
+                      "properties": {
+                        "altitude": {
+                          "type": "number"
+                        },
+                        "lngLat": {
+                          "prefixItems": [
+                            {
+                              "maximum": 180,
+                              "minimum": -180,
+                              "type": "number"
+                            },
+                            {
+                              "maximum": 90,
+                              "minimum": -90,
+                              "type": "number"
+                            }
+                          ],
+                          "type": "array"
+                        },
+                        "space": {
+                          "const": "geo",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "space",
+                        "lngLat"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": {},
+                      "properties": {
+                        "position": {
+                          "prefixItems": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ],
+                          "type": "array"
+                        },
+                        "space": {
+                          "const": "comp",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "space",
+                        "position"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": {},
+                      "properties": {
+                        "offset": {
+                          "prefixItems": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ],
+                          "type": "array"
+                        },
+                        "space": {
+                          "const": "parent",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "space",
+                        "offset"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                },
+                "behaviors": {
+                  "items": {
+                    "additionalProperties": {},
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "id": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "params": {
+                        "additionalProperties": {},
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "type": "object"
+                      },
+                      "type": {
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "type",
+                      "enabled",
+                      "params"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "blendMode": {
+                  "enum": [
+                    "normal",
+                    "multiply",
+                    "screen",
+                    "overlay",
+                    "darken",
+                    "lighten",
+                    "color-dodge",
+                    "color-burn",
+                    "hard-light",
+                    "soft-light",
+                    "difference",
+                    "exclusion",
+                    "hue",
+                    "saturation",
+                    "color",
+                    "luminosity",
+                    "add"
+                  ],
+                  "type": "string"
+                },
+                "children": {
+                  "items": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "effects": {
+                  "items": {
+                    "additionalProperties": {},
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "id": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "params": {
+                        "additionalProperties": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": {},
+                              "properties": {
+                                "expression": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "keyframes": {
+                                  "items": {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "frame": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                      },
+                                      "id": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "in": {
+                                        "oneOf": [
+                                          {
+                                            "additionalProperties": {},
+                                            "properties": {
+                                              "kind": {
+                                                "const": "hold",
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "kind"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          {
+                                            "additionalProperties": {},
+                                            "properties": {
+                                              "kind": {
+                                                "const": "linear",
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "kind"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          {
+                                            "additionalProperties": {},
+                                            "properties": {
+                                              "handle": {
+                                                "prefixItems": [
+                                                  {
+                                                    "type": "number"
+                                                  },
+                                                  {
+                                                    "type": "number"
+                                                  }
+                                                ],
+                                                "type": "array"
+                                              },
+                                              "kind": {
+                                                "const": "bezier",
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "kind",
+                                              "handle"
+                                            ],
+                                            "type": "object"
+                                          }
+                                        ]
+                                      },
+                                      "out": {
+                                        "oneOf": [
+                                          {
+                                            "additionalProperties": {},
+                                            "properties": {
+                                              "kind": {
+                                                "const": "hold",
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "kind"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          {
+                                            "additionalProperties": {},
+                                            "properties": {
+                                              "kind": {
+                                                "const": "linear",
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "kind"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          {
+                                            "additionalProperties": {},
+                                            "properties": {
+                                              "handle": {
+                                                "prefixItems": [
+                                                  {
+                                                    "type": "number"
+                                                  },
+                                                  {
+                                                    "type": "number"
+                                                  }
+                                                ],
+                                                "type": "array"
+                                              },
+                                              "kind": {
+                                                "const": "bezier",
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "kind",
+                                              "handle"
+                                            ],
+                                            "type": "object"
+                                          }
+                                        ]
+                                      },
+                                      "roving": {
+                                        "type": "boolean"
+                                      },
+                                      "spatial": {
+                                        "additionalProperties": {},
+                                        "properties": {
+                                          "in": {
+                                            "anyOf": [
+                                              {
+                                                "prefixItems": [
+                                                  {
+                                                    "type": "number"
+                                                  },
+                                                  {
+                                                    "type": "number"
+                                                  }
+                                                ],
+                                                "type": "array"
+                                              },
+                                              {
+                                                "type": "null"
+                                              }
+                                            ]
+                                          },
+                                          "out": {
+                                            "anyOf": [
+                                              {
+                                                "prefixItems": [
+                                                  {
+                                                    "type": "number"
+                                                  },
+                                                  {
+                                                    "type": "number"
+                                                  }
+                                                ],
+                                                "type": "array"
+                                              },
+                                              {
+                                                "type": "null"
+                                              }
+                                            ]
+                                          }
+                                        },
+                                        "required": [
+                                          "in",
+                                          "out"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "value": {}
+                                    },
+                                    "required": [
+                                      "id",
+                                      "frame",
+                                      "value",
+                                      "out",
+                                      "in"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "value": {}
+                              },
+                              "required": [
+                                "value",
+                                "keyframes",
+                                "expression"
+                              ],
+                              "type": "object"
+                            },
+                            {}
+                          ]
+                        },
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "type": "object"
+                      },
+                      "type": {
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "type",
+                      "enabled",
+                      "params"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "enabled": {
+                  "type": "boolean"
+                },
+                "id": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "label": {
+                  "enum": [
+                    "none",
+                    "red",
+                    "orange",
+                    "yellow",
+                    "green",
+                    "cyan",
+                    "blue",
+                    "violet",
+                    "gray"
+                  ],
+                  "type": "string"
+                },
+                "locked": {
+                  "type": "boolean"
+                },
+                "motionBlur": {
+                  "type": "boolean"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "parent": {
+                  "anyOf": [
+                    {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "props": {
+                  "additionalProperties": {},
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "shy": {
+                  "type": "boolean"
+                },
+                "size": {
+                  "oneOf": [
+                    {
+                      "additionalProperties": {},
+                      "properties": {
+                        "mode": {
+                          "const": "screen",
+                          "type": "string"
+                        },
+                        "size": {
+                          "prefixItems": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ],
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "mode",
+                        "size"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": {},
+                      "properties": {
+                        "meters": {
+                          "prefixItems": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ],
+                          "type": "array"
+                        },
+                        "mode": {
+                          "const": "ground",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "mode",
+                        "meters"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                },
+                "solo": {
+                  "type": "boolean"
+                },
+                "timeRange": {
+                  "additionalProperties": {},
+                  "properties": {
+                    "in": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "out": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "in",
+                    "out"
+                  ],
+                  "type": "object"
+                },
+                "timeRemap": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": {},
+                      "properties": {
+                        "expression": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "keyframes": {
+                          "items": {
+                            "additionalProperties": {},
+                            "properties": {
+                              "frame": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "id": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "in": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "hold",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "linear",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "handle": {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      "kind": {
+                                        "const": "bezier",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "handle"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "out": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "hold",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "linear",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "handle": {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      "kind": {
+                                        "const": "bezier",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "handle"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "roving": {
+                                "type": "boolean"
+                              },
+                              "spatial": {
+                                "additionalProperties": {},
+                                "properties": {
+                                  "in": {
+                                    "anyOf": [
+                                      {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "out": {
+                                    "anyOf": [
+                                      {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "in",
+                                  "out"
+                                ],
+                                "type": "object"
+                              },
+                              "value": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "frame",
+                              "value",
+                              "out",
+                              "in"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "value": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "value",
+                        "keyframes",
+                        "expression"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "transform": {
+                  "additionalProperties": {},
+                  "properties": {
+                    "anchorPoint": {
+                      "additionalProperties": {},
+                      "properties": {
+                        "expression": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "keyframes": {
+                          "items": {
+                            "additionalProperties": {},
+                            "properties": {
+                              "frame": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "id": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "in": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "hold",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "linear",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "handle": {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      "kind": {
+                                        "const": "bezier",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "handle"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "out": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "hold",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "linear",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "handle": {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      "kind": {
+                                        "const": "bezier",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "handle"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "roving": {
+                                "type": "boolean"
+                              },
+                              "spatial": {
+                                "additionalProperties": {},
+                                "properties": {
+                                  "in": {
+                                    "anyOf": [
+                                      {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "out": {
+                                    "anyOf": [
+                                      {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "in",
+                                  "out"
+                                ],
+                                "type": "object"
+                              },
+                              "value": {
+                                "prefixItems": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "number"
+                                  }
+                                ],
+                                "type": "array"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "frame",
+                              "value",
+                              "out",
+                              "in"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "value": {
+                          "prefixItems": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ],
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "value",
+                        "keyframes",
+                        "expression"
+                      ],
+                      "type": "object"
+                    },
+                    "opacity": {
+                      "additionalProperties": {},
+                      "properties": {
+                        "expression": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "keyframes": {
+                          "items": {
+                            "additionalProperties": {},
+                            "properties": {
+                              "frame": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "id": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "in": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "hold",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "linear",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "handle": {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      "kind": {
+                                        "const": "bezier",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "handle"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "out": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "hold",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "linear",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "handle": {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      "kind": {
+                                        "const": "bezier",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "handle"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "roving": {
+                                "type": "boolean"
+                              },
+                              "spatial": {
+                                "additionalProperties": {},
+                                "properties": {
+                                  "in": {
+                                    "anyOf": [
+                                      {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "out": {
+                                    "anyOf": [
+                                      {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "in",
+                                  "out"
+                                ],
+                                "type": "object"
+                              },
+                              "value": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "frame",
+                              "value",
+                              "out",
+                              "in"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "value": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "value",
+                        "keyframes",
+                        "expression"
+                      ],
+                      "type": "object"
+                    },
+                    "position": {
+                      "additionalProperties": {},
+                      "properties": {
+                        "expression": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "keyframes": {
+                          "items": {
+                            "additionalProperties": {},
+                            "properties": {
+                              "frame": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "id": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "in": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "hold",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "linear",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "handle": {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      "kind": {
+                                        "const": "bezier",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "handle"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "out": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "hold",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "linear",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "handle": {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      "kind": {
+                                        "const": "bezier",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "handle"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "roving": {
+                                "type": "boolean"
+                              },
+                              "spatial": {
+                                "additionalProperties": {},
+                                "properties": {
+                                  "in": {
+                                    "anyOf": [
+                                      {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "out": {
+                                    "anyOf": [
+                                      {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "in",
+                                  "out"
+                                ],
+                                "type": "object"
+                              },
+                              "value": {
+                                "prefixItems": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "number"
+                                  }
+                                ],
+                                "type": "array"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "frame",
+                              "value",
+                              "out",
+                              "in"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "value": {
+                          "prefixItems": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ],
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "value",
+                        "keyframes",
+                        "expression"
+                      ],
+                      "type": "object"
+                    },
+                    "rotation": {
+                      "additionalProperties": {},
+                      "properties": {
+                        "expression": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "keyframes": {
+                          "items": {
+                            "additionalProperties": {},
+                            "properties": {
+                              "frame": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "id": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "in": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "hold",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "linear",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "handle": {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      "kind": {
+                                        "const": "bezier",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "handle"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "out": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "hold",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "linear",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "handle": {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      "kind": {
+                                        "const": "bezier",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "handle"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "roving": {
+                                "type": "boolean"
+                              },
+                              "spatial": {
+                                "additionalProperties": {},
+                                "properties": {
+                                  "in": {
+                                    "anyOf": [
+                                      {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "out": {
+                                    "anyOf": [
+                                      {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "in",
+                                  "out"
+                                ],
+                                "type": "object"
+                              },
+                              "value": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "frame",
+                              "value",
+                              "out",
+                              "in"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "value": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "value",
+                        "keyframes",
+                        "expression"
+                      ],
+                      "type": "object"
+                    },
+                    "rotationReference": {
+                      "enum": [
+                        "screen",
+                        "geo-bearing"
+                      ],
+                      "type": "string"
+                    },
+                    "scale": {
+                      "additionalProperties": {},
+                      "properties": {
+                        "expression": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "keyframes": {
+                          "items": {
+                            "additionalProperties": {},
+                            "properties": {
+                              "frame": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "id": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "in": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "hold",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "linear",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "handle": {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      "kind": {
+                                        "const": "bezier",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "handle"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "out": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "hold",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "linear",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "handle": {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      "kind": {
+                                        "const": "bezier",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "handle"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "roving": {
+                                "type": "boolean"
+                              },
+                              "spatial": {
+                                "additionalProperties": {},
+                                "properties": {
+                                  "in": {
+                                    "anyOf": [
+                                      {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "out": {
+                                    "anyOf": [
+                                      {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "in",
+                                  "out"
+                                ],
+                                "type": "object"
+                              },
+                              "value": {
+                                "prefixItems": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "number"
+                                  }
+                                ],
+                                "type": "array"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "frame",
+                              "value",
+                              "out",
+                              "in"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "value": {
+                          "prefixItems": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ],
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "value",
+                        "keyframes",
+                        "expression"
+                      ],
+                      "type": "object"
+                    },
+                    "skew": {
+                      "additionalProperties": {},
+                      "properties": {
+                        "expression": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "keyframes": {
+                          "items": {
+                            "additionalProperties": {},
+                            "properties": {
+                              "frame": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "id": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "in": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "hold",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "linear",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "handle": {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      "kind": {
+                                        "const": "bezier",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "handle"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "out": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "hold",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "kind": {
+                                        "const": "linear",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "handle": {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      "kind": {
+                                        "const": "bezier",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "handle"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "roving": {
+                                "type": "boolean"
+                              },
+                              "spatial": {
+                                "additionalProperties": {},
+                                "properties": {
+                                  "in": {
+                                    "anyOf": [
+                                      {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "out": {
+                                    "anyOf": [
+                                      {
+                                        "prefixItems": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "number"
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "in",
+                                  "out"
+                                ],
+                                "type": "object"
+                              },
+                              "value": {
+                                "prefixItems": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "number"
+                                  }
+                                ],
+                                "type": "array"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "frame",
+                              "value",
+                              "out",
+                              "in"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "value": {
+                          "prefixItems": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ],
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "value",
+                        "keyframes",
+                        "expression"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "position",
+                    "rotation",
+                    "scale",
+                    "opacity",
+                    "anchorPoint",
+                    "skew",
+                    "rotationReference"
+                  ],
+                  "type": "object"
+                },
+                "type": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "type",
+                "name",
+                "parent",
+                "children",
+                "enabled",
+                "locked",
+                "solo",
+                "shy",
+                "label",
+                "timeRange",
+                "timeRemap",
+                "anchor",
+                "size",
+                "transform",
+                "blendMode",
+                "motionBlur",
+                "props",
+                "effects",
+                "behaviors",
+                "actions"
+              ],
+              "type": "object"
+            },
+            "propertyNames": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "pixelAspect": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "root": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "seed": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "width": {
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "type": "integer"
+          },
+          "workArea": {
+            "prefixItems": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              }
+            ],
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "fps",
+          "duration",
+          "width",
+          "height",
+          "pixelAspect",
+          "workArea",
+          "background",
+          "map",
+          "camera",
+          "root",
+          "nodes",
+          "markers",
+          "guides",
+          "seed"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "geoData": {
+      "items": {
+        "additionalProperties": {},
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "meta": {
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "src": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "src",
+          "meta"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "palettes": {
+      "items": {
+        "additionalProperties": {},
+        "properties": {
+          "colors": {
+            "additionalProperties": {
+              "pattern": "^#[0-9a-f]{6}(?:[0-9a-f]{2})?$",
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "colors"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "paths": {
+      "additionalProperties": {
+        "additionalProperties": {},
+        "properties": {
+          "closed": {
+            "type": "boolean"
+          },
+          "geodesic": {
+            "type": "boolean"
+          },
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "interpolation": {
+            "enum": [
+              "linear",
+              "bezier",
+              "catmull-rom"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "space": {
+            "enum": [
+              "geo",
+              "comp"
+            ],
+            "type": "string"
+          },
+          "vertices": {
+            "items": {
+              "additionalProperties": {},
+              "properties": {
+                "altitude": {
+                  "type": "number"
+                },
+                "inHandle": {
+                  "anyOf": [
+                    {
+                      "prefixItems": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ],
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "outHandle": {
+                  "anyOf": [
+                    {
+                      "prefixItems": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ],
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "point": {
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array"
+                }
+              },
+              "required": [
+                "point",
+                "inHandle",
+                "outHandle"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "space",
+          "vertices",
+          "closed",
+          "interpolation",
+          "geodesic"
+        ],
+        "type": "object"
+      },
+      "propertyNames": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "schemaVersion": {
+      "const": 1,
+      "type": "number"
+    },
+    "settings": {
+      "additionalProperties": {},
+      "properties": {
+        "colorSpace": {
+          "enum": [
+            "srgb",
+            "display-p3"
+          ],
+          "type": "string"
+        },
+        "dateFormat": {
+          "type": "string"
+        },
+        "defaultFps": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "defaultResolution": {
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "type": "array"
+        },
+        "language": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "units": {
+          "enum": [
+            "metric",
+            "imperial"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "defaultFps",
+        "defaultResolution",
+        "units",
+        "dateFormat",
+        "language",
+        "colorSpace"
+      ],
+      "type": "object"
+    },
+    "styles": {
+      "items": {
+        "additionalProperties": {},
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "src": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "src",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "id",
+    "name",
+    "settings",
+    "assets",
+    "geoData",
+    "paths",
+    "styles",
+    "palettes",
+    "compositions"
+  ],
+  "title": "Theatrum ProjectDocument v1",
+  "type": "object"
+}

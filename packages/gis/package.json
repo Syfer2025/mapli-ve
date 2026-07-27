@@ -1,0 +1,17 @@
+{
+  "name": "@theatrum/gis",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "theatrum": {
+    "layer": 2
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@theatrum/schema": "workspace:*",
+    "@theatrum/core-math": "workspace:*",
+    "@theatrum/core-utils": "workspace:*"
+  }
+}

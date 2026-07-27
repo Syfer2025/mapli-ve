@@ -1,0 +1,15 @@
+node_modules/
+dist/
+out/
+coverage/
+
+# Assets verificados byte a byte; formatá-los quebraria os checksums.
+data/**/*.geojson
+data/**/*.pbf
+data/**/*.pmtiles
+
+# Artefatos gerados deterministicamente por `pnpm schema:gen`.
+schemas/
+
+# Gerado pelo pnpm; formatá-lo faz cada `pnpm add` quebrar o `pnpm check`.
+pnpm-lock.yaml

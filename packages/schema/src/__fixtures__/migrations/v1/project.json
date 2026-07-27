@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "prj_migration_fixture",
+  "name": "Fixture de migração",
+  "$note": "campos desconhecidos devem sobreviver",
+  "pluginState": {
+    "vendor.example": {
+      "enabled": true,
+      "opaque": [1, 2, 3]
+    }
+  },
+  "compositions": [
+    {
+      "id": "cmp_main",
+      "nodes": {
+        "nd_legacy": {
+          "id": "nd_legacy",
+          "size": [56, 56],
+          "pluginPayload": {
+            "future": "preservar"
+          }
+        },
+        "nd_modern": {
+          "id": "nd_modern",
+          "size": {
+            "mode": "ground",
+            "meters": [5000, 5000]
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,148 @@
+.app {
+  position: relative;
+  display: grid;
+  grid-template-rows: var(--header-height) minmax(0, 1fr) var(--control-height-sm);
+  height: 100%;
+  background: var(--bg-app);
+}
+
+/* ---- Barra superior ---- */
+
+.app__topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-app);
+}
+
+.app__brand {
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--fg);
+}
+
+.app__phase {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+}
+
+.app__file-actions,
+.app__history-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.app__file-actions {
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--border);
+}
+
+.app__document-name {
+  max-width: 240px;
+  overflow: hidden;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app__topbar-spacer {
+  flex: 1;
+}
+
+.app__notice {
+  position: absolute;
+  z-index: 100;
+  top: calc(var(--header-height) + var(--space-4));
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 420px;
+  max-width: min(720px, calc(100% - 32px));
+  padding: var(--space-4) var(--space-5);
+  transform: translateX(-50%);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-panel-raised);
+  box-shadow: var(--shadow-popover);
+}
+
+.app__notice[data-kind="recovery"] {
+  border-color: var(--warning);
+}
+
+.app__notice[data-kind="error"] {
+  border-color: var(--danger);
+}
+
+.app__notice > div,
+.app__notice > span {
+  min-width: 0;
+  flex: 1;
+}
+
+.app__notice strong,
+.app__notice div > span {
+  display: block;
+}
+
+.app__notice div > span {
+  margin-top: var(--space-1);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+
+/* ---- Workspace ---- */
+
+.app__workspace {
+  min-height: 0;
+  min-width: 0;
+}
+
+/*
+ * Sem fade-in gated por `data-restored`.
+ *
+ * A primeira versão escondia o workspace com `opacity: 0` até a restauração
+ * terminar. Isso cria um modo de falha desproporcional: qualquer caminho em que
+ * o sinal não chegue deixa a interface **inteira** invisível, sem erro no
+ * console. Numa ferramenta profissional, painéis aparecendo instantaneamente é
+ * aceitável; a janela em branco não é.
+ *
+ * O atributo `data-restored` continua no DOM como gancho de teste.
+ */
+
+/* ---- Barra de status ---- */
+
+.app__statusbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: 0 var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-app);
+
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-faint);
+}
+
+.app__statusbar-note {
+  color: var(--fg-faint);
+  opacity: 0.75;
+}
+
+.app__status-separator {
+  color: var(--border-strong);
+}
+
+.app__statusbar [data-error] {
+  color: var(--danger);
+}

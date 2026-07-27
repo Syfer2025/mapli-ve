@@ -1,0 +1,10 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "tools"
+
+# Scripts de instalação aprovados explicitamente. esbuild e electron precisam
+# baixar/compilar binário nativo no postinstall; o resto continua bloqueado.
+allowBuilds:
+  esbuild: true
+  electron: true

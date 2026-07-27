@@ -1,0 +1,13 @@
+{
+  "name": "@theatrum/tools",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "theatrum": {
+    "layer": 99
+  },
+  "dependencies": {
+    "@theatrum/schema": "workspace:*"
+  },
+  "//": "Scripts de build e manutenção. Não é importado por nenhum pacote."
+}

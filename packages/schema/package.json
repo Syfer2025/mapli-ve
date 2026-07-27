@@ -1,0 +1,17 @@
+{
+  "name": "@theatrum/schema",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "theatrum": {
+    "layer": 1
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@theatrum/core-time": "workspace:*",
+    "@theatrum/core-utils": "workspace:*",
+    "zod": "4.4.3"
+  }
+}

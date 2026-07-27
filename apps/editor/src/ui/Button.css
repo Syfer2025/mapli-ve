@@ -1,0 +1,101 @@
+.ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+
+  height: var(--control-height);
+  padding: 0 var(--space-5);
+
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--fg);
+
+  font-size: var(--text-base);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: default;
+
+  transition:
+    background var(--transition-fast) var(--easing),
+    border-color var(--transition-fast) var(--easing);
+}
+
+.ui-button:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+}
+
+.ui-button:active:not(:disabled) {
+  background: var(--bg-active);
+}
+
+.ui-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.ui-button[data-size="sm"] {
+  height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.ui-button[data-size="lg"] {
+  height: var(--control-height-lg);
+  padding: 0 var(--space-6);
+  font-size: var(--text-md);
+}
+
+.ui-button[data-icon-only] {
+  width: var(--control-height);
+  padding: 0;
+}
+
+.ui-button[data-icon-only][data-size="sm"] {
+  width: var(--control-height-sm);
+}
+
+.ui-button[data-icon-only][data-size="lg"] {
+  width: var(--control-height-lg);
+}
+
+.ui-button[data-variant="primary"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+
+.ui-button[data-variant="primary"]:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.ui-button[data-variant="primary"]:active:not(:disabled) {
+  background: var(--accent-active);
+}
+
+.ui-button[data-variant="ghost"] {
+  background: transparent;
+  border-color: transparent;
+  color: var(--fg-muted);
+}
+
+.ui-button[data-variant="ghost"]:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: transparent;
+  color: var(--fg);
+}
+
+.ui-button[data-variant="danger"] {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.ui-button[data-variant="danger"]:hover:not(:disabled) {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--fg);
+}

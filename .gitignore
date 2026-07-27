@@ -1,0 +1,28 @@
+# dependências e build
+node_modules/
+dist/
+out/
+.vite/
+*.tsbuildinfo
+
+# geodados offline — baixados e verificados por tools/fetch-data.ts
+data/basemap/*.pmtiles
+data/glyphs/
+data/natural-earth/*.geojson
+data/sprites/
+data/terrain/
+
+# saída de teste
+coverage/
+tests/golden/frames/*.actual.png
+tests/golden/frames/*.diff.png
+.tmp-*
+
+# recuperação e jobs
+*.theatrum-recovery
+.theatrum-jobs/
+
+# sistema
+.DS_Store
+Thumbs.db
+desktop.ini

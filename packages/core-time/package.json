@@ -1,0 +1,15 @@
+{
+  "name": "@theatrum/core-time",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "theatrum": {
+    "layer": 0
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@theatrum/core-utils": "workspace:*"
+  }
+}

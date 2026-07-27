@@ -1,0 +1,19 @@
+{
+  "name": "@theatrum/renderer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "theatrum": {
+    "layer": 3
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@theatrum/schema": "workspace:*",
+    "@theatrum/core-math": "workspace:*",
+    "@theatrum/core-time": "workspace:*",
+    "@theatrum/core-utils": "workspace:*",
+    "pixi.js": "8.19.0"
+  }
+}

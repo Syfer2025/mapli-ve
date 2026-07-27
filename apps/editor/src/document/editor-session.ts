@@ -1,0 +1,1344 @@
+import { createCommandBus, type HistorySnapshot } from "@theatrum/commands";
+import { createIdFactory } from "@theatrum/core-utils";
+import { createDocumentStore, select } from "@theatrum/document";
+import { createBuiltinNodeTypeRegistry, type NodeTypeDefinition } from "@theatrum/scene-graph";
+import {
+  parseProjectContainer,
+  serializeProjectContainer,
+  type ContentAddressedAsset,
+  type OpenedProject,
+  type ProjectContainerInput,
+} from "@theatrum/project-io";
+import {
+  APP_NAME,
+  createEmptyProjectDocument,
+  safeParseProjectDocument,
+  type AnimatableProperty,
+  type Anchor,
+  type EasingHandle,
+  type Node,
+  type PathData,
+  type PathVertex,
+  type ProjectDocument,
+  type SizeSpec,
+} from "@theatrum/schema";
+import type { MenuAction, ProjectFileReference, RecoveryCandidateInfo } from "@theatrum/shell";
+import { bridge } from "../bridge/index.js";
+
+const AUTOSAVE_DEBOUNCE_MS = 500;
+const HEARTBEAT_INTERVAL_MS = 5_000;
+
+const ids = createIdFactory(0x0f03_2026, { detectCollisions: true });
+export const nodeTypeRegistry = createBuiltinNodeTypeRegistry();
+const initialDocument = createEmptyProjectDocument();
+const documentStore = createDocumentStore(initialDocument);
+export const commandBus = createCommandBus(documentStore);
+
+export interface EditorSessionSnapshot {
+  readonly document: ProjectDocument;
+  readonly revision: number;
+  readonly dirty: boolean;
+  readonly file: ProjectFileReference | null;
+  readonly status: string;
+  readonly error: string | null;
+  readonly selectedCompositionId: string;
+  readonly selectedNodeId: string | null;
+  readonly selectedNodeIds: readonly string[];
+  readonly playheadFrame: number;
+  readonly isPlaying: boolean;
+  readonly loopPlayback: boolean;
+  readonly history: HistorySnapshot;
+  readonly recoveryCandidate: RecoveryCandidateInfo | null;
+  readonly ready: boolean;
+}
+
+type SessionListener = () => void;
+type ContainerExtras = Omit<ProjectContainerInput, "document">;
+interface NodeClipboard {
+  readonly roots: readonly string[];
+  readonly nodes: Readonly<Record<string, Node>>;
+}
+
+const EMPTY_CONTAINER_EXTRAS: ContainerExtras = Object.freeze({});
+
+const listeners = new Set<SessionListener>();
+let initialized: Promise<void> | null = null;
+let autosaveReady = false;
+let autosaveTimer: number | null = null;
+let pendingCommands = 0;
+let suppressDocumentEffects = false;
+let heartbeatTimer: number | null = null;
+let projectGeneration = 0;
+let containerExtras: ContainerExtras = EMPTY_CONTAINER_EXTRAS;
+let playbackRequest: number | null = null;
+let playbackStartedAt = 0;
+let playbackStartFrame = 0;
+let nodeClipboard: NodeClipboard | null = null;
+
+let snapshot: EditorSessionSnapshot = Object.freeze({
+  document: initialDocument,
+  revision: 0,
+  dirty: false,
+  file: null,
+  status: "Projeto novo",
+  error: null,
+  selectedCompositionId: initialDocument.compositions[0]?.id ?? "",
+  selectedNodeId: null,
+  selectedNodeIds: Object.freeze([]),
+  playheadFrame: 0,
+  isPlaying: false,
+  loopPlayback: false,
+  history: historySnapshot(),
+  recoveryCandidate: null,
+  ready: false,
+});
+
+export function subscribeEditorSession(listener: SessionListener): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+export function getEditorSessionSnapshot(): EditorSessionSnapshot {
+  return snapshot;
+}
+
+export function initializeEditorSession(): Promise<void> {
+  initialized ??= initialize();
+  return initialized;
+}
+
+export const editorActions = Object.freeze({
+  dispatch(command: unknown): boolean {
+    const result = commandBus.dispatch(command);
+    if (!result.ok) {
+      update({ error: result.error.message, status: "Comando rejeitado" });
+      return false;
+    }
+    update({ error: null, status: result.label });
+    return true;
+  },
+
+  undo(): void {
+    if (commandBus.undo()) update({ status: "Desfeito", error: null });
+  },
+
+  redo(): void {
+    if (commandBus.redo()) update({ status: "Refeito", error: null });
+  },
+
+  jumpHistory(index: number): void {
+    commandBus.history.jumpTo(index);
+    update({ status: index < 0 ? "Estado inicial" : "Histórico restaurado" });
+  },
+
+  selectComposition(compositionId: string): void {
+    pausePlayback();
+    update({
+      selectedCompositionId: compositionId,
+      selectedNodeId: null,
+      selectedNodeIds: Object.freeze([]),
+      playheadFrame: 0,
+    });
+  },
+
+  selectNode(compositionId: string, nodeId: string, additive = false): void {
+    const current =
+      additive && compositionId === snapshot.selectedCompositionId
+        ? [...snapshot.selectedNodeIds]
+        : [];
+    const existing = current.indexOf(nodeId);
+    if (additive && existing >= 0) current.splice(existing, 1);
+    else if (existing < 0) current.push(nodeId);
+    update({
+      selectedCompositionId: compositionId,
+      selectedNodeId: current.at(-1) ?? null,
+      selectedNodeIds: Object.freeze(current),
+    });
+  },
+
+  selectNodes(compositionId: string, nodeIds: readonly string[]): void {
+    const composition = documentStore
+      .get()
+      .compositions.find((candidate) => candidate.id === compositionId);
+    if (composition === undefined) return;
+    const unique = [
+      ...new Set(nodeIds.filter((nodeId) => composition.nodes[nodeId] !== undefined)),
+    ];
+    update({
+      selectedCompositionId: compositionId,
+      selectedNodeId: unique.at(-1) ?? null,
+      selectedNodeIds: Object.freeze(unique),
+    });
+  },
+
+  clearSelection(): void {
+    update({ selectedNodeId: null, selectedNodeIds: Object.freeze([]) });
+  },
+
+  setPlayhead(frame: number): void {
+    const composition = selectedComposition();
+    if (composition === undefined || !Number.isFinite(frame)) return;
+    update({
+      playheadFrame: Math.max(0, Math.min(composition.duration, Math.round(frame))),
+    });
+  },
+
+  play(): void {
+    if (playbackRequest !== null) return;
+    const composition = selectedComposition();
+    if (composition === undefined) return;
+    const startFrame = snapshot.playheadFrame >= composition.duration ? 0 : snapshot.playheadFrame;
+    playbackStartFrame = startFrame;
+    playbackStartedAt = performance.now();
+    update({ playheadFrame: startFrame, isPlaying: true, status: "Reproduzindo" });
+    playbackRequest = requestAnimationFrame(playbackTick);
+  },
+
+  pause(): void {
+    pausePlayback();
+    update({ status: "Pausado" });
+  },
+
+  togglePlayback(): void {
+    if (snapshot.isPlaying) this.pause();
+    else this.play();
+  },
+
+  stop(): void {
+    pausePlayback();
+    update({ playheadFrame: 0, status: "Parado" });
+  },
+
+  setLoop(loopPlayback: boolean): void {
+    update({ loopPlayback });
+  },
+
+  setPropertyValue(
+    nodeId: string,
+    path: string,
+    value: unknown,
+    keyframeWhenAnimated = true,
+  ): boolean {
+    const property = selectedProperty(nodeId, path);
+    if (property === undefined) return false;
+    const existing = property.keyframes.find(
+      (keyframe) => keyframe.frame === snapshot.playheadFrame,
+    );
+    if (keyframeWhenAnimated && property.keyframes.length > 0) {
+      return this.dispatch({
+        type: "keyframe.set",
+        payload: {
+          ...propertyLocation(nodeId, path),
+          keyframe: {
+            id: existing?.id ?? ids("kf"),
+            frame: snapshot.playheadFrame,
+            value,
+            in: existing?.in ?? { kind: "linear" },
+            out: existing?.out ?? { kind: "linear" },
+          },
+        },
+        source: "user",
+      });
+    }
+    return this.dispatch({
+      type: "property.set",
+      payload: { ...propertyLocation(nodeId, path), value },
+      source: "user",
+    });
+  },
+
+  togglePropertyKeyframe(nodeId: string, path: string): boolean {
+    const property = selectedProperty(nodeId, path);
+    if (property === undefined) return false;
+    const existing = property.keyframes.find(
+      (keyframe) => keyframe.frame === snapshot.playheadFrame,
+    );
+    if (existing !== undefined) {
+      return this.dispatch({
+        type: "keyframe.remove",
+        payload: {
+          ...propertyLocation(nodeId, path),
+          keyframeId: existing.id,
+        },
+        source: "user",
+      });
+    }
+    return this.dispatch({
+      type: "keyframe.set",
+      payload: {
+        ...propertyLocation(nodeId, path),
+        keyframe: {
+          id: ids("kf"),
+          frame: snapshot.playheadFrame,
+          value: structuredClone(property.value),
+          in: { kind: "linear" },
+          out: { kind: "linear" },
+        },
+      },
+      source: "user",
+    });
+  },
+
+  removePropertyKeyframe(nodeId: string, path: string, keyframeId: string): boolean {
+    return this.dispatch({
+      type: "keyframe.remove",
+      payload: { ...propertyLocation(nodeId, path), keyframeId },
+      source: "user",
+    });
+  },
+
+  movePropertyKeyframe(
+    nodeId: string,
+    path: string,
+    keyframeId: string,
+    targetFrame: number,
+  ): boolean {
+    const composition = selectedComposition();
+    if (composition === undefined || !Number.isFinite(targetFrame)) return false;
+    return this.dispatch({
+      type: "keyframe.move",
+      payload: {
+        ...propertyLocation(nodeId, path),
+        keyframeId,
+        frame: Math.max(0, Math.min(composition.duration, Math.round(targetFrame))),
+      },
+      source: "user",
+    });
+  },
+
+  setPropertyKeyframeEasing(
+    nodeId: string,
+    path: string,
+    keyframeId: string,
+    easing: { readonly in?: EasingHandle; readonly out?: EasingHandle },
+  ): boolean {
+    if (easing.in === undefined && easing.out === undefined) return false;
+    return this.dispatch({
+      type: "keyframe.set-easing",
+      payload: {
+        ...propertyLocation(nodeId, path),
+        keyframeId,
+        ...(easing.in === undefined ? {} : { in: easing.in }),
+        ...(easing.out === undefined ? {} : { out: easing.out }),
+      },
+      source: "user",
+    });
+  },
+
+  setNodeAnchor(nodeId: string, anchor: Anchor): boolean {
+    return this.dispatch({
+      type: "node.set-anchor",
+      payload: {
+        compositionId: snapshot.selectedCompositionId,
+        nodeId,
+        anchor,
+      },
+      source: "user",
+    });
+  },
+
+  /** `null` remove o remapeamento e devolve o nó ao tempo da composição. */
+  setNodeTimeRemap(nodeId: string, timeRemap: AnimatableProperty<number> | null): boolean {
+    return this.dispatch({
+      type: "node.set-time-remap",
+      payload: {
+        compositionId: snapshot.selectedCompositionId,
+        nodeId,
+        timeRemap,
+      },
+      source: "user",
+    });
+  },
+
+  setNodeSize(nodeId: string, size: SizeSpec): boolean {
+    return this.dispatch({
+      type: "node.set-size",
+      payload: {
+        compositionId: snapshot.selectedCompositionId,
+        nodeId,
+        size,
+      },
+      source: "user",
+    });
+  },
+
+  addNode(parentId?: string): string | null {
+    return this.addNodeOfType("group", parentId);
+  },
+
+  /** Aceita qualquer tipo registrado: a UI enumera o registry, não uma lista fixa. */
+  addNodeOfType(type: string, parentId?: string): string | null {
+    const document = documentStore.get();
+    const composition = document.compositions.find(
+      (item) => item.id === snapshot.selectedCompositionId,
+    );
+    if (composition === undefined) return null;
+    const definition = nodeTypeRegistry.get(type);
+    if (definition === undefined) return null;
+    const explicitlyRequested = parentId === undefined ? undefined : composition.nodes[parentId];
+    const selected =
+      snapshot.selectedNodeId === null ? undefined : composition.nodes[snapshot.selectedNodeId];
+    const parent =
+      explicitlyRequested ??
+      (selected !== undefined && supportsChildren(selected.type)
+        ? selected
+        : selected?.parent === null || selected?.parent === undefined
+          ? composition.nodes[composition.root]
+          : composition.nodes[selected.parent]);
+    if (parent === undefined || !supportsChildren(parent.type)) return null;
+
+    const nodeId = ids("nd");
+    const node = createNodeFromDefinition(
+      composition.nodes[composition.root],
+      definition,
+      nodeId,
+      parent.id,
+      composition,
+    );
+    const ok = this.dispatch({
+      type: "node.create",
+      payload: { compositionId: composition.id, parentId: parent.id, node },
+      source: "user",
+    });
+    if (ok) {
+      update({
+        selectedNodeId: nodeId,
+        selectedNodeIds: Object.freeze([nodeId]),
+      });
+    }
+    return ok ? nodeId : null;
+  },
+
+  renameNode(nodeId: string, name: string): void {
+    this.dispatch({
+      type: "node.rename",
+      payload: {
+        compositionId: snapshot.selectedCompositionId,
+        nodeId,
+        name,
+      },
+      source: "user",
+    });
+  },
+
+  deleteNode(nodeId: string): void {
+    const ok = this.dispatch({
+      type: "node.delete",
+      payload: { compositionId: snapshot.selectedCompositionId, nodeId },
+      source: "user",
+    });
+    if (ok && snapshot.selectedNodeIds.includes(nodeId)) {
+      const selectedNodeIds = snapshot.selectedNodeIds.filter(
+        (selectedId) => selectedId !== nodeId,
+      );
+      update({
+        selectedNodeId: selectedNodeIds.at(-1) ?? null,
+        selectedNodeIds: Object.freeze(selectedNodeIds),
+      });
+    }
+  },
+
+  reparentNode(nodeId: string, parentId: string): void {
+    this.dispatch({
+      type: "node.reparent",
+      payload: {
+        compositionId: snapshot.selectedCompositionId,
+        nodeId,
+        parentId,
+      },
+      source: "user",
+    });
+  },
+
+  deleteSelection(): void {
+    const composition = selectedComposition();
+    if (composition === undefined) return;
+    const roots = selectedRootIds(composition.nodes, snapshot.selectedNodeIds).filter(
+      (nodeId) => nodeId !== composition.root,
+    );
+    if (roots.length === 0) return;
+    const deleted = runTransaction(
+      roots.length === 1 ? "Excluir nó" : `Excluir ${roots.length} nós`,
+      () => {
+        for (const nodeId of roots) {
+          commandBus.dispatch({
+            type: "node.delete",
+            payload: { compositionId: composition.id, nodeId },
+            source: "user",
+          });
+        }
+      },
+    );
+    if (deleted) this.clearSelection();
+  },
+
+  copySelection(): boolean {
+    const composition = selectedComposition();
+    if (composition === undefined) return false;
+    const roots = selectedRootIds(composition.nodes, snapshot.selectedNodeIds).filter(
+      (nodeId) => nodeId !== composition.root,
+    );
+    if (roots.length === 0) return false;
+    const copied: Record<string, Node> = {};
+    for (const rootId of roots) {
+      for (const nodeId of subtreeIds(composition.nodes, rootId)) {
+        const node = composition.nodes[nodeId];
+        if (node !== undefined) copied[nodeId] = structuredClone(node);
+      }
+    }
+    nodeClipboard = Object.freeze({
+      roots: Object.freeze(roots),
+      nodes: Object.freeze(copied),
+    });
+    update({
+      status: roots.length === 1 ? "Nó copiado" : `${roots.length} nós copiados`,
+      error: null,
+    });
+    return true;
+  },
+
+  pasteNodes(parentId?: string): readonly string[] {
+    const composition = selectedComposition();
+    if (composition === undefined || nodeClipboard === null) return [];
+    const selectedParent =
+      parentId === undefined && snapshot.selectedNodeId !== null
+        ? composition.nodes[snapshot.selectedNodeId]
+        : undefined;
+    const targetParentId =
+      parentId ??
+      (selectedParent !== undefined && supportsChildren(selectedParent.type)
+        ? selectedParent.id
+        : composition.root);
+    if (composition.nodes[targetParentId] === undefined) return [];
+
+    const idMap = new Map<string, string>();
+    for (const oldId of Object.keys(nodeClipboard.nodes)) idMap.set(oldId, ids("nd"));
+    const ordered = nodeClipboard.roots.flatMap((rootId) =>
+      subtreeIds(nodeClipboard?.nodes ?? {}, rootId),
+    );
+    const pastedRoots = nodeClipboard.roots
+      .map((rootId) => idMap.get(rootId))
+      .filter((nodeId): nodeId is string => nodeId !== undefined);
+    const rootSet = new Set(nodeClipboard.roots);
+
+    const pasted = runTransaction(
+      pastedRoots.length === 1 ? "Colar nó" : `Colar ${pastedRoots.length} nós`,
+      () => {
+        for (const oldId of ordered) {
+          const source = nodeClipboard?.nodes[oldId];
+          const nodeId = idMap.get(oldId);
+          if (source === undefined || nodeId === undefined) continue;
+          const mappedParent =
+            rootSet.has(oldId) || source.parent === null
+              ? targetParentId
+              : (idMap.get(source.parent) ?? targetParentId);
+          const node: Node = {
+            ...structuredClone(source),
+            id: nodeId,
+            name: rootSet.has(oldId) ? `${source.name} cópia` : source.name,
+            parent: mappedParent,
+            children: [],
+          };
+          commandBus.dispatch({
+            type: "node.create",
+            payload: { compositionId: composition.id, parentId: mappedParent, node },
+            source: "user",
+          });
+        }
+      },
+    );
+    if (!pasted) return [];
+    this.selectNodes(composition.id, pastedRoots);
+    return pastedRoots;
+  },
+
+  duplicateSelection(): readonly string[] {
+    const composition = selectedComposition();
+    if (composition === undefined) return [];
+    const roots = selectedRootIds(composition.nodes, snapshot.selectedNodeIds);
+    const first = roots[0] === undefined ? undefined : composition.nodes[roots[0]];
+    const commonParent =
+      first !== undefined &&
+      roots.every((nodeId) => composition.nodes[nodeId]?.parent === first.parent)
+        ? (first.parent ?? composition.root)
+        : composition.root;
+    return this.copySelection() ? this.pasteNodes(commonParent) : [];
+  },
+
+  groupSelection(): string | null {
+    const composition = selectedComposition();
+    if (composition === undefined) return null;
+    const roots = selectedRootIds(composition.nodes, snapshot.selectedNodeIds).filter(
+      (nodeId) => nodeId !== composition.root,
+    );
+    if (roots.length === 0) return null;
+    const first = composition.nodes[roots[0] as string];
+    const commonParent =
+      first !== undefined &&
+      roots.every((nodeId) => composition.nodes[nodeId]?.parent === first.parent)
+        ? (first.parent ?? composition.root)
+        : composition.root;
+    const nodeId = ids("nd");
+    const groupDefinition = nodeTypeRegistry.get("group");
+    if (groupDefinition === undefined) return null;
+    const group = createNodeFromDefinition(
+      composition.nodes[composition.root],
+      groupDefinition,
+      nodeId,
+      commonParent,
+      composition,
+    );
+    group.name = "Grupo";
+    const grouped = runTransaction("Agrupar nós", () => {
+      commandBus.dispatch({
+        type: "node.create",
+        payload: {
+          compositionId: composition.id,
+          parentId: commonParent,
+          node: group,
+        },
+        source: "user",
+      });
+      for (const childId of roots) {
+        commandBus.dispatch({
+          type: "node.reparent",
+          payload: { compositionId: composition.id, nodeId: childId, parentId: nodeId },
+          source: "user",
+        });
+      }
+    });
+    if (!grouped) return null;
+    this.selectNodes(composition.id, [nodeId]);
+    return nodeId;
+  },
+
+  ungroupSelection(): void {
+    const composition = selectedComposition();
+    if (composition === undefined) return;
+    const groups = selectedRootIds(composition.nodes, snapshot.selectedNodeIds)
+      .map((nodeId) => composition.nodes[nodeId])
+      .filter(
+        (node): node is Node =>
+          node !== undefined &&
+          node.id !== composition.root &&
+          (node.type === "group" || node.type === "folder") &&
+          node.parent !== null,
+      );
+    if (groups.length === 0) return;
+    const nextSelection = groups.flatMap((group) => group.children);
+    const ungrouped = runTransaction("Desagrupar nós", () => {
+      for (const group of groups) {
+        const parentId = group.parent;
+        if (parentId === null) continue;
+        const parent = composition.nodes[parentId];
+        const insertion = parent?.children.indexOf(group.id) ?? -1;
+        group.children.forEach((childId, index) => {
+          commandBus.dispatch({
+            type: "node.reparent",
+            payload: {
+              compositionId: composition.id,
+              nodeId: childId,
+              parentId,
+              ...(insertion < 0 ? {} : { index: insertion + index }),
+            },
+            source: "user",
+          });
+        });
+        commandBus.dispatch({
+          type: "node.delete",
+          payload: { compositionId: composition.id, nodeId: group.id },
+          source: "user",
+        });
+      }
+    });
+    if (ungrouped) this.selectNodes(composition.id, nextSelection);
+  },
+
+  async newProject(): Promise<void> {
+    if (!confirmDiscard()) return;
+    const document = createEmptyProjectDocument({
+      id: ids("prj"),
+      compositionId: ids("cmp"),
+      rootNodeId: ids("nd"),
+    });
+    await replaceProject(document, null, "Projeto novo", false);
+  },
+
+  async openProject(): Promise<void> {
+    if (!confirmDiscard()) return;
+    update({ status: "Abrindo…", error: null });
+    try {
+      const opened = await bridge.project.open();
+      if (opened.status === "cancelled") {
+        update({ status: "Abertura cancelada" });
+        return;
+      }
+      const parsed = parseProjectContainer(opened.bytes);
+      if (!parsed.ok) {
+        update({ status: "Falha ao abrir", error: parsed.error.message });
+        return;
+      }
+      await replaceProject(
+        parsed.value.document,
+        opened.file,
+        "Projeto aberto",
+        false,
+        containerExtrasFromOpenedProject(parsed.value),
+      );
+    } catch (error: unknown) {
+      update({ status: "Falha ao abrir", error: describeError(error) });
+    }
+  },
+
+  async saveProject(saveAs = false): Promise<void> {
+    update({ status: "Salvando…", error: null });
+    const documentToSave = documentStore.get();
+    const revisionToSave = snapshot.revision;
+    const generationToSave = projectGeneration;
+    const fileToSave = snapshot.file;
+    const extrasToSave = containerExtras;
+    const encoded = serializeProjectContainer({
+      ...extrasToSave,
+      document: documentToSave,
+    });
+    if (!encoded.ok) {
+      update({ status: "Falha ao salvar", error: encoded.error.message });
+      return;
+    }
+
+    try {
+      const request = {
+        file: fileToSave,
+        suggestedName: documentToSave.name,
+        bytes: encoded.value,
+      };
+      const saved = saveAs
+        ? await bridge.project.saveAs(request)
+        : await bridge.project.save(request);
+      if (saved.status === "cancelled") {
+        update({ status: "Salvamento cancelado" });
+        return;
+      }
+      // O diálogo nativo pode ficar aberto enquanto outro comando troca o
+      // projeto. O arquivo antigo foi salvo, mas não pertence ao novo documento.
+      if (projectGeneration !== generationToSave) return;
+
+      const unchanged =
+        snapshot.revision === revisionToSave && documentStore.get() === documentToSave;
+      update({
+        file: saved.file,
+        dirty: !unchanged,
+        status: unchanged ? "Salvo" : "Salvo; há alterações posteriores",
+        error: null,
+      });
+      await startAutosave(saved.file.path, !unchanged);
+      await updateWindowTitle();
+    } catch (error: unknown) {
+      update({ status: "Falha ao salvar", error: describeError(error) });
+    }
+  },
+
+  async recover(candidate: RecoveryCandidateInfo): Promise<void> {
+    update({ status: "Recuperando…", error: null });
+    const recovered = await bridge.recovery.recover(candidate.projectId);
+    if (!recovered.ok) {
+      update({ status: "Falha na recuperação", error: recovered.message });
+      return;
+    }
+    const parsed = safeParseProjectDocument(recovered.document);
+    if (!parsed.success) {
+      update({ status: "Falha na recuperação", error: parsed.error.message });
+      return;
+    }
+    let recoveredExtras = EMPTY_CONTAINER_EXTRAS;
+    if (recovered.container !== null) {
+      const container = parseProjectContainer(recovered.container);
+      if (!container.ok) {
+        update({ status: "Falha na recuperação", error: container.error.message });
+        return;
+      }
+      if (container.value.document.id !== parsed.data.id) {
+        update({
+          status: "Falha na recuperação",
+          error: "O container-base pertence a outro projeto.",
+        });
+        return;
+      }
+      recoveredExtras = containerExtrasFromOpenedProject(container.value);
+    }
+    await replaceProject(parsed.data, null, "Projeto recuperado", true, recoveredExtras);
+  },
+
+  async discardRecovery(candidate: RecoveryCandidateInfo): Promise<void> {
+    const discarded = await bridge.recovery.discard(candidate.projectId);
+    if (!discarded.ok) {
+      update({ error: discarded.message, status: "Falha ao descartar recuperação" });
+      return;
+    }
+    update({ recoveryCandidate: null, ready: true, status: "Recuperação descartada" });
+    await startAutosave(null, snapshot.dirty);
+  },
+
+  /**
+   * Cria um caminho no projeto (não na composição: a mesma rota serve a várias
+   * cenas). Devolve o id para quem precisa atribuí-lo em seguida.
+   */
+  createPath(input: {
+    readonly name: string;
+    readonly space: PathData["space"];
+    readonly vertices: readonly PathVertex[];
+    readonly interpolation?: PathData["interpolation"];
+    readonly closed?: boolean;
+    readonly geodesic?: boolean;
+  }): string | null {
+    const pathId = ids("pth");
+    const ok = this.dispatch({
+      type: "path.create",
+      payload: {
+        path: {
+          id: pathId,
+          name: input.name,
+          space: input.space,
+          vertices: input.vertices.map((vertex) => ({ ...vertex })),
+          closed: input.closed ?? false,
+          interpolation: input.interpolation ?? "bezier",
+          geodesic: input.geodesic ?? false,
+        },
+      },
+      source: "user",
+    });
+    return ok ? pathId : null;
+  },
+
+  setPathVertices(pathId: string, vertices: readonly PathVertex[]): boolean {
+    return this.dispatch({
+      type: "path.set-vertices",
+      payload: { pathId, vertices: vertices.map((vertex) => ({ ...vertex })) },
+      source: "user",
+    });
+  },
+
+  setPathFlags(
+    pathId: string,
+    flags: {
+      readonly closed?: boolean;
+      readonly interpolation?: PathData["interpolation"];
+      readonly geodesic?: boolean;
+    },
+  ): boolean {
+    return this.dispatch({ type: "path.set-flags", payload: { pathId, flags }, source: "user" });
+  },
+
+  renamePath(pathId: string, name: string): boolean {
+    return this.dispatch({ type: "path.rename", payload: { pathId, name }, source: "user" });
+  },
+
+  /**
+   * Falha de propósito enquanto algum comportamento apontar para o caminho: o
+   * documento não admite `pathId` pendurado.
+   */
+  deletePath(pathId: string): boolean {
+    return this.dispatch({ type: "path.delete", payload: { pathId }, source: "user" });
+  },
+
+  addBehavior(nodeId: string, type: string, params: Record<string, unknown>): string | null {
+    const behaviorId = ids("bhv");
+    const ok = this.dispatch({
+      type: "behavior.add",
+      payload: {
+        compositionId: snapshot.selectedCompositionId,
+        nodeId,
+        behavior: { id: behaviorId, type, enabled: true, params },
+      },
+      source: "user",
+    });
+    return ok ? behaviorId : null;
+  },
+
+  /**
+   * Atribui um caminho a um nó com `progress` já animado de 0 a 1 no intervalo
+   * de tempo do nó — o estado útil por padrão, em vez de um comportamento inerte
+   * que exige dois keyframes manuais antes de mostrar qualquer coisa.
+   */
+  assignMotionPath(
+    nodeId: string,
+    pathId: string,
+    options: { readonly from?: number; readonly to?: number; readonly autoOrient?: boolean } = {},
+  ): string | null {
+    const composition = selectedComposition();
+    const node = composition?.nodes[nodeId];
+    if (composition === undefined || node === undefined) return null;
+    const from = options.from ?? node.timeRange.in;
+    const to = options.to ?? Math.max(from + 1, node.timeRange.out);
+    return this.addBehavior(nodeId, "motion-path", {
+      pathId,
+      progress: {
+        value: 0,
+        keyframes: [
+          { id: ids("kf"), frame: from, value: 0, in: { kind: "linear" }, out: { kind: "linear" } },
+          { id: ids("kf"), frame: to, value: 1, in: { kind: "linear" }, out: { kind: "linear" } },
+        ],
+        expression: null,
+      },
+      autoOrient: options.autoOrient ?? true,
+      orientOffset: 0,
+      banking: 0,
+      offset: [0, 0],
+      loop: false,
+    });
+  },
+
+  setBehaviorParams(nodeId: string, behaviorId: string, params: Record<string, unknown>): boolean {
+    return this.dispatch({
+      type: "behavior.set-params",
+      payload: {
+        compositionId: snapshot.selectedCompositionId,
+        nodeId,
+        behaviorId,
+        params,
+      },
+      source: "user",
+    });
+  },
+
+  setBehaviorEnabled(nodeId: string, behaviorId: string, enabled: boolean): boolean {
+    return this.dispatch({
+      type: "behavior.set-enabled",
+      payload: {
+        compositionId: snapshot.selectedCompositionId,
+        nodeId,
+        behaviorId,
+        enabled,
+      },
+      source: "user",
+    });
+  },
+
+  removeBehavior(nodeId: string, behaviorId: string): boolean {
+    return this.dispatch({
+      type: "behavior.remove",
+      payload: { compositionId: snapshot.selectedCompositionId, nodeId, behaviorId },
+      source: "user",
+    });
+  },
+
+  handleMenu(action: MenuAction): void {
+    if (action === "project:new") void this.newProject();
+    else if (action === "project:open") void this.openProject();
+    else if (action === "project:save") void this.saveProject();
+    else if (action === "project:save-as") void this.saveProject(true);
+    else if (action === "history:undo") this.undo();
+    else if (action === "history:redo") this.redo();
+  },
+
+  clearError(): void {
+    update({ error: null });
+  },
+});
+
+documentStore.subscribe(() => {
+  const document = documentStore.get();
+  const selectedComposition =
+    document.compositions.find((item) => item.id === snapshot.selectedCompositionId) ??
+    document.compositions[0];
+  const selectedNodeId =
+    snapshot.selectedNodeId !== null &&
+    selectedComposition?.nodes[snapshot.selectedNodeId] !== undefined
+      ? snapshot.selectedNodeId
+      : null;
+  const selectedNodeIds = snapshot.selectedNodeIds.filter(
+    (nodeId) => selectedComposition?.nodes[nodeId] !== undefined,
+  );
+  snapshot = Object.freeze({
+    ...snapshot,
+    document,
+    revision: snapshot.revision + 1,
+    dirty: suppressDocumentEffects ? snapshot.dirty : true,
+    selectedCompositionId: selectedComposition?.id ?? "",
+    selectedNodeId:
+      selectedNodeId !== null && selectedNodeIds.includes(selectedNodeId)
+        ? selectedNodeId
+        : (selectedNodeIds.at(-1) ?? null),
+    selectedNodeIds: Object.freeze(selectedNodeIds),
+  });
+  notify();
+  if (!suppressDocumentEffects) scheduleAutosave();
+});
+
+commandBus.history.subscribe((history) => {
+  update({ history });
+});
+
+async function initialize(): Promise<void> {
+  const result = await bridge.recovery.candidates();
+  if (!result.ok) {
+    update({ ready: true, error: result.message, status: "Recuperação indisponível" });
+    await startAutosave(null);
+    return;
+  }
+  const candidate = result.candidates[0] ?? null;
+  update({
+    ready: true,
+    recoveryCandidate: candidate,
+    status: candidate === null ? "Pronto" : "Recuperação disponível",
+  });
+  if (candidate === null) await startAutosave(null);
+  startHeartbeat();
+  await updateWindowTitle();
+}
+
+async function replaceProject(
+  document: ProjectDocument,
+  file: ProjectFileReference | null,
+  status: string,
+  dirty: boolean,
+  extras: ContainerExtras = EMPTY_CONTAINER_EXTRAS,
+): Promise<void> {
+  pausePlayback();
+  suppressDocumentEffects = true;
+  try {
+    documentStore.replace(document);
+    commandBus.history.clear();
+  } finally {
+    suppressDocumentEffects = false;
+  }
+  projectGeneration += 1;
+  containerExtras = extras;
+  update({
+    document: documentStore.get(),
+    dirty,
+    file,
+    status,
+    error: null,
+    selectedCompositionId: document.compositions[0]?.id ?? "",
+    selectedNodeId: null,
+    selectedNodeIds: Object.freeze([]),
+    playheadFrame: 0,
+    recoveryCandidate: null,
+  });
+  await startAutosave(file?.path ?? null, dirty);
+  await updateWindowTitle();
+}
+
+async function startAutosave(projectPath: string | null, markDirty = false): Promise<void> {
+  autosaveReady = false;
+  pendingCommands = 0;
+  if (autosaveTimer !== null) window.clearTimeout(autosaveTimer);
+  autosaveTimer = null;
+  const baseRevision = snapshot.revision;
+  const baseDocument = documentStore.get();
+  const recoveryContainer = serializeRecoveryContainer(baseDocument);
+  if (typeof recoveryContainer === "string") {
+    update({ error: recoveryContainer, status: "Autosave indisponível" });
+    return;
+  }
+  const result = await bridge.recovery.start({
+    document: baseDocument,
+    projectPath,
+    ...(recoveryContainer === undefined ? {} : { container: recoveryContainer }),
+  });
+  autosaveReady = result.ok;
+  if (!result.ok) {
+    update({ error: result.message, status: "Autosave indisponível" });
+    return;
+  }
+
+  // A base pode representar dados ainda não salvos (recuperação ou edição feita
+  // enquanto Save estava em voo). Um record imediato marca a sessão como suja
+  // mesmo quando o diff é vazio e também cobre comandos ocorridos durante o IPC.
+  if (markDirty || snapshot.revision !== baseRevision) {
+    const recorded = await bridge.recovery.record({
+      document: documentStore.get(),
+      commands: 1,
+      force: true,
+    });
+    if (!recorded.ok) update({ error: recorded.message, status: "Falha no autosave" });
+  }
+}
+
+function scheduleAutosave(): void {
+  if (!autosaveReady) return;
+  pendingCommands += 1;
+  if (autosaveTimer !== null) window.clearTimeout(autosaveTimer);
+  autosaveTimer = window.setTimeout(() => {
+    autosaveTimer = null;
+    const commands = pendingCommands;
+    pendingCommands = 0;
+    void bridge.recovery
+      .record({ document: documentStore.get(), commands, force: true })
+      .then((result) => {
+        if (!result.ok) update({ error: result.message, status: "Falha no autosave" });
+      });
+  }, AUTOSAVE_DEBOUNCE_MS);
+}
+
+function startHeartbeat(): void {
+  if (heartbeatTimer !== null) return;
+  heartbeatTimer = window.setInterval(() => {
+    void bridge.recovery.heartbeat();
+  }, HEARTBEAT_INTERVAL_MS);
+}
+
+function historySnapshot(): HistorySnapshot {
+  return Object.freeze({
+    entries: commandBus.history.entries(),
+    cursor: commandBus.history.cursor(),
+    canUndo: commandBus.history.canUndo(),
+    canRedo: commandBus.history.canRedo(),
+  });
+}
+
+function selectedComposition() {
+  return documentStore
+    .get()
+    .compositions.find((composition) => composition.id === snapshot.selectedCompositionId);
+}
+
+function runTransaction(label: string, callback: () => void): boolean {
+  const result = commandBus.transaction(label, callback);
+  if (!result.ok) {
+    update({ error: result.error.message, status: "Comando rejeitado" });
+    return false;
+  }
+  update({ error: null, status: label });
+  return true;
+}
+
+function selectedRootIds(
+  nodes: Readonly<Record<string, Node>>,
+  selectedIds: readonly string[],
+): string[] {
+  const selected = new Set(selectedIds);
+  return selectedIds.filter((nodeId) => {
+    let parentId = nodes[nodeId]?.parent ?? null;
+    while (parentId !== null) {
+      if (selected.has(parentId)) return false;
+      parentId = nodes[parentId]?.parent ?? null;
+    }
+    return nodes[nodeId] !== undefined;
+  });
+}
+
+function subtreeIds(nodes: Readonly<Record<string, Node>>, rootId: string): string[] {
+  const result: string[] = [];
+  const pending = [rootId];
+  const visited = new Set<string>();
+  while (pending.length > 0) {
+    const nodeId = pending.pop();
+    if (nodeId === undefined || visited.has(nodeId)) continue;
+    visited.add(nodeId);
+    const node = nodes[nodeId];
+    if (node === undefined) continue;
+    result.push(nodeId);
+    pending.push(...[...node.children].reverse());
+  }
+  return result;
+}
+
+function supportsChildren(type: string): boolean {
+  return nodeTypeRegistry.get(type)?.supportsChildren ?? false;
+}
+
+function selectedProperty(nodeId: string, path: string) {
+  return select.property(documentStore.get(), { nodeId, path });
+}
+
+function propertyLocation(nodeId: string, path: string) {
+  return {
+    compositionId: snapshot.selectedCompositionId,
+    target: { kind: "node" as const, nodeId },
+    path: path.split("."),
+  };
+}
+
+function playbackTick(now: number): void {
+  const composition = selectedComposition();
+  if (composition === undefined) {
+    pausePlayback();
+    return;
+  }
+  const elapsedFrames = ((now - playbackStartedAt) / 1000) * composition.fps;
+  const nextFrame = playbackStartFrame + Math.floor(elapsedFrames);
+  if (nextFrame >= composition.duration) {
+    if (!snapshot.loopPlayback) {
+      playbackRequest = null;
+      update({
+        playheadFrame: composition.duration,
+        isPlaying: false,
+        status: "Fim da composição",
+      });
+      return;
+    }
+    playbackStartFrame = 0;
+    playbackStartedAt = now;
+    update({ playheadFrame: 0 });
+  } else {
+    update({ playheadFrame: nextFrame });
+  }
+  playbackRequest = requestAnimationFrame(playbackTick);
+}
+
+function pausePlayback(): void {
+  if (playbackRequest !== null) cancelAnimationFrame(playbackRequest);
+  playbackRequest = null;
+  if (snapshot.isPlaying) update({ isPlaying: false });
+}
+
+function createNodeFromDefinition(
+  root: Node | undefined,
+  definition: NodeTypeDefinition,
+  id: string,
+  parent: string,
+  composition: ProjectDocument["compositions"][number],
+): Node {
+  if (root === undefined) throw new Error("A composição não possui nó raiz.");
+  const anchor =
+    definition.defaultAnchorSpace === "geo"
+      ? {
+          space: "geo" as const,
+          lngLat: structuredClone(composition.camera.center.value),
+        }
+      : definition.defaultAnchorSpace === "parent"
+        ? { space: "parent" as const, offset: [0, 0] as [number, number] }
+        : {
+            space: "comp" as const,
+            position: [composition.width / 2, composition.height / 2] as [number, number],
+          };
+  const size =
+    definition.defaultSizeMode === "ground"
+      ? { mode: "ground" as const, meters: [1_000, 1_000] as [number, number] }
+      : {
+          mode: "screen" as const,
+          size: defaultNodeSize(definition.type),
+        };
+  return {
+    ...structuredClone(root),
+    id,
+    type: definition.type,
+    name: `${definition.label} ${id.slice(-4)}`,
+    parent,
+    children: [],
+    label: "cyan",
+    timeRange: { in: 0, out: composition.duration },
+    timeRemap: null,
+    anchor,
+    size,
+    transform: {
+      position: animatable([0, 0]),
+      rotation: animatable(0),
+      scale: animatable([1, 1]),
+      opacity: animatable(1),
+      anchorPoint: animatable(
+        definition.type === "group" || definition.type === "null" ? [0, 0] : [0.5, 0.5],
+      ),
+      skew: animatable([0, 0]),
+      rotationReference: definition.category === "unit" ? "geo-bearing" : "screen",
+    },
+    props: nodeTypeRegistry.createDefaultProps(definition.type),
+    effects: [],
+    behaviors: [],
+    actions: [],
+  };
+}
+
+function defaultNodeSize(type: string): [number, number] {
+  if (type === "text.title") return [720, 120];
+  if (type === "text.label") return [240, 52];
+  if (type === "image" || type === "svg") return [320, 180];
+  if (type === "shape.line" || type === "shape.polygon") return [120, 100];
+  if (type === "group") return [1, 1];
+  if (type === "null") return [32, 32];
+  return [64, 64];
+}
+
+function animatable<T>(value: T) {
+  return { value, keyframes: [], expression: null };
+}
+
+function confirmDiscard(): boolean {
+  return (
+    !snapshot.dirty || window.confirm("Há alterações não salvas. Deseja descartá-las e continuar?")
+  );
+}
+
+async function updateWindowTitle(): Promise<void> {
+  const dirtyMark = snapshot.dirty ? " *" : "";
+  await bridge.window.setTitle(`${snapshot.document.name}${dirtyMark} — ${APP_NAME}`);
+}
+
+function update(patch: Partial<EditorSessionSnapshot>): void {
+  snapshot = Object.freeze({ ...snapshot, ...patch });
+  notify();
+}
+
+function notify(): void {
+  for (const listener of [...listeners]) listener();
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function containerExtrasFromOpenedProject(project: OpenedProject): ContainerExtras {
+  const assets: ContentAddressedAsset[] = [...project.assets].map(([path, bytes]) => ({
+    path,
+    bytes,
+    hash: contentHashFromAssetPath(path),
+  }));
+  const thumbnails = Object.fromEntries(project.thumbnails);
+  return {
+    assets,
+    thumbnails,
+    ...(project.notes === null ? {} : { notes: project.notes }),
+    app: { version: project.manifest.app.version },
+    timestamps: {
+      created: project.manifest.created,
+      modified: project.manifest.modified,
+    },
+  };
+}
+
+function serializeRecoveryContainer(document: ProjectDocument): Uint8Array | undefined | string {
+  const hasEmbeddedContent =
+    (containerExtras.assets?.length ?? 0) > 0 ||
+    Object.keys(containerExtras.thumbnails ?? {}).length > 0 ||
+    containerExtras.notes !== undefined;
+  if (!hasEmbeddedContent) return undefined;
+
+  const serialized = serializeProjectContainer({
+    ...containerExtras,
+    document,
+  });
+  return serialized.ok
+    ? serialized.value
+    : `Não foi possível preparar o container-base do autosave: ${serialized.error.message}`;
+}
+
+function contentHashFromAssetPath(path: string): string {
+  const match = /^assets\/[0-9a-f]{2}\/([0-9a-f]{64})\./.exec(path);
+  if (match?.[1] === undefined) {
+    throw new Error(`Caminho de asset validado sem hash de conteúdo: ${path}.`);
+  }
+  return match[1];
+}
+
+declare global {
+  interface Window {
+    __theatrumPhase3?: {
+      readonly getSnapshot: () => EditorSessionSnapshot;
+      readonly actions: typeof editorActions;
+      readonly commandBus: typeof commandBus;
+    };
+  }
+}
+
+Object.defineProperty(window, "__theatrumPhase3", {
+  value: Object.freeze({
+    getSnapshot: getEditorSessionSnapshot,
+    actions: editorActions,
+    commandBus,
+  }),
+  configurable: true,
+});

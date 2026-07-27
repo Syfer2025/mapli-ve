@@ -1,0 +1,68 @@
+.ui-field {
+  display: grid;
+  grid-template-columns: 8px 92px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--control-height);
+  padding: var(--space-1) var(--space-4);
+}
+
+.ui-field[data-disabled] {
+  opacity: 0.45;
+}
+
+/* Ponto de estado da propriedade: cinza = valor estático, acento = animada. */
+.ui-field__indicator {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+}
+
+.ui-field__indicator[data-animated] {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.ui-field__label {
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-field__control {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.ui-field__unit {
+  flex: none;
+  font-size: var(--text-sm);
+  color: var(--fg-faint);
+}
+
+/* ---- Grupo ---- */
+
+.ui-field-group {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.ui-field-group__title {
+  margin: 0;
+  padding: var(--space-4) var(--space-4) var(--space-2);
+
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+}
+
+.ui-field-group__body {
+  padding-bottom: var(--space-3);
+}

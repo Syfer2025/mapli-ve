@@ -1,0 +1,85 @@
+/**
+ * Tema do dockview mapeado nos nossos tokens.
+ *
+ * Só ligamos as variáveis dele nas nossas, sem sobrescrever seletores internos
+ * — assim uma atualização do dockview não quebra o tema.
+ *
+ * A classe é referenciada pelo objeto `THEATRUM_DOCKVIEW_THEME` em
+ * app/theme.ts e entregue pelo prop `theme` do <DockviewReact>. Passar a
+ * classe via `className` NÃO funciona no dockview 7: ele cai no tema padrão
+ * (abyss) e este arquivo fica inerte.
+ *
+ * Os nomes abaixo foram conferidos contra
+ * dockview-core/dist/styles/dockview.css — variável inventada é silenciosa.
+ */
+
+.dockview-theme-theatrum {
+  /* ---- Superfícies ---- */
+  --dv-group-view-background-color: var(--bg-panel);
+  --dv-tabs-and-actions-container-background-color: var(--bg-app);
+  --dv-context-menu-background-color: var(--bg-panel-raised);
+  --dv-context-menu-color: var(--fg);
+  --dv-scrollbar-background-color: var(--border);
+  --dv-tabs-container-scrollbar-color: var(--border);
+
+  /* ---- Abas ---- */
+  --dv-tabs-and-actions-container-height: var(--header-height);
+  --dv-tabs-and-actions-container-font-size: var(--text-sm);
+  --dv-tab-font-size: var(--text-sm);
+  --dv-tab-margin: 0;
+  --dv-tab-divider-color: var(--border-subtle);
+  --dv-tab-border-radius: 0;
+  --dv-tab-close-icon-size: 12px;
+
+  --dv-activegroup-visiblepanel-tab-background-color: var(--bg-panel);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--bg-app);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--bg-panel);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--bg-app);
+
+  --dv-activegroup-visiblepanel-tab-color: var(--fg);
+  --dv-activegroup-hiddenpanel-tab-color: var(--fg-muted);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--fg-muted);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--fg-faint);
+
+  /* Filete de acento sob a aba ativa — legível de canto de olho. */
+  --dv-tab-group-color: var(--accent);
+  --dv-tab-group-line-height: 2px;
+  --dv-tab-group-line-opacity: 1;
+
+  /* ---- Divisores e bordas ---- */
+  --dv-separator-border: var(--border-subtle);
+  --dv-sash-color: transparent;
+  --dv-active-sash-color: var(--accent);
+  --dv-sash-border-radius: 0;
+  --dv-active-sash-transition-duration: var(--transition-fast);
+  --dv-active-sash-transition-delay: 0ms;
+  --dv-border-radius: var(--radius-sm);
+  --dv-paneview-active-outline-color: var(--accent);
+  --dv-paneview-header-border-color: var(--border-subtle);
+
+  /* ---- Arrastar e soltar painel ---- */
+  --dv-drag-over-background-color: rgb(47 158 147 / 0.16);
+  --dv-drag-over-border-color: var(--accent);
+  --dv-drag-over-border: 1px solid var(--accent);
+
+  /* ---- Painel flutuante ---- */
+  --dv-floating-box-shadow: var(--shadow-popover);
+  --dv-floating-border: 1px solid var(--border-strong);
+  --dv-floating-group-border: 1px solid var(--border-strong);
+  --dv-floating-titlebar-background-color: var(--bg-panel-raised);
+  --dv-floating-titlebar-border-bottom: 1px solid var(--border-subtle);
+  --dv-floating-titlebar-height: var(--header-height);
+  --dv-floating-group-dragging-opacity: 0.8;
+
+  /* ---- Diversos ---- */
+  --dv-icon-hover-background-color: var(--bg-hover);
+  --dv-transition-duration: var(--transition-fast);
+  --dv-spacing-padding: 0;
+}
+
+/* Respiro horizontal nas abas: o padrão do dockview é apertado demais para
+   títulos em português ("Editor de curvas", "Fila de render"). */
+.dockview-theme-theatrum .dv-tab {
+  padding: 0 var(--space-5);
+  letter-spacing: 0.02em;
+}

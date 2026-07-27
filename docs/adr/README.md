@@ -1,0 +1,60 @@
+# Architecture Decision Records
+
+Cada ADR registra **uma** decisão: o contexto, as alternativas consideradas, a
+escolha, e as consequências aceitas.
+
+Um ADR não é revisado por opinião. É revisado quando o gatilho registrado nele
+dispara — geralmente uma medição, numa fase específica.
+
+| #                                 | Decisão                                           | Status | Revisar em   |
+| --------------------------------- | ------------------------------------------------- | ------ | ------------ |
+| [001](ADR-001-shell-electron.md)  | Electron em vez de Tauri                          | aceito | Fase 8       |
+| [002](ADR-002-compositor.md)      | Composição mapa + overlay por canvases empilhados | aceito | Fase 11      |
+| [003](ADR-003-determinism.md)     | Determinismo como invariante do motor             | aceito | nunca        |
+| [004](ADR-004-time-in-frames.md)  | Frame inteiro como unidade canônica de tempo      | aceito | nunca        |
+| [005](ADR-005-canvas-timeline.md) | Timeline e graph editor em canvas                 | aceito | Fase 4       |
+| [006](ADR-006-maplibre.md)        | MapLibre GL JS + PMTiles                          | aceito | improvável   |
+| [007](ADR-007-no-rust-yet.md)     | Nenhum Rust por enquanto                          | aceito | Fases 8 e 11 |
+| [008](ADR-008-flat-node-map.md)   | Mapa plano de nós em vez de árvore aninhada       | aceito | improvável   |
+
+## Formato
+
+```markdown
+# ADR-NNN — Título curto e afirmativo
+
+**Status:** proposto | aceito | substituído por ADR-MMM | obsoleto
+**Data:** AAAA-MM-DD
+**Revisar em:** Fase N | nunca | improvável
+
+## Contexto
+
+Que problema existe. Que restrições valem. Sem solução ainda.
+
+## Alternativas
+
+Cada opção real considerada, com ✅ e ❌ honestos. Uma alternativa sem
+vantagem listada é sinal de que não foi considerada de verdade.
+
+## Decisão
+
+A escolha, em uma frase.
+
+## Consequências
+
+Positivas e negativas. As negativas são **aceitas**, não escondidas.
+Cada custo com sua mitigação, quando existe.
+
+## Quando revisar
+
+O gatilho concreto. "Se X medir mais que Y na fase Z."
+```
+
+## Regras
+
+1. **ADRs são imutáveis.** Mudou de ideia? Novo ADR que substitui o antigo. O
+   antigo fica, marcado como substituído. O histórico da decisão tem valor.
+2. **Uma decisão por ADR.** Se o título tem "e", provavelmente são dois.
+3. **Alternativas com vantagens reais.** Espantalho não é alternativa.
+4. **Consequência negativa é obrigatória.** Decisão sem custo é decisão não
+   examinada.
+5. **Gatilho de revisão concreto.** "Reavaliar no futuro" não é gatilho.

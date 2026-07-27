@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <!--
+      CSP restritiva: o app é offline e não carrega nada de rede. `connect-src`
+      permite só o dev server do Vite (HMR via ws). Em produção nada disso é
+      usado, mas manter a política estrita fecha a porta desde já.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: theatrum-data:; font-src 'self' data: theatrum-data:; connect-src 'self' theatrum-data: ws://localhost:5273; worker-src 'self' blob:; object-src 'none'; base-uri 'none'"
+    />
+    <title>Theatrum</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

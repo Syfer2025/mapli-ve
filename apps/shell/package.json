@@ -1,0 +1,17 @@
+{
+  "name": "@theatrum/shell",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "theatrum": {
+    "layer": 6
+  },
+  "dependencies": {
+    "@theatrum/project-io": "workspace:*",
+    "@theatrum/schema": "workspace:*"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "//": "Electron main + preload. Adapter do sistema operacional — sem lógica de domínio."
+}

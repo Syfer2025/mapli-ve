@@ -1,0 +1,4750 @@
+{
+  "$id": "https://theatrum.local/schemas/scene-script.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "defaults": {
+      "additionalProperties": false,
+      "properties": {
+        "ease": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "labelPosition": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "textFont": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "unitSize": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "factions": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "color": {
+            "pattern": "^#[0-9a-f]{6}(?:[0-9a-f]{2})?$",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "color",
+          "label"
+        ],
+        "type": "object"
+      },
+      "propertyNames": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "format": {
+      "const": "theatrum-scene",
+      "type": "string"
+    },
+    "map": {
+      "additionalProperties": false,
+      "properties": {
+        "projection": {
+          "enum": [
+            "mercator",
+            "globe",
+            "albers",
+            "equal-earth"
+          ],
+          "type": "string"
+        },
+        "style": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "terrain": {
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "exaggeration": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "enabled"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "meta": {
+      "additionalProperties": false,
+      "properties": {
+        "background": {
+          "pattern": "^#[0-9a-f]{6}(?:[0-9a-f]{2})?$",
+          "type": "string"
+        },
+        "duration": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+              "type": "string"
+            }
+          ]
+        },
+        "fps": {
+          "anyOf": [
+            {
+              "const": 24,
+              "type": "number"
+            },
+            {
+              "const": 25,
+              "type": "number"
+            },
+            {
+              "const": 30,
+              "type": "number"
+            },
+            {
+              "const": 50,
+              "type": "number"
+            },
+            {
+              "const": 60,
+              "type": "number"
+            },
+            {
+              "const": 120,
+              "type": "number"
+            }
+          ]
+        },
+        "resolution": {
+          "pattern": "^[1-9]\\d*x[1-9]\\d*$",
+          "type": "string"
+        },
+        "title": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "fps",
+        "resolution",
+        "duration"
+      ],
+      "type": "object"
+    },
+    "paths": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "altitude": {
+            "type": "number"
+          },
+          "arc": {
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
+          "geodesic": {
+            "type": "boolean"
+          },
+          "smooth": {
+            "type": "boolean"
+          },
+          "style": {
+            "additionalProperties": false,
+            "properties": {
+              "arrow": {
+                "enum": [
+                  "none",
+                  "start",
+                  "end",
+                  "both"
+                ],
+                "type": "string"
+              },
+              "dash": {
+                "items": {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "stroke": {
+                "pattern": "^#[0-9a-f]{6}(?:[0-9a-f]{2})?$",
+                "type": "string"
+              },
+              "width": {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            },
+            "type": "object"
+          },
+          "through": {
+            "items": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "prefixItems": [
+                    {
+                      "maximum": 180,
+                      "minimum": -180,
+                      "type": "number"
+                    },
+                    {
+                      "maximum": 90,
+                      "minimum": -90,
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "altitude": {
+                      "type": "number"
+                    },
+                    "lat": {
+                      "maximum": 90,
+                      "minimum": -90,
+                      "type": "number"
+                    },
+                    "lng": {
+                      "maximum": 180,
+                      "minimum": -180,
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "lng",
+                    "lat"
+                  ],
+                  "type": "object"
+                }
+              ]
+            },
+            "minItems": 2,
+            "type": "array"
+          },
+          "visible": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "through"
+        ],
+        "type": "object"
+      },
+      "propertyNames": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "places": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "minLength": 1,
+            "type": "string"
+          },
+          {
+            "prefixItems": [
+              {
+                "maximum": 180,
+                "minimum": -180,
+                "type": "number"
+              },
+              {
+                "maximum": 90,
+                "minimum": -90,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "altitude": {
+                "type": "number"
+              },
+              "lat": {
+                "maximum": 90,
+                "minimum": -90,
+                "type": "number"
+              },
+              "lng": {
+                "maximum": 180,
+                "minimum": -180,
+                "type": "number"
+              }
+            },
+            "required": [
+              "lng",
+              "lat"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "propertyNames": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "timeline": {
+      "items": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "bearing": {
+                "type": "number"
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "camera.focus",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "on": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      },
+                      {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "altitude": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lng",
+                      "lat"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "pitch": {
+                "type": "number"
+              },
+              "zoom": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "on",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "camera.frame",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "on": {
+                "items": {
+                  "anyOf": [
+                    {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    {
+                      "prefixItems": [
+                        {
+                          "maximum": 180,
+                          "minimum": -180,
+                          "type": "number"
+                        },
+                        {
+                          "maximum": 90,
+                          "minimum": -90,
+                          "type": "number"
+                        }
+                      ],
+                      "type": "array"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "altitude": {
+                          "type": "number"
+                        },
+                        "lat": {
+                          "maximum": 90,
+                          "minimum": -90,
+                          "type": "number"
+                        },
+                        "lng": {
+                          "maximum": 180,
+                          "minimum": -180,
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "lng",
+                        "lat"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "padding": {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "on",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "camera.orbit",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "on": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      },
+                      {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "altitude": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lng",
+                      "lat"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "revolutions": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "on",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "damping": {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "camera.follow",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "unit": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "unit",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "camera.shake",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "intensity": {
+                "minimum": 0,
+                "type": "number"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "intensity",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "camera.reset",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "at_place": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      },
+                      {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "altitude": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lng",
+                      "lat"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "unit.spawn",
+                "type": "string"
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "fade": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "unit": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "unit",
+              "at_place"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "along": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "unit.advance",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "to": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      },
+                      {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "altitude": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lng",
+                      "lat"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "trail": {
+                "type": "boolean"
+              },
+              "unit": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "unit"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "along": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "unit.retreat",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "to": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      },
+                      {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "altitude": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lng",
+                      "lat"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "unit": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "unit"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "along": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "cycles": {
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "unit.patrol",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "unit": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "unit",
+              "along",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "unit.attack",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "target": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "unit": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "unit",
+              "target"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "unit.intercept",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "target": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "unit": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "unit",
+              "target"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "at_place": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      },
+                      {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "altitude": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lng",
+                      "lat"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "unit.dogfight",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "units": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "minItems": 2,
+                "type": "array"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "units",
+              "at_place",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "unit.destroy",
+                "type": "string"
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "explosion": {
+                "type": "boolean"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "unit": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "unit"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "at_place": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      },
+                      {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "altitude": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lng",
+                      "lat"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "unit.split",
+                "type": "string"
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "into": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "minItems": 2,
+                "type": "array"
+              },
+              "unit": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "unit",
+              "into",
+              "at_place"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "at_place": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      },
+                      {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "altitude": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lng",
+                      "lat"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "unit.merge",
+                "type": "string"
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "into": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "units": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "minItems": 2,
+                "type": "array"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "units",
+              "into",
+              "at_place"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "at_place": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      },
+                      {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "altitude": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lng",
+                      "lat"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "battle",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "intensity": {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ],
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "at_place",
+              "intensity",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "at_place": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      },
+                      {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "altitude": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lng",
+                      "lat"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "count": {
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "bombard",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "from": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      },
+                      {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "altitude": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lng",
+                      "lat"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "at_place",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "at_place": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      },
+                      {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "altitude": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lng",
+                      "lat"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "airstrike",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "unit": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "at_place",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "missile.launch",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "from": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      },
+                      {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "altitude": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lng",
+                      "lat"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "to": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      },
+                      {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "altitude": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lng",
+                      "lat"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "trail": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "from",
+              "to",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "at_place": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      },
+                      {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "altitude": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lng",
+                      "lat"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "siege",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "at_place",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "at_place": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      },
+                      {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "altitude": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lng",
+                      "lat"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "amphibious.landing",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "from": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      },
+                      {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "altitude": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lng",
+                      "lat"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "from",
+              "at_place",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "at_place": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      },
+                      {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "altitude": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lng",
+                      "lat"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "airdrop",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "from": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      },
+                      {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "altitude": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lng",
+                      "lat"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "from",
+              "at_place",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "at_place": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      },
+                      {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "altitude": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lng",
+                      "lat"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "naval.blockade",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "radius": {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "at_place",
+              "radius",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "area.highlight",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "faction": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "fade": {
+                "enum": [
+                  "in",
+                  "out",
+                  "in-out"
+                ],
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "region": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "region",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "area.transfer",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "from": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "region": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "to": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "region",
+              "from",
+              "to",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "frontline.set",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "through": {
+                "items": {
+                  "anyOf": [
+                    {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    {
+                      "prefixItems": [
+                        {
+                          "maximum": 180,
+                          "minimum": -180,
+                          "type": "number"
+                        },
+                        {
+                          "maximum": 90,
+                          "minimum": -90,
+                          "type": "number"
+                        }
+                      ],
+                      "type": "array"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "altitude": {
+                          "type": "number"
+                        },
+                        "lat": {
+                          "maximum": 90,
+                          "minimum": -90,
+                          "type": "number"
+                        },
+                        "lng": {
+                          "maximum": 180,
+                          "minimum": -180,
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "lng",
+                        "lat"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                },
+                "minItems": 2,
+                "type": "array"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "through",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "frontline.shift",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "to": {
+                "items": {
+                  "anyOf": [
+                    {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    {
+                      "prefixItems": [
+                        {
+                          "maximum": 180,
+                          "minimum": -180,
+                          "type": "number"
+                        },
+                        {
+                          "maximum": 90,
+                          "minimum": -90,
+                          "type": "number"
+                        }
+                      ],
+                      "type": "array"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "altitude": {
+                          "type": "number"
+                        },
+                        "lat": {
+                          "maximum": 90,
+                          "minimum": -90,
+                          "type": "number"
+                        },
+                        "lng": {
+                          "maximum": 180,
+                          "minimum": -180,
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "lng",
+                        "lat"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                },
+                "minItems": 2,
+                "type": "array"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "to",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "dataset": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "border.show",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "dataset",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "at_place": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      },
+                      {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "altitude": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lng",
+                      "lat"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "encircle",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "region": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "supply.line",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "flow": {
+                "type": "boolean"
+              },
+              "from": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      },
+                      {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "altitude": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lng",
+                      "lat"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "to": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      },
+                      {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "altitude": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lng",
+                      "lat"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "from",
+              "to",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "text.title",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "position": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "reveal": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "subtitle": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "text",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "text.caption",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "position": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "text",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "at_place": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      },
+                      {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "altitude": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lng",
+                      "lat"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "text.callout",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "leader": {
+                "type": "boolean"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "text",
+              "at_place",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "date": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "text.date",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "position": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "date",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "text.counter",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "from": {
+                "type": "number"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "to": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "from",
+              "to",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "label.place",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "place": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      },
+                      {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "altitude": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lng",
+                      "lat"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "style": {
+                "additionalProperties": {},
+                "propertyNames": {
+                  "type": "string"
+                },
+                "type": "object"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "place",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "along": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "arrow.draw",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "from": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      },
+                      {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "altitude": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lng",
+                      "lat"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "style": {
+                "additionalProperties": {},
+                "propertyNames": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              "to": {
+                "anyOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      },
+                      {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "altitude": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "maximum": 90,
+                        "minimum": -90,
+                        "type": "number"
+                      },
+                      "lng": {
+                        "maximum": 180,
+                        "minimum": -180,
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "lng",
+                      "lat"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "legend.show",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "items": {
+                "items": {
+                  "additionalProperties": {},
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "position": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "items",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "wait",
+                "type": "string"
+              },
+              "duration": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "duration"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "color": {
+                "pattern": "^#[0-9a-f]{6}(?:[0-9a-f]{2})?$",
+                "type": "string"
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "marker",
+                "type": "string"
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "label"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "group.begin",
+                "type": "string"
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "label"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "comment": {
+                "type": "string"
+              },
+              "delay": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "pattern": "^(?:(?:\\d+(?:\\.\\d+)?(?:ms|s|f))|(?:\\d+m\\d+(?:\\.\\d+)?s)|(?:\\d+:\\d{2})|(?:\\d{2}:\\d{2}:\\d{2}:\\d{2})|(?:after:[^+\\s]+(?:\\+\\d+(?:\\.\\d+)?(?:ms|s|f))?)|(?:with:[^\\s]+)|(?:end-\\d+(?:\\.\\d+)?(?:ms|s|f)))$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "do": {
+                "const": "group.end",
+                "type": "string"
+              },
+              "ease": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "at",
+              "do",
+              "label"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "type": "array"
+    },
+    "units": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "prefixItems": [
+                  {
+                    "maximum": 180,
+                    "minimum": -180,
+                    "type": "number"
+                  },
+                  {
+                    "maximum": 90,
+                    "minimum": -90,
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "altitude": {
+                    "type": "number"
+                  },
+                  "lat": {
+                    "maximum": 90,
+                    "minimum": -90,
+                    "type": "number"
+                  },
+                  "lng": {
+                    "maximum": 180,
+                    "minimum": -180,
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "lng",
+                  "lat"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "bearing": {
+            "type": "number"
+          },
+          "faction": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "icon": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "infantry",
+              "armor",
+              "air",
+              "naval",
+              "sub",
+              "artillery",
+              "missile",
+              "convoy"
+            ],
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "size": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "at"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "version": {
+      "const": 1,
+      "type": "number"
+    }
+  },
+  "required": [
+    "format",
+    "version",
+    "meta",
+    "timeline"
+  ],
+  "title": "Theatrum Scene Script v1",
+  "type": "object"
+}
