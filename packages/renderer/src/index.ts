@@ -58,6 +58,7 @@ export {
   type HeadlessBackendSnapshot,
 } from "./headless-backend.js";
 export { createPixiRenderBackend, type PixiRenderBackendOptions } from "./pixi-backend.js";
+export { warmImageTexture, evictImageTexture, inspectImageTexture } from "./texture-cache.js";
 export {
   createScreenScene,
   type EvaluatedRenderableNodeLike,

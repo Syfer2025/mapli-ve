@@ -28,6 +28,7 @@ import {
 import { Button } from "../../ui/index.js";
 import { createMapLibreCameraPort } from "./maplibre-adapters.js";
 import { createMapStyle, MAP_STYLE_OPTIONS, type MapStyleId } from "./map-styles.js";
+import { attachModel3dLayer, detachModel3dLayer } from "./model3d-layer.js";
 import { loadNaturalEarthGazetteer } from "./natural-earth-gazetteer.js";
 import { SceneOverlay } from "./SceneOverlay.js";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -247,6 +248,10 @@ export function MapViewport(): ReactNode {
     const onStyleData = (): void => {
       if (map.isStyleLoaded()) setMapStatus("offline pronto · PMTiles z0–6");
     };
+    // Camada 3D volta a cada setStyle: trocar de estilo descarta custom layers.
+    const onStyleLoad = (): void => {
+      attachModel3dLayer(map);
+    };
     const onError = (event: { readonly error?: Error }): void => {
       const message = event.error?.message ?? "falha desconhecida";
       setMapStatus(`erro local · ${message}`);
@@ -255,6 +260,7 @@ export function MapViewport(): ReactNode {
     map.on("load", onLoad);
     map.on("move", updateCamera);
     map.on("styledata", onStyleData);
+    map.on("style.load", onStyleLoad);
     map.on("error", onError);
 
     const resizeObserver = new ResizeObserver(() => map.resize());
@@ -266,7 +272,9 @@ export function MapViewport(): ReactNode {
       map.off("load", onLoad);
       map.off("move", updateCamera);
       map.off("styledata", onStyleData);
+      map.off("style.load", onStyleLoad);
       map.off("error", onError);
+      detachModel3dLayer(map);
       map.remove();
       mapRef.current = null;
       setMapInstance(null);

@@ -5,8 +5,12 @@
  */
 
 import { toDisposable, type Disposable } from "@theatrum/core-utils";
-import type { EffectInstanceData } from "@theatrum/schema";
-import { EffectError, type EffectDefinition, type EffectSpec } from "./contracts.js";
+import {
+  EffectError,
+  type EffectDefinition,
+  type EffectInstanceLike,
+  type EffectSpec,
+} from "./contracts.js";
 
 export type EffectResolution =
   | { readonly status: "resolved"; readonly spec: EffectSpec }
@@ -22,9 +26,10 @@ export interface EffectRegistry {
   list(): readonly string[];
   /**
    * Valida os params da instância e devolve a especificação, sem lançar. O
-   * `seed` já deve vir combinado da composição com a identidade do nó.
+   * `seed` já deve vir combinado da composição com a identidade do nó. Aceita
+   * tanto a instância do documento quanto a avaliada por keyframes.
    */
-  resolve(instance: EffectInstanceData, seed: number, fps: number): EffectResolution;
+  resolve(instance: EffectInstanceLike, seed: number, fps: number): EffectResolution;
 }
 
 class DefaultEffectRegistry implements EffectRegistry {
@@ -63,7 +68,7 @@ class DefaultEffectRegistry implements EffectRegistry {
     return Object.freeze([...this.#definitions.keys()]);
   }
 
-  resolve(instance: EffectInstanceData, seed: number, fps: number): EffectResolution {
+  resolve(instance: EffectInstanceLike, seed: number, fps: number): EffectResolution {
     if (!instance.enabled) return { status: "disabled" };
     const definition = this.#definitions.get(instance.type);
     if (definition === undefined) return { status: "unknown-type", type: instance.type };

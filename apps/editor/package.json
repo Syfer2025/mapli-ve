@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@theatrum/animation": "workspace:*",
+    "@theatrum/assets": "workspace:*",
     "@theatrum/behaviors": "workspace:*",
     "@theatrum/camera": "workspace:*",
     "@theatrum/commands": "workspace:*",
@@ -27,11 +28,13 @@
     "pmtiles": "4.4.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "three": "^0.185.1",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3"
+    "@types/react-dom": "^19.2.3",
+    "@types/three": "^0.185.1"
   },
   "//": "Renderer process. Na Fase 2 monta os ports GIS/camera; a partir da Fase 3 recebe a fachada `engine`."
 }

@@ -34,7 +34,9 @@ describe("shaders de filtro", () => {
 
   it("uniform compartilhado entre estágios é declarado igual nos dois", () => {
     const declarations = (source: string): readonly string[] =>
-      [...source.matchAll(/uniform\s+(\w+)\s+(\w+)\s*;/g)].map((match) => `${match[1]} ${match[2]}`);
+      [...source.matchAll(/uniform\s+(\w+)\s+(\w+)\s*;/g)].map(
+        (match) => `${match[1]} ${match[2]}`,
+      );
 
     const vertex = new Map(
       declarations(FILTER_VERTEX_SHADER).map((entry) => [entry.split(" ")[1], entry]),

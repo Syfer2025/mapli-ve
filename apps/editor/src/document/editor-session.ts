@@ -1,8 +1,19 @@
+import {
+  assetDimensions,
+  assetDisplayName,
+  assetKindForFile,
+  baseNameFromFileName,
+  buildAssetDescriptor,
+  extensionForFileName,
+  findAssetReferences,
+  type AssetReference,
+} from "@theatrum/assets";
 import { createCommandBus, type HistorySnapshot } from "@theatrum/commands";
 import { createIdFactory } from "@theatrum/core-utils";
 import { createDocumentStore, select } from "@theatrum/document";
 import { createBuiltinNodeTypeRegistry, type NodeTypeDefinition } from "@theatrum/scene-graph";
 import {
+  createEmbeddedAsset,
   parseProjectContainer,
   serializeProjectContainer,
   type ContentAddressedAsset,
@@ -23,6 +34,15 @@ import {
   type SizeSpec,
 } from "@theatrum/schema";
 import type { MenuAction, ProjectFileReference, RecoveryCandidateInfo } from "@theatrum/shell";
+import {
+  assetMediaSources,
+  assetTextureInfo,
+  assetThumbnailUrl,
+  createTextureBitmap,
+  registerAssetMedia,
+  resetAssetMedia,
+  unregisterAssetMedia,
+} from "../assets/asset-media.js";
 import { bridge } from "../bridge/index.js";
 
 const AUTOSAVE_DEBOUNCE_MS = 500;
@@ -700,7 +720,7 @@ export const editorActions = Object.freeze({
     const fileToSave = snapshot.file;
     const extrasToSave = containerExtras;
     const encoded = serializeProjectContainer({
-      ...extrasToSave,
+      ...referencedContainerExtras(documentToSave, extrasToSave),
       document: documentToSave,
     });
     if (!encoded.ok) {
@@ -843,6 +863,132 @@ export const editorActions = Object.freeze({
     return this.dispatch({ type: "path.delete", payload: { pathId }, source: "user" });
   },
 
+  /**
+   * Bloco 7A — Biblioteca de ativos. O descriptor entra no documento por
+   * comando (undo exato); os bytes vivem fora do histórico, em
+   * `containerExtras`, e seguem para dentro do `.theatrum` no próximo save.
+   * Textura GPU e thumbnail sobem pelo `asset-media` (cache de runtime).
+   */
+  async importAssetFiles(files: readonly File[]): Promise<void> {
+    if (files.length === 0) return;
+    let imported = 0;
+    let skipped = 0;
+    for (const file of files) {
+      const kind = assetKindForFile(file.name, file.type);
+      const extension = extensionForFileName(file.name);
+      if (kind === null || extension === null) {
+        skipped += 1;
+        continue;
+      }
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const embedded = createEmbeddedAsset(bytes, extension);
+      if (!embedded.ok) {
+        update({ status: "Falha ao importar", error: embedded.error.message });
+        continue;
+      }
+      // O src é o hash do conteúdo: importar o mesmo arquivo duas vezes é no-op.
+      if (snapshot.document.assets.some((asset) => asset.src === embedded.value.path)) {
+        skipped += 1;
+        continue;
+      }
+      const bitmap = kind === "model" ? null : await createTextureBitmap(bytes, kind);
+      const descriptor = buildAssetDescriptor({
+        id: ids("ast"),
+        kind,
+        src: embedded.value.path,
+        name: baseNameFromFileName(file.name),
+        mime: file.type || "application/octet-stream",
+        byteSize: bytes.byteLength,
+        ...(bitmap === null ? {} : { width: bitmap.width, height: bitmap.height }),
+      });
+      const ok = this.dispatch({
+        type: "asset.add",
+        payload: { asset: descriptor },
+        source: "user",
+      });
+      if (!ok) continue;
+      containerExtras = {
+        ...containerExtras,
+        assets: [...(containerExtras.assets ?? []), embedded.value],
+      };
+      await registerAssetMedia(embedded.value.path, bytes, kind, bitmap);
+      imported += 1;
+    }
+    update({
+      status:
+        imported === 0
+          ? "Nenhum asset novo (já importado ou não suportado)"
+          : `${imported} asset${imported > 1 ? "s" : ""} importado${imported > 1 ? "s" : ""}${
+              skipped > 0 ? ` · ${skipped} ignorado${skipped > 1 ? "s" : ""}` : ""
+            }`,
+      error: null,
+    });
+  },
+
+  assetUsages(assetId: string): readonly AssetReference[] {
+    const asset = snapshot.document.assets.find((entry) => entry.id === assetId);
+    return asset === undefined ? [] : findAssetReferences(snapshot.document, asset.src);
+  },
+
+  removeAsset(assetId: string): boolean {
+    const asset = snapshot.document.assets.find((entry) => entry.id === assetId);
+    if (asset === undefined) return false;
+    const ok = this.dispatch({ type: "asset.remove", payload: { assetId }, source: "user" });
+    if (!ok) return false;
+    containerExtras = {
+      ...containerExtras,
+      assets: (containerExtras.assets ?? []).filter((entry) => entry.path !== asset.src),
+    };
+    unregisterAssetMedia(asset.src);
+    return true;
+  },
+
+  renameAsset(assetId: string, name: string): void {
+    this.dispatch({ type: "asset.rename", payload: { assetId, name }, source: "user" });
+  },
+
+  setAssetTags(assetId: string, tags: readonly string[]): void {
+    this.dispatch({
+      type: "asset.set-tags",
+      payload: { assetId, tags: [...tags] },
+      source: "user",
+    });
+  },
+
+  /**
+   * Cria um nó `image`/`svg`/`model3d` com o asset aplicado, na composição
+   * selecionada. Imagem/SVG ajustam o tamanho às dimensões reais (teto de
+   * 480 px); modelos entram com a escala visual padrão do tipo (30 km).
+   */
+  applyAsset(assetId: string): string | null {
+    const asset = snapshot.document.assets.find((entry) => entry.id === assetId);
+    const composition =
+      snapshot.document.compositions.find((item) => item.id === snapshot.selectedCompositionId) ??
+      snapshot.document.compositions[0];
+    if (asset === undefined || composition === undefined) return null;
+    const type = asset.kind === "svg" ? "svg" : asset.kind === "model" ? "model3d" : "image";
+    const definition = nodeTypeRegistry.get(type);
+    const root = composition.nodes[composition.root];
+    if (definition === undefined || root === undefined) return null;
+
+    const nodeId = ids("nd");
+    const node = createNodeFromDefinition(root, definition, nodeId, root.id, composition);
+    node.name = assetDisplayName(asset);
+    node.props["assetId"] = { value: asset.src, keyframes: [], expression: null };
+    const dimensions = assetDimensions(asset);
+    if (dimensions !== null) node.size = { mode: "screen", size: fitWithin(dimensions, 480) };
+
+    const ok = this.dispatch({
+      type: "node.create",
+      payload: { compositionId: composition.id, parentId: root.id, node },
+      source: "user",
+    });
+    if (ok) {
+      update({ selectedNodeId: nodeId, selectedNodeIds: Object.freeze([nodeId]) });
+    }
+    return ok ? nodeId : null;
+  },
+
   addBehavior(nodeId: string, type: string, params: Record<string, unknown>): string | null {
     const behaviorId = ids("bhv");
     const ok = this.dispatch({
@@ -920,6 +1066,44 @@ export const editorActions = Object.freeze({
     return this.dispatch({
       type: "behavior.remove",
       payload: { compositionId: snapshot.selectedCompositionId, nodeId, behaviorId },
+      source: "user",
+    });
+  },
+
+  addEffect(nodeId: string, type: string, params: Record<string, unknown>): string | null {
+    const effectId = ids("fx");
+    const ok = this.dispatch({
+      type: "effect.add",
+      payload: {
+        compositionId: snapshot.selectedCompositionId,
+        nodeId,
+        effect: { id: effectId, type, enabled: true, params },
+      },
+      source: "user",
+    });
+    return ok ? effectId : null;
+  },
+
+  setEffectParams(nodeId: string, effectId: string, params: Record<string, unknown>): boolean {
+    return this.dispatch({
+      type: "effect.set-params",
+      payload: { compositionId: snapshot.selectedCompositionId, nodeId, effectId, params },
+      source: "user",
+    });
+  },
+
+  setEffectEnabled(nodeId: string, effectId: string, enabled: boolean): boolean {
+    return this.dispatch({
+      type: "effect.set-enabled",
+      payload: { compositionId: snapshot.selectedCompositionId, nodeId, effectId, enabled },
+      source: "user",
+    });
+  },
+
+  removeEffect(nodeId: string, effectId: string): boolean {
+    return this.dispatch({
+      type: "effect.remove",
+      payload: { compositionId: snapshot.selectedCompositionId, nodeId, effectId },
       source: "user",
     });
   },
@@ -1006,6 +1190,18 @@ async function replaceProject(
   }
   projectGeneration += 1;
   containerExtras = extras;
+  // Biblioteca (7A): sobe thumbnails e texturas GPU dos assets embutidos.
+  resetAssetMedia();
+  const mediaRegistrations: Promise<void>[] = [];
+  for (const embedded of extras.assets ?? []) {
+    const descriptor = document.assets.find((asset) => asset.src === embedded.path);
+    if (descriptor === undefined) continue;
+    mediaRegistrations.push(registerAssetMedia(embedded.path, embedded.bytes, descriptor.kind));
+  }
+  // A última textura que sobe força uma notificação para a cena re-renderizar.
+  if (mediaRegistrations.length > 0) {
+    void Promise.allSettled(mediaRegistrations).then(() => update({}));
+  }
   update({
     document: documentStore.get(),
     dirty,
@@ -1281,6 +1477,34 @@ function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function fitWithin(
+  dimensions: { readonly width: number; readonly height: number },
+  max: number,
+): [number, number] {
+  const scale = Math.min(1, max / Math.max(dimensions.width, dimensions.height, 1));
+  return [
+    Math.max(1, Math.round(dimensions.width * scale)),
+    Math.max(1, Math.round(dimensions.height * scale)),
+  ];
+}
+
+/**
+ * Save e autosave só embutem bytes referenciados pelo documento: undo de um
+ * import (ou remoção de asset) não deixa bytes órfãos inchando o `.theatrum`.
+ */
+function referencedContainerExtras(
+  document: ProjectDocument,
+  extras: ContainerExtras,
+): ContainerExtras {
+  const embedded = extras.assets;
+  if (embedded === undefined || embedded.length === 0) return extras;
+  const referenced = new Set(
+    document.assets.map((asset) => asset.src).filter((src) => src.startsWith("assets/")),
+  );
+  const assets = embedded.filter((entry) => referenced.has(entry.path));
+  return assets.length === embedded.length ? extras : { ...extras, assets };
+}
+
 function containerExtrasFromOpenedProject(project: OpenedProject): ContainerExtras {
   const assets: ContentAddressedAsset[] = [...project.assets].map(([path, bytes]) => ({
     path,
@@ -1308,7 +1532,7 @@ function serializeRecoveryContainer(document: ProjectDocument): Uint8Array | und
   if (!hasEmbeddedContent) return undefined;
 
   const serialized = serializeProjectContainer({
-    ...containerExtras,
+    ...referencedContainerExtras(document, containerExtras),
     document,
   });
   return serialized.ok
@@ -1331,7 +1555,58 @@ declare global {
       readonly actions: typeof editorActions;
       readonly commandBus: typeof commandBus;
     };
+    /** Superfície de prova do bloco 7A — ver tools/verify-phase7a.mjs. */
+    __theatrumPhase7a?: {
+      readonly thumbnailUrl: (src: string) => string | null;
+      readonly mediaSources: () => readonly string[];
+      readonly containerRoundTrip: () => Promise<ContainerRoundTripResult>;
+      readonly textureInfo: (
+        src: string,
+      ) => Promise<{ readonly width: number; readonly height: number } | null>;
+    };
   }
+}
+
+interface ContainerRoundTripResult {
+  readonly ok: boolean;
+  readonly error?: string;
+  readonly containerBytes?: number;
+  readonly descriptors?: number;
+  readonly assets?: readonly {
+    readonly path: string;
+    readonly bytes: number;
+    readonly sha256: string;
+  }[];
+}
+
+/**
+ * Serializa o container exatamente como o save (extras filtrados pelos
+ * descriptors) e o lê de volta — a prova de "salvar e reabrir preserva o
+ * asset" sem diálogo nativo no caminho.
+ */
+async function containerRoundTrip(): Promise<ContainerRoundTripResult> {
+  const document = documentStore.get();
+  const encoded = serializeProjectContainer({
+    ...referencedContainerExtras(document, containerExtras),
+    document,
+  });
+  if (!encoded.ok) return { ok: false, error: encoded.error.message };
+  const parsed = parseProjectContainer(encoded.value);
+  if (!parsed.ok) return { ok: false, error: parsed.error.message };
+  const assets: NonNullable<ContainerRoundTripResult["assets"]>[number][] = [];
+  for (const [path, bytes] of parsed.value.assets) {
+    const digest = await crypto.subtle.digest("SHA-256", new Uint8Array(bytes));
+    const sha256 = Array.from(new Uint8Array(digest), (byte) =>
+      byte.toString(16).padStart(2, "0"),
+    ).join("");
+    assets.push({ path, bytes: bytes.byteLength, sha256 });
+  }
+  return {
+    ok: true,
+    containerBytes: encoded.value.byteLength,
+    descriptors: parsed.value.document.assets.length,
+    assets,
+  };
 }
 
 Object.defineProperty(window, "__theatrumPhase3", {
@@ -1339,6 +1614,16 @@ Object.defineProperty(window, "__theatrumPhase3", {
     getSnapshot: getEditorSessionSnapshot,
     actions: editorActions,
     commandBus,
+  }),
+  configurable: true,
+});
+
+Object.defineProperty(window, "__theatrumPhase7a", {
+  value: Object.freeze({
+    thumbnailUrl: assetThumbnailUrl,
+    mediaSources: assetMediaSources,
+    containerRoundTrip,
+    textureInfo: assetTextureInfo,
   }),
   configurable: true,
 });

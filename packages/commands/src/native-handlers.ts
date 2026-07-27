@@ -1,8 +1,10 @@
 import type { Draft } from "@theatrum/document";
 import type {
   AnimatableProperty,
+  AssetDescriptor,
   BehaviorInstanceData,
   Composition,
+  EffectInstanceData,
   Keyframe,
   Node,
   PathData,
@@ -290,6 +292,61 @@ export const NATIVE_COMMAND_DEFINITIONS: readonly ErasedDefinition[] = [
     getBehavior(draft, command.payload).enabled = command.payload.enabled;
   }),
 
+  defineNative("effect.add", "Adicionar efeito", (draft, command) => {
+    const node = getNode(
+      getComposition(draft, command.payload.compositionId),
+      command.payload.nodeId,
+    );
+    if (node.effects.some((entry) => entry.id === command.payload.effect.id)) {
+      rejectCommand(`Efeito já existe: ${command.payload.effect.id}.`);
+    }
+    const effect = command.payload.effect;
+    const index = command.payload.index;
+    if (index === undefined || index >= node.effects.length) node.effects.push(effect);
+    else node.effects.splice(index, 0, effect);
+  }),
+  defineNative("effect.remove", "Remover efeito", (draft, command) => {
+    const node = getNode(
+      getComposition(draft, command.payload.compositionId),
+      command.payload.nodeId,
+    );
+    const index = node.effects.findIndex((entry) => entry.id === command.payload.effectId);
+    if (index < 0) rejectCommand(`Efeito não encontrado: ${command.payload.effectId}.`);
+    node.effects.splice(index, 1);
+  }),
+  defineNative("effect.set-params", "Alterar efeito", (draft, command) => {
+    // Substituição inteira, como em behavior.set-params: a pilha de efeitos é
+    // pequena e a mesclagem parcial esconderia campo removido por um preset.
+    getEffect(draft, command.payload).params = command.payload.params;
+  }),
+  defineNative("effect.set-enabled", "Ativar efeito", (draft, command) => {
+    getEffect(draft, command.payload).enabled = command.payload.enabled;
+  }),
+
+  defineNative("asset.add", "Importar asset", (draft, command) => {
+    const asset = command.payload.asset;
+    if (draft.assets.some((entry) => entry.id === asset.id)) {
+      rejectCommand(`Asset já existe: ${asset.id}.`);
+    }
+    if (draft.assets.some((entry) => entry.src === asset.src)) {
+      // O src é o hash do conteúdo: mesmo arquivo importado duas vezes é o
+      // mesmo asset, e duplicar descriptor só criaria lixo na biblioteca.
+      rejectCommand(`Este conteúdo já foi importado: ${asset.src}.`);
+    }
+    draft.assets.push(asset);
+  }),
+  defineNative("asset.remove", "Remover asset", (draft, command) => {
+    const index = draft.assets.findIndex((entry) => entry.id === command.payload.assetId);
+    if (index < 0) rejectCommand(`Asset não encontrado: ${command.payload.assetId}.`);
+    draft.assets.splice(index, 1);
+  }),
+  defineNative("asset.rename", "Renomear asset", (draft, command) => {
+    getAsset(draft, command.payload.assetId).meta["name"] = command.payload.name;
+  }),
+  defineNative("asset.set-tags", "Alterar tags do asset", (draft, command) => {
+    getAsset(draft, command.payload.assetId).meta["tags"] = [...command.payload.tags];
+  }),
+
   defineNative("camera.set-follow", "Alterar seguimento da câmera", (draft, command) => {
     getComposition(draft, command.payload.compositionId).camera.follow = command.payload.follow;
   }),
@@ -331,6 +388,12 @@ function getPath(draft: Draft<ProjectDocument>, pathId: string): Draft<PathData>
   return path;
 }
 
+function getAsset(draft: Draft<ProjectDocument>, assetId: string): Draft<AssetDescriptor> {
+  const asset = draft.assets.find((candidate) => candidate.id === assetId);
+  if (asset === undefined) rejectCommand(`Asset não encontrado: ${assetId}.`);
+  return asset;
+}
+
 function getBehavior(
   draft: Draft<ProjectDocument>,
   location: {
@@ -345,6 +408,22 @@ function getBehavior(
     rejectCommand(`Comportamento não encontrado: ${location.behaviorId}.`);
   }
   return behavior;
+}
+
+function getEffect(
+  draft: Draft<ProjectDocument>,
+  location: {
+    readonly compositionId: string;
+    readonly nodeId: string;
+    readonly effectId: string;
+  },
+): Draft<EffectInstanceData> {
+  const node = getNode(getComposition(draft, location.compositionId), location.nodeId);
+  const effect = node.effects.find((entry) => entry.id === location.effectId);
+  if (effect === undefined) {
+    rejectCommand(`Efeito não encontrado: ${location.effectId}.`);
+  }
+  return effect;
 }
 
 function insertComposition(draft: Draft<ProjectDocument>, composition: Composition): void {

@@ -1,0 +1,94 @@
+/* Painel de efeitos: pilha do nó, um cartão por instância. */
+
+.effects-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+}
+
+.effects-panel__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 24px 12px;
+  color: var(--ui-text-dim, #8a8f98);
+  text-align: center;
+}
+
+.effects-panel__empty-inline {
+  padding: 4px 6px;
+  color: var(--ui-text-dim, #8a8f98);
+}
+
+.effects-panel__add {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.effects-panel__add .effects-panel__select {
+  flex: 1;
+}
+
+.effects-panel__select {
+  background: var(--ui-surface-raised, #23262b);
+  color: var(--ui-text, #d7dae0);
+  border: 1px solid var(--ui-border, #3a3e45);
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 12px;
+  max-width: 100%;
+}
+
+.effects-panel__select--preset {
+  max-width: 110px;
+}
+
+.effects-panel__card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid var(--ui-border, #3a3e45);
+  border-radius: 6px;
+  padding: 6px;
+  background: var(--ui-surface, #1c1f24);
+}
+
+.effects-panel__card[data-disabled] {
+  opacity: 0.55;
+}
+
+.effects-panel__card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.effects-panel__card-header strong {
+  flex: 1;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.effects-panel__warning {
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: var(--ui-warning-bg, #4a3a1a);
+  color: var(--ui-warning-text, #f2c94c);
+  font-size: 12px;
+}
+
+.effects-panel__color {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.effects-panel__color code {
+  font-size: 11px;
+  color: var(--ui-text-dim, #8a8f98);
+}

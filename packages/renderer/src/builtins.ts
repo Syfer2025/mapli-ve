@@ -173,6 +173,7 @@ export const BUILTIN_RENDERABLE_TYPES = [
   "symbol.icon",
   "unit.armor",
   "unit.infantry",
+  "model3d",
 ] as const;
 
 const BUILTIN_EVALUATORS: Readonly<
@@ -194,6 +195,9 @@ const BUILTIN_EVALUATORS: Readonly<
   "symbol.icon": iconVisual,
   "unit.armor": armorVisual,
   "unit.infantry": infantryVisual,
+  // Modelo 3D não tem primitiva Pixi: quem desenha é a camada Three.js do
+  // viewport, direto no canvas do MapLibre.
+  model3d: noVisual,
 };
 
 /**

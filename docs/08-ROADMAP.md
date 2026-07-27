@@ -24,7 +24,11 @@ gantt
 
     section Conteúdo
     F6 Efeitos             :f6, after f5, 4
-    F7 Ações               :f7, after f6, 3
+    F7A Biblioteca assets  :f7a, after f6, 2
+    F7B Camadas geo        :f7b, after f7a, 3
+    F7C Rotas e setas      :f7c, after f7b, 2
+    F7D Textos no mapa     :f7d, after f7c, 1
+    F7 Ações               :f7, after f7d, 3
 
     section Saída
     F8 Exportação          :f8, after f7, 4
@@ -45,6 +49,189 @@ Por que esta ordem:
 - **Exportação antes de Scene Script** (F8 antes de F9): a exportação é o que
   valida o determinismo. Gerar cenas por IA sobre um motor não determinístico é
   construir sobre areia.
+
+---
+
+## Replanejamento — 2026-07-27 · assets importados, não efeitos procedurais
+
+**Decisão do dono do projeto.** Elementos visuais de cena — explosões, tanques,
+veículos, elementos 3D — **não são gerados proceduralmente**. O usuário importa
+assets prontos (PNG, sprites, modelos). O sistema de partículas da Fase 6 fica
+congelado como está: implementado e determinístico, mas **nenhum emissor ou
+filtro novo será adicionado**. O que a ferramenta precisa entregar agora é a
+biblioteca que recebe esses assets e os sistemas de autoria geopolítica: rotas,
+setas, textos, contornos de países e estados, estradas.
+
+As fases antigas mantêm a numeração para não quebrar referências cruzadas nos
+outros documentos. Quatro blocos novos entram **antes** da Fase 7 original, na
+sequência abaixo. Cada um continua com critério de saída verificável.
+
+### 7A — Biblioteca de ativos (import)
+
+> ✅ **Concluído em 2026-07-27.** Os cinco critérios passam em
+> `pnpm verify:phase7a` (Electron real): import com thumbnail na hora, aplicar
+> renderiza e anima, round-trip do container preserva o SHA-256 dos bytes,
+> remoção em uso avisa os nós afetados e os preserva, 200 assets com thumbnails
+> lazy.
+
+**Objetivo.** O usuário traz os próprios assets; a ferramenta guarda, organiza e
+aplica. Sai do escopo da Fase 10 e vira o primeiro bloco a ser feito.
+
+Escopo:
+
+- `packages/assets` sai do stub: AssetStore content-addressed (hash do
+  conteúdo, como previsto em [04](04-PROJECT-FORMAT.md)), thumbnails, metadados
+  (nome, tags livres, dimensões)
+- Import de PNG/JPG/WebP/SVG pelo painel Biblioteca (picker e arrastar
+  arquivo); GLB/glTF registrado como `kind` para uso futuro no viewport 3D
+- Painel Biblioteca real: grid com thumbnails, busca, filtro por tag,
+  renomear/remover, contagem de usos
+- Aplicar asset → cria nó `image`/`svg` ancorado no centro da vista, via
+  Command Bus (desfeito por `Ctrl+Z`)
+- Assets persistem dentro do `.theatrum`; reabrir nunca pede caminho de arquivo
+
+**Critério de saída.**
+
+1. Importar um PNG de tanque → thumbnail no painel na hora.
+2. Aplicar → nó na cena renderiza a imagem; mover/rotacionar/escalar com os
+   gizmos existentes; todas as propriedades animáveis por keyframes.
+3. Salvar e reabrir o projeto → imagem idêntica, sem arquivo externo.
+4. Remover um asset em uso → aviso lista os nós afetados; confirmar troca o
+   visual por placeholder `unresolved` sem perder o nó.
+5. Importar 200 assets não degrada a abertura do painel (thumbnails lazy).
+
+### 7A+ — Preview 3D no viewport (model3d)
+
+> ✅ **Concluído em 2026-07-27.** Demo end-to-end em `tools/demo-f18.mjs`
+> (Electron real): GLB do usuário importado pela Biblioteca, nó `model3d` com
+> `motion-path` em rota catmull-rom Kiev→Moscou, marcadores de passagem
+> temporizados e destaque de contorno UA/RU — com screenshots de prova em
+> `demo-f18/`.
+
+**Objetivo.** Modelos GLB/glTF da Biblioteca aparecem no mapa e seguem os
+sistemas existentes (caminhos, keyframes, comportamentos).
+
+Escopo entregue:
+
+- Tipo de nó `model3d` (categoria media): `assetId`, `scaleMeters` (tamanho
+  visual em metros de terreno), `altitudeMeters`, `headingOffset` (correção do
+  eixo do nariz). `applyAsset` de um `model` cria esse nó
+- Camada custom do MapLibre com Three.js (`model3d-layer.ts`), mesmo canvas e
+  contexto WebGL do mapa; posição e rumo vêm da cena avaliada (inclusive a
+  contribuição do `motion-path` em `geo-bearing`), com sync por frame dirigido
+  pelo `SceneOverlay` e repaint sob demanda
+- GLTFLoader via `parse` de buffer com **texturas embutidas**: a CSP libera
+  `blob:` em `connect-src` (o decodificador do three faz fetch de object URLs);
+  sem isso o modelo carrega sem textura nenhuma (malha branca). Modelo
+  normalizado para dimensão máxima 1 e reescalado por `scaleMeters`
+- Mundo = **pixels mercator no zoom atual**: o `modelViewProjectionMatrix` do
+  MapLibre v5 não usa mercator 0..1 (provado pelo `_calcMatrices` do Transform
+  e por diagnóstico NDC na camada)
+- Iluminação: environment map via `PMREMGenerator` + `RoomEnvironment` (volume
+  e reflexos sem HDR externo), tone mapping ACES, preenchimento
+  hemisphere+directional moderados; metalness limitado a 0,6. O traverse de
+  ajustes (`frustumCulled=false`, `depthTest=false`, clamps) roda DEPOIS do
+  `wrapper.add(model)` — rodar antes aplicava tudo no grupo vazio
+- Renderer builtins: `model3d` registrado com `noVisual` (o Pixi não desenha)
+- **Volume 3D exige `altitudeMeters` + câmera baixa**: com altitude 0 o modelo
+  fica colado no terreno e vira "recorte plano" em qualquer pitch — só o topo
+  das asas aparece. O demo voa a 90 km; a câmera baixa (ex.: 8 km de altitude,
+  pitch ~80°, via `calculateCameraOptionsFromTo` do MapLibre v5 — não há
+  `FreeCameraOptions` nesta versão) enxerga o ventre, a fuselagem e as deriva.
+  Prova: `demo-f18/voo-chase.png`
+
+Limitações honestas (preview, não export):
+
+- O export determinístico (Fase 8) ainda não captura o 3D — é visual de
+  viewport
+- Opacidade hierárquica e `visible` por keyframe não se aplicam ao modelo;
+  contorno de país do demo é camada de estilo em runtime (a versão documental
+  é o bloco 7B)
+- Sem teste de profundidade contra o terreno por escolha de design (o modelo é
+  overlay, sempre por cima); sem projeção globo
+
+### 7B — Camadas geográficas: contornos, estados, estradas
+
+**Objetivo.** País, estado, rio e estrada viram nós animáveis, não decoração do
+basemap.
+
+Escopo:
+
+- `tools/fetch-data.ts` passa a baixar também `admin_1` (estados/províncias) e
+  `roads` do Natural Earth; countries/lakes/rivers/places já estão locais
+- Tipos de nó novos: `geo.region` (país ou estado, por nome/ISO), `geo.roads`,
+  `geo.rivers` — propriedades `fill`, `fillAlpha`, `stroke`, `strokeWidth`,
+  `highlight`
+- Renderização no overlay Pixi como polígonos (GeoJSON convertido no avaliador,
+  com cache por `(geoId, versão)`). Se a malha 10m estourar o orçamento de
+  frame, a alternativa declarada é camada MapLibre com `feature-state`
+  dirigido pelo engine — decisão medida, não chutada
+- Seleção do território por dropdown com busca (gazetteer administrativo)
+- `area.transfer` (transição de cor de território em OkLab) sai da Fase 7 e
+  entra aqui — é o uso real: mostrar avanço de front
+
+**Critério de saída.**
+
+1. Adicionar "Ucrânia" → contorno correto em qualquer zoom, pitch e bearing.
+2. Animar `fill` de um `geo.region` por keyframes → transição suave e
+   determinística: scrub para trás produz hash de frame idêntico ao scrub para
+   frente.
+3. Estradas de um país inteiro na tela sem violar o orçamento de frame do
+   overlay.
+4. Um `geo.region` aparece no Inspector gerado e aceita os filtros existentes
+   (outline, glow).
+
+### 7C — Rotas e setas
+
+**Objetivo.** O instrumento clássico de mapa de guerra: a seta de avanço.
+
+Escopo:
+
+- Tipo de nó `route` que referencia um `path` do projeto (F5) e renderiza a
+  linha no overlay: sólida ou tracejada, `dashOffset` animável, largura, cor
+- Arrowhead na ponta: tamanho e ângulo seguem o vetor tangente do path no
+  ponto final avaliado
+- Seta de avanço preenchida ("fat arrow"): polígono ao longo do path, corpo e
+  cabeça proporcionais, gerado deterministicamente a partir do path
+- Revelação animada: `trim` de 0→1 ao longo do path, com easing normal do
+  editor de curvas
+- Desenho com a caneta da F5; criar `route` sem path abre a caneta na hora
+
+**Critério de saída.**
+
+1. Desenhar Kursk→Belgorod com a caneta, aplicar seta de avanço e revelar em
+   2 s → a cabeça acompanha a ponta da revelação frame a frame.
+2. Scrub para trás desfaz a revelação de forma bit-idêntica (hash de frame).
+3. Editar um vértice do path atualiza a seta sem recriar o nó.
+4. 50 rotas simultâneas dentro do orçamento de frame do overlay.
+
+### 7D — Textos e rótulos no mapa
+
+**Objetivo.** Topônimos, datas e anotações ancorados no terreno.
+
+Escopo:
+
+- `text.title`/`text.label` com âncora geo (a F4 já ancora unidades; aqui é
+  ligar o mesmo caminho nos tipos de texto e na UI)
+- Criação direta no canvas: duplo clique no mapa → label nasce ancorado no
+  ponto, com edição inline
+- "Rótulo de lugar": digitar um nome resolve pelo gazetteer (F2) e ancora nas
+  coordenadas resolvidas
+- Propriedades novas: `halo` para legibilidade sobre o basemap, `maxWidth` com
+  quebra de linha
+
+**Critério de saída.**
+
+1. Duplo clique em Kiev → label ancorado; zoom, pitch e rotação mantêm o texto
+   no ponto geográfico.
+2. Rótulo criado pelo gazetteer aponta para as coordenadas exatas do lugar.
+3. Texto com halo continua legível sobre qualquer um dos três estilos de mapa.
+
+**Impacto nas fases antigas.** A Fase 7 (Ações) passa a usar assets importados
+da 7A nos templates — `bombard` e `airstrike` referenciam um sprite importado
+ou os emissores já implementados, nunca um efeito procedural novo. A Fase 10
+perde a biblioteca (virou 7A) e fica com `plugin-host`, símbolos NATO,
+bandeiras e paletas. Fases 8, 9 e 11 não mudam.
 
 ---
 
@@ -435,6 +622,13 @@ verificador desenha, mede, e no fim desfaz tudo o que criou.
 
 ## Fase 6 — Efeitos
 
+> ✅ **Concluída em 2026-07-27 — congelada pelo replanejamento.** O sistema de
+> partículas e filtros funciona e é determinístico; não receberá emissores
+> novos. Elementos visuais de cena entram como assets importados (bloco 7A).
+> Pendência conhecida: o critério 4 da prova (restaurar seed → frame idêntico)
+> apresenta delta mínimo de blend sob investigação de tolerância — não bloqueia
+> os blocos 7A–7D.
+
 **Objetivo.** Explosões, fumaça, fogo — determinísticos.
 
 Escopo:
@@ -464,6 +658,10 @@ Escopo:
 
 ## Fase 7 — Ações e simulações
 
+> ⏭️ **Começa depois dos blocos 7A–7D.** Templates de impacto (`bombard`,
+> `airstrike`) referenciam assets importados (7A) ou os emissores já
+> implementados — nenhum efeito procedural novo.
+
 **Objetivo.** Um clique produz 40 keyframes editáveis.
 
 Escopo:
@@ -473,8 +671,8 @@ Escopo:
   `missile-launch`, `bombard`, `airstrike`, `siege`, `amphibious-landing`,
   `airdrop`, `encircle`, `frontline-shift`, `naval-blockade`, `supply-line`
 - Cálculo de duração a partir de distância geodésica e `defaultSpeed` da unidade
-- Nós `geo.area`, `geo.frontline`, `geo.border` com dados de GeoJSON
-- `area.transfer` com animação de cor em OkLab
+- Nó `geo.frontline` com dados de GeoJSON (`geo.region` e `area.transfer`
+  saíram para o bloco 7B, junto com contornos e estradas)
 - Comando "Converter em keyframes" (bake)
 - Painel de ações com preview de parâmetros
 
@@ -552,7 +750,10 @@ Escopo:
 
 ---
 
-## Fase 10 — Plugins e biblioteca de assets
+## Fase 10 — Plugins e conteúdo empacotado
+
+> A biblioteca de ativos com import saiu daqui e virou o bloco 7A. Esta fase
+> fica com o `plugin-host` e o conteúdo pronto distribuído com o app.
 
 **Objetivo.** Extensível sem tocar no núcleo.
 
@@ -561,7 +762,8 @@ Escopo:
 - `plugin-host`: descoberta, manifest, carga, `unload` completo
 - Pontos de extensão: tipos de nó, efeitos, ações, verbos, exporters, painéis,
   estilos de mapa, comandos
-- Biblioteca de unidades: taxonomia por era/nação/categoria, filtro, busca
+- Biblioteca de unidades empacotada: taxonomia por era/nação/categoria, filtro,
+  busca (sobre o AssetStore da 7A)
 - ~150 unidades iniciais (SVG + sprite sheets) cobrindo WWI, WWII, moderno
 - Símbolos NATO APP-6
 - Bandeiras (histórico e atual)

@@ -28,6 +28,7 @@ import { editorActions } from "../../document/editor-session.js";
 import { useEditorSession } from "../../document/useEditorSession.js";
 import { Button } from "../../ui/index.js";
 import { createMapLibreProjectorPort } from "./maplibre-adapters.js";
+import { collectModel3dNodes, syncModel3dLayer } from "./model3d-layer.js";
 import { expandParticleEffects, type ParticleExpansion } from "./particle-nodes.js";
 import {
   addVertex,
@@ -350,6 +351,9 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
         );
         const screen = particles.scene;
         renderer.render(screen, PREVIEW_SLOT_ORDER);
+        // Nós 3D: a camada Three.js do mapa recebe a cena avaliada (âncora e
+        // rumo já resolvidos pelos comportamentos) e repinta sob demanda.
+        syncModel3dLayer(map, collectModel3dNodes(evaluated));
         const renderedAt = performance.now();
         renderCountRef.current += 1;
         frameRef.current = {

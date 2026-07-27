@@ -12,6 +12,7 @@
 export {
   EffectError,
   type EffectDefinition,
+  type EffectInstanceLike,
   type EffectKind,
   type EffectSpec,
   type FilterSpec,
@@ -54,5 +55,7 @@ export {
 } from "./draw.js";
 
 export { effectSeed } from "./seed.js";
+
+export { EFFECT_PRESETS, presetsFor, type EffectPreset } from "./presets.js";
 
 export { createBuiltinEffectRegistry } from "./builtin.js";

@@ -1,5 +1,6 @@
 import {
   AnchorSchema,
+  AssetDescriptorSchema,
   BehaviorInstanceDataSchema,
   BlendModeSchema,
   CameraFollowSchema,
@@ -7,6 +8,7 @@ import {
   ColorSchema,
   CompositionSchema,
   EasingHandleSchema,
+  EffectInstanceDataSchema,
   FrameAnimatablePropertySchema,
   FrameSchema,
   MapSettingsSchema,
@@ -402,6 +404,70 @@ export const CommandSchemas = {
         enabled: z.boolean(),
       })
       .strict(),
+  ),
+
+  /**
+   * Efeito vive no nó como comportamento, mas a pilha tem semântica de ordem de
+   * aplicação: o índice decide em que ponto da cadeia o passe entra.
+   */
+  "effect.add": commandSchema(
+    "effect.add",
+    z
+      .object({
+        compositionId: IdentifierSchema,
+        nodeId: IdentifierSchema,
+        effect: EffectInstanceDataSchema,
+        index: z.number().int().nonnegative().optional(),
+      })
+      .strict(),
+  ),
+  "effect.remove": commandSchema(
+    "effect.remove",
+    z
+      .object({
+        compositionId: IdentifierSchema,
+        nodeId: IdentifierSchema,
+        effectId: IdentifierSchema,
+      })
+      .strict(),
+  ),
+  "effect.set-params": commandSchema(
+    "effect.set-params",
+    z
+      .object({
+        compositionId: IdentifierSchema,
+        nodeId: IdentifierSchema,
+        effectId: IdentifierSchema,
+        params: z.record(z.string(), z.unknown()),
+      })
+      .strict(),
+  ),
+  "effect.set-enabled": commandSchema(
+    "effect.set-enabled",
+    z
+      .object({
+        compositionId: IdentifierSchema,
+        nodeId: IdentifierSchema,
+        effectId: IdentifierSchema,
+        enabled: z.boolean(),
+      })
+      .strict(),
+  ),
+
+  /**
+   * Asset vive no documento como descriptor leve: os bytes ficam no container
+   * `.theatrum`, fora do histórico. Undo refaz a lista de descriptors; bytes
+   * órfãos são filtrados no save.
+   */
+  "asset.add": commandSchema("asset.add", z.object({ asset: AssetDescriptorSchema }).strict()),
+  "asset.remove": commandSchema("asset.remove", z.object({ assetId: IdentifierSchema }).strict()),
+  "asset.rename": commandSchema(
+    "asset.rename",
+    z.object({ assetId: IdentifierSchema, name: z.string() }).strict(),
+  ),
+  "asset.set-tags": commandSchema(
+    "asset.set-tags",
+    z.object({ assetId: IdentifierSchema, tags: z.array(z.string()) }).strict(),
   ),
 
   "camera.set-follow": commandSchema(

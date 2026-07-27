@@ -42,9 +42,9 @@ function rootNode(): Node {
 }
 
 describe("builtin node type registry", () => {
-  it("registra exatamente os treze tipos base em ordem explícita", () => {
+  it("registra exatamente os catorze tipos base em ordem explícita", () => {
     const registry = createBuiltinNodeTypeRegistry();
-    expect(registry.size).toBe(13);
+    expect(registry.size).toBe(14);
     expect(registry.list().map((item) => item.type)).toEqual(BUILTIN_NODE_TYPE_IDS);
     expect(BUILTIN_NODE_TYPES.map((item) => item.type)).toEqual(BUILTIN_NODE_TYPE_IDS);
   });

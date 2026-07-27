@@ -305,6 +305,18 @@ export function createPixiRenderBackend(options: PixiRenderBackendOptions = {}):
 
     composite(order: readonly SlotId[]): void {
       const ready = assertReady();
+      // Varredura por frame dos sprites de imagem: o cache de texturas é a
+      // única verdade (Biblioteca, 7A). A pipeline só chama `update` para nós
+      // alterados, e remover ou aquecer um asset não altera o nó — sem esta
+      // varredura, o sprite seguraria a textura velha para sempre (ou nunca
+      // pegaria a nova). Custo: um Map.has por imagem por frame.
+      for (const node of nodes.values()) {
+        if (node.visualKind !== "image" || node.source === undefined) continue;
+        const sprite = node.visual as Sprite | undefined;
+        if (sprite === undefined) continue;
+        const texture = cachedTexture(ready.pixi, node.source);
+        if (sprite.texture !== texture) sprite.texture = texture;
+      }
       reconcileMattes();
       ready.app.stage.removeChildren();
       for (const slot of order) {
@@ -351,7 +363,13 @@ export function createPixiRenderBackend(options: PixiRenderBackendOptions = {}):
 }
 
 function ensureVisual(module: PixiModule, node: PixiNode, visual: VisualPrimitive): void {
-  if (node.visualKind === visual.kind) return;
+  // Partícula com outro buffer (seed ou parâmetro mudou) é outro visual, apesar
+  // do mesmo kind: a geometria é estática por bufferId, então a malha precisa
+  // ser recriada. Sem este desvio, trocar `composition.seed` não redesenhava a
+  // explosão — pego pelo critério 4 da prova da Fase 6.
+  if (node.visualKind === visual.kind) {
+    if (visual.kind !== "particles" || node.source === visual.bufferId) return;
+  }
 
   node.visual?.removeFromParent();
   node.visual?.destroy();
@@ -412,9 +430,14 @@ function updateVisual(
 
     case "image": {
       const sprite = node.visual as Sprite;
-      if (node.source !== visual.source) {
+      // Re-resolve a cada update: o cache é a única verdade. Sem isso, remover
+      // um asset da Biblioteca (7A) não apagaria a imagem — o sprite seguiria
+      // segurando a textura velha — e um nó criado antes da textura aquecer
+      // nunca a pegaria. O custo é um Map.has por imagem por frame.
+      const texture = cachedTexture(module, visual.source);
+      if (node.source !== visual.source || sprite.texture !== texture) {
         node.source = visual.source;
-        sprite.texture = cachedTexture(module, visual.source);
+        sprite.texture = texture;
       }
       sprite.tint = visual.tint;
       sprite.anchor.set(placement.anchor[0], placement.anchor[1]);

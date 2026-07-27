@@ -233,6 +233,28 @@ const SHAPES: readonly EmitterShape[] = Object.freeze([
   },
 ]);
 
+/**
+ * Multiplica a paleta pela tonalidade, canal a canal. Branco (`#ffffff`) devolve
+ * a paleta intacta — mesma referência, sem custo. Fora daqui a tonalidade não
+ * toca em nada: o shader continua recebendo só `#rrggbb` por partícula.
+ */
+function tintPalette(palette: readonly string[], tint: unknown): readonly string[] {
+  const t = colorOf(tint, "#ffffff");
+  const tr = Number.parseInt(t.slice(1, 3), 16);
+  const tg = Number.parseInt(t.slice(3, 5), 16);
+  const tb = Number.parseInt(t.slice(5, 7), 16);
+  if (tr === 255 && tg === 255 && tb === 255) return palette;
+  return Object.freeze(
+    palette.map((hex) => {
+      const c = colorOf(hex, "#ffffff");
+      const r = Math.round((Number.parseInt(c.slice(1, 3), 16) * tr) / 255);
+      const g = Math.round((Number.parseInt(c.slice(3, 5), 16) * tg) / 255);
+      const b = Math.round((Number.parseInt(c.slice(5, 7), 16) * tb) / 255);
+      return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+    }),
+  );
+}
+
 function defineEmitter(shape: EmitterShape): EffectDefinition<CommonParams> {
   const defaults = CommonParamsSchema.parse({
     count: animatable(shape.count),
@@ -260,7 +282,7 @@ function defineEmitter(shape: EmitterShape): EffectDefinition<CommonParams> {
         fade: shape.fade,
         emissionFrames: shape.emissionFrames,
         lifetime,
-        palette: shape.palette,
+        palette: tintPalette(shape.palette, params.tint),
         blend: shape.blend,
         wobble: shape.wobble * scale,
         wobbleHz: shape.wobbleHz,

@@ -1,8 +1,10 @@
 import type { IDockviewPanelProps } from "dockview-react";
 import type { ReactNode } from "react";
+import { EffectsPanel } from "../panels/effects/EffectsPanel.js";
 import { GraphPanel } from "../panels/graph/GraphPanel.js";
 import { HistoryPanel } from "../panels/history/HistoryPanel.js";
 import { InspectorPanel } from "../panels/inspector/InspectorPanel.js";
+import { LibraryPanel } from "../panels/library/LibraryPanel.js";
 import { ProjectPanel } from "../panels/project/ProjectPanel.js";
 import { TimelinePanel } from "../panels/timeline/TimelinePanel.js";
 import { MapViewport } from "../panels/viewport/MapViewport.js";
@@ -38,8 +40,8 @@ export const PANEL_DEFINITIONS = [
   {
     id: "library",
     title: "Biblioteca",
-    phase: "Fase 10",
-    hint: "Unidades militares por era, nação e categoria. Busca e filtro.",
+    phase: "Bloco 7A",
+    hint: "Assets importados pelo usuário (PNGs, sprites, modelos). Busca e filtro.",
   },
   {
     id: "viewport",
@@ -115,6 +117,12 @@ export const PANEL_COMPONENTS: Record<string, (props: IDockviewPanelProps) => Re
   },
   graph: function PropertyGraphPanel(_props: IDockviewPanelProps): ReactNode {
     return <GraphPanel />;
+  },
+  effects: function NodeEffectsPanel(_props: IDockviewPanelProps): ReactNode {
+    return <EffectsPanel />;
+  },
+  library: function AssetLibraryPanel(_props: IDockviewPanelProps): ReactNode {
+    return <LibraryPanel />;
   },
 };
 

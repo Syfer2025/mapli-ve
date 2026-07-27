@@ -291,6 +291,17 @@ const UnitPropsSchema = z
   })
   .passthrough();
 
+const Model3dPropsSchema = z
+  .object({
+    assetId: StringPropertySchema,
+    /** Vão máximo do modelo em metros de terreno — escala visual, não física. */
+    scaleMeters: PositiveNumberPropertySchema,
+    altitudeMeters: NumberPropertySchema,
+    /** Correção do eixo do nariz do modelo, somada ao rumo do caminho. */
+    headingOffset: NumberPropertySchema,
+  })
+  .passthrough();
+
 const ASSET_ID_PROPERTY = property({
   path: "props.assetId",
   label: "Asset",
@@ -746,6 +757,64 @@ export const UNIT_INFANTRY_NODE_TYPE = defineNodeType({
   defaultSizeMode: "screen",
 });
 
+/**
+ * Modelo 3D (GLB/glTF da Biblioteca). O Pixi não desenha nada para este tipo:
+ * o visual sai da camada Three.js do viewport (`model3d-layer.ts`), que lê a
+ * âncora geo e o rumo avaliados — inclusive os do comportamento `motion-path`.
+ * Export determinístico do 3D fica para a Fase 8; aqui é preview de viewport.
+ */
+export const MODEL3D_NODE_TYPE = defineNodeType({
+  type: "model3d",
+  category: "media",
+  label: "Modelo 3D",
+  icon: "box",
+  defaultProps: {
+    assetId: animatable(""),
+    scaleMeters: animatable(30_000),
+    altitudeMeters: animatable(0),
+    headingOffset: animatable(0),
+  },
+  propertySchema: Model3dPropsSchema,
+  properties: [
+    ...COMMON_PROPERTIES,
+    ASSET_ID_PROPERTY,
+    property({
+      path: "props.scaleMeters",
+      label: "Tamanho (m)",
+      kind: "number",
+      group: "content",
+      binding: "animatable",
+      animatable: true,
+      min: 1,
+      step: 1000,
+      unit: "meters",
+    }),
+    property({
+      path: "props.altitudeMeters",
+      label: "Altitude",
+      kind: "number",
+      group: "layout",
+      binding: "animatable",
+      animatable: true,
+      step: 100,
+      unit: "meters",
+    }),
+    property({
+      path: "props.headingOffset",
+      label: "Correção de rumo",
+      kind: "number",
+      group: "layout",
+      binding: "animatable",
+      animatable: true,
+      step: 5,
+      unit: "degrees",
+    }),
+  ],
+  supportsChildren: false,
+  defaultAnchorSpace: "geo",
+  defaultSizeMode: "screen",
+});
+
 export const BUILTIN_NODE_TYPE_IDS = Object.freeze([
   "group",
   "null",
@@ -760,6 +829,7 @@ export const BUILTIN_NODE_TYPE_IDS = Object.freeze([
   "symbol.icon",
   "unit.armor",
   "unit.infantry",
+  "model3d",
 ] as const);
 
 export type BuiltinNodeType = (typeof BUILTIN_NODE_TYPE_IDS)[number];
@@ -778,6 +848,7 @@ export const BUILTIN_NODE_TYPES: readonly NodeTypeDefinition[] = Object.freeze([
   SYMBOL_ICON_NODE_TYPE,
   UNIT_ARMOR_NODE_TYPE,
   UNIT_INFANTRY_NODE_TYPE,
+  MODEL3D_NODE_TYPE,
 ]);
 
 export function createBuiltinNodeTypeRegistry(): NodeTypeRegistry {

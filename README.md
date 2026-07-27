@@ -15,7 +15,12 @@ _theatrum belli_ — teatro de operações.
 
 ## Estado atual
 
-**Fase 5 — Animação avançada concluída. Próxima: Fase 6 — Efeitos.**
+**Bloco 7A+ — Preview 3D concluído (2026-07-27): modelos GLB/glTF da
+Biblioteca renderizam no mapa via camada Three.js e voam por `motion-path` —
+demo F/A-18F Kiev→Moscou em `tools/demo-f18.mjs`. Replanejamento vigente:
+explosões, tanques e elementos 3D entram como assets importados, não
+procedurais. Próximo: bloco 7B — contornos, estados e estradas; depois 7C
+(rotas e setas) e 7D (textos no mapa).**
 
 O monorepo, os guardrails arquiteturais, o núcleo matemático/temporal, o shell
 Electron e o workspace dockável estão implementados. O viewport já é um painel
@@ -32,22 +37,43 @@ projeto com ferramenta de caneta no mapa, cinco comportamentos declarativos
 (caminho com velocidade uniforme no terreno, auto-orientação, inclinação em
 curva, seguir com damping determinístico e oscilar), editor de curvas em canvas
 com valor e velocidade, assistentes de keyframe e pré-composições aninhadas com
-`timeRemap`.
+`timeRemap`. A Fase 6 entregou o sistema de partículas determinístico em GPU,
+filtros com pilha por nó, presets e o painel de Efeitos com parâmetros
+animáveis — e foi congelada aí: pelo replanejamento, explosões e elementos
+visuais de cena serão assets importados pelo usuário, e o esforço segue para a
+Biblioteca de ativos e os sistemas de mapa (rotas, setas, textos, contornos,
+estradas). O bloco 7A entregou a Biblioteca: import de PNG/JPG/WebP/SVG/GLB com
+endereçamento por hash de conteúdo, thumbnails, busca e tags, aplicação na cena
+com as dimensões reais da imagem, tudo embutido no `.theatrum` — sem nenhum
+caminho de arquivo externo. O bloco 7A+ ligou os modelos 3D ao mapa: tipo de nó
+`model3d`, camada custom do MapLibre com Three.js no mesmo canvas (posição e
+rumo vindos da cena avaliada, incluindo `motion-path` em `geo-bearing`), GLTF
+carregado por `parse` de buffer com texturas embutidas (a CSP libera `blob:` em
+`connect-src` para o decodificador do three), iluminação por environment map
+(`RoomEnvironment` + tone mapping ACES) e a prova de conceito completa com o
+F/A-18F do usuário voando de Kiev a Moscou a 90 km de altitude em rota curva
+com marcadores de passagem — com `altitudeMeters` e câmera baixa o modelo
+aparece com volume 3D real (ventre, fuselagem, deriva), não só o topo das asas.
 
-| Fase | Escopo                                   | Estado       |
-| ---: | ---------------------------------------- | ------------ |
-|    0 | Arquitetura e especificações             | ✅ concluída |
-|    1 | Fundação (monorepo, shell, tooling)      | ✅ concluída |
-|    2 | Mapa + Câmera                            | ✅ concluída |
-|    3 | Documento + Comandos + Undo              | ✅ concluída |
-|    4 | Objetos + Timeline                       | ✅ concluída |
-|    5 | Animação avançada (bezier, graph, paths) | ✅ concluída |
-|    6 | Efeitos e partículas                     | ⏭️ próxima   |
-|    7 | Ações / simulações                       | ⬜           |
-|    8 | Exportação                               | ⬜           |
-|    9 | Scene Script (autoria por IA)            | ⬜           |
-|   10 | Plugins + biblioteca de assets           | ⬜           |
-|   11 | Polimento e performance                  | ⬜           |
+| Fase | Escopo                                    | Estado       |
+| ---: | ----------------------------------------- | ------------ |
+|    0 | Arquitetura e especificações              | ✅ concluída |
+|    1 | Fundação (monorepo, shell, tooling)       | ✅ concluída |
+|    2 | Mapa + Câmera                             | ✅ concluída |
+|    3 | Documento + Comandos + Undo               | ✅ concluída |
+|    4 | Objetos + Timeline                        | ✅ concluída |
+|    5 | Animação avançada (bezier, graph, paths)  | ✅ concluída |
+|    6 | Efeitos e partículas (congelada)          | ✅ concluída |
+|   7A | Biblioteca de ativos (import)             | ✅ concluída |
+|  7A+ | Preview 3D no viewport (model3d)          | ✅ concluída |
+|   7B | Camadas geo: contornos, estados, estradas | ⏭️ próxima   |
+|   7C | Rotas e setas de avanço                   | ⬜           |
+|   7D | Textos e rótulos no mapa                  | ⬜           |
+|    7 | Ações / simulações                        | ⬜           |
+|    8 | Exportação                                | ⬜           |
+|    9 | Scene Script (autoria por IA)             | ⬜           |
+|   10 | Plugins + conteúdo empacotado             | ⬜           |
+|   11 | Polimento e performance                   | ⬜           |
 
 Roteiro detalhado com critérios de saída: [docs/08-ROADMAP.md](docs/08-ROADMAP.md).
 
@@ -184,3 +210,16 @@ ease e arrasta um handle bezier no editor de curvas, verifica banking em rota
 geodésica, prova que o seguidor com damping é idêntico avaliando frames fora de
 ordem e que uma pré-composição aninhada aceita `timeRemap`. No fim desfaz tudo e
 compara o documento com o estado inicial.
+
+E a prova integrada do bloco 7A:
+
+```powershell
+pnpm verify:phase7a
+```
+
+Ela importa um PNG gerado em canvas e verifica o thumbnail no painel Biblioteca,
+a aplicação na cena com textura no cache do Pixi e animação por propriedade, o
+round-trip do container com SHA-256 dos bytes preservado, a remoção de um asset
+em uso com aviso dos nós afetados (nó preservado, imagem fora da cena) e um lote
+de 200 assets com thumbnails lazy. No fim desfaz tudo e compara o documento com
+o estado inicial.

@@ -100,6 +100,20 @@ export type EffectSpec =
   | { readonly kind: "particles"; readonly particles: ParticleSystemSpec }
   | { readonly kind: "filter"; readonly filter: FilterSpec };
 
+/**
+ * Instância de efeito vista pelo registry.
+ *
+ * Tipo estrutural mínimo, e não o `EffectInstanceData` do schema, de propósito:
+ * quem chama `resolve` tanto pode vir do documento (Zod, com index signature do
+ * `.passthrough()`) quanto da avaliação de keyframes (`EvaluatedEffect`, sem
+ * index signature). O registry só lê estes três campos.
+ */
+export interface EffectInstanceLike {
+  readonly type: string;
+  readonly enabled: boolean;
+  readonly params: Readonly<Record<string, unknown>>;
+}
+
 export interface EffectDefinition<P = Record<string, unknown>> {
   readonly type: string;
   readonly label: string;
