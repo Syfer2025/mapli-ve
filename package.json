@@ -18,6 +18,8 @@
     "preview": "electron-vite preview",
     "data:fetch": "node tools/fetch-data.ts",
     "data:verify": "node tools/fetch-data.ts --verify",
+    "geo:build": "node tools/build-geo.ts",
+    "geo:verify": "node tools/build-geo.ts --verify",
     "schema:gen": "tsx tools/gen-schema.ts",
     "verify:phase2": "node tools/verify-phase2.mjs",
     "verify:phase3": "node tools/verify-phase3.mjs",
@@ -36,7 +38,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
-    "check": "pnpm data:verify && pnpm typecheck && pnpm lint && pnpm lint:arch && pnpm test && pnpm build"
+    "check": "pnpm data:verify && pnpm geo:verify && pnpm typecheck && pnpm lint && pnpm lint:arch && pnpm test && pnpm build"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

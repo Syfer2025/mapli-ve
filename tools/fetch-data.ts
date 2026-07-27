@@ -44,6 +44,36 @@ const REMOTE_ASSETS: readonly RemoteAsset[] = [
     bytes: 838_726,
     sha256: "6866c877d39cba9c357620878839b336d569f8c662d3cfab4cb1dbe2d39c977f",
   },
+  /**
+   * Malhas finas do bloco 7B. A 110m acima continua servindo o basemap e as
+   * provas antigas; estas três alimentam os nós `geo.*`, que precisam de contorno
+   * correto em zoom de cidade — 93 pontos para a Ucrânia inteira, que é o que a
+   * 110m dá, sai visivelmente poligonal. Ver ADR-009.
+   */
+  {
+    relativePath: "natural-earth/ne_10m_admin_0_countries.geojson",
+    url:
+      `${NATURAL_EARTH_RAW}/${NATURAL_EARTH_COUNTRIES_COMMIT}/geojson/` +
+      "ne_10m_admin_0_countries.geojson",
+    bytes: 13_287_234,
+    sha256: "239eec57ac17f100a11e2536cffc56752c318b50ae765b0918ff7aab4ce8f255",
+  },
+  {
+    relativePath: "natural-earth/ne_10m_admin_1_states_provinces.geojson",
+    url:
+      `${NATURAL_EARTH_RAW}/${NATURAL_EARTH_COUNTRIES_COMMIT}/geojson/` +
+      "ne_10m_admin_1_states_provinces.geojson",
+    bytes: 40_726_851,
+    sha256: "22d0e3ad85eb3e27f17cabf8ba2d50e554fbc27a87796ff891d958185da62fb5",
+  },
+  {
+    relativePath: "natural-earth/ne_10m_rivers_lake_centerlines.geojson",
+    url:
+      `${NATURAL_EARTH_RAW}/${NATURAL_EARTH_PHYSICAL_COMMIT}/geojson/` +
+      "ne_10m_rivers_lake_centerlines.geojson",
+    bytes: 7_307_743,
+    sha256: "bb854a900ecbd3b408df46d5e16e3e0f974ba55993f9d8b5c26e855273c0905a",
+  },
   {
     relativePath: "natural-earth/ne_10m_populated_places_simple.geojson",
     url:

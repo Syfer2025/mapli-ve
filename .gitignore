@@ -11,6 +11,8 @@ data/glyphs/
 data/natural-earth/*.geojson
 data/sprites/
 data/terrain/
+# malha compilada por tools/build-geo.ts — derivada da origem fixada por hash
+data/geo/
 
 # saída de teste
 coverage/

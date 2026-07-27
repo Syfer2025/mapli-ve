@@ -6,16 +6,18 @@ escolha, e as consequências aceitas.
 Um ADR não é revisado por opinião. É revisado quando o gatilho registrado nele
 dispara — geralmente uma medição, numa fase específica.
 
-| #                                 | Decisão                                           | Status | Revisar em   |
-| --------------------------------- | ------------------------------------------------- | ------ | ------------ |
-| [001](ADR-001-shell-electron.md)  | Electron em vez de Tauri                          | aceito | Fase 8       |
-| [002](ADR-002-compositor.md)      | Composição mapa + overlay por canvases empilhados | aceito | Fase 11      |
-| [003](ADR-003-determinism.md)     | Determinismo como invariante do motor             | aceito | nunca        |
-| [004](ADR-004-time-in-frames.md)  | Frame inteiro como unidade canônica de tempo      | aceito | nunca        |
-| [005](ADR-005-canvas-timeline.md) | Timeline e graph editor em canvas                 | aceito | Fase 4       |
-| [006](ADR-006-maplibre.md)        | MapLibre GL JS + PMTiles                          | aceito | improvável   |
-| [007](ADR-007-no-rust-yet.md)     | Nenhum Rust por enquanto                          | aceito | Fases 8 e 11 |
-| [008](ADR-008-flat-node-map.md)   | Mapa plano de nós em vez de árvore aninhada       | aceito | improvável   |
+| #                                      | Decisão                                           | Status | Revisar em   |
+| -------------------------------------- | ------------------------------------------------- | ------ | ------------ |
+| [001](ADR-001-shell-electron.md)       | Electron em vez de Tauri                          | aceito | Fase 8       |
+| [002](ADR-002-compositor.md)           | Composição mapa + overlay por canvases empilhados | aceito | Fase 11      |
+| [003](ADR-003-determinism.md)          | Determinismo como invariante do motor             | aceito | nunca        |
+| [004](ADR-004-time-in-frames.md)       | Frame inteiro como unidade canônica de tempo      | aceito | nunca        |
+| [005](ADR-005-canvas-timeline.md)      | Timeline e graph editor em canvas                 | aceito | Fase 4       |
+| [006](ADR-006-maplibre.md)             | MapLibre GL JS + PMTiles                          | aceito | improvável   |
+| [007](ADR-007-no-rust-yet.md)          | Nenhum Rust por enquanto                          | aceito | Fases 8 e 11 |
+| [008](ADR-008-flat-node-map.md)        | Mapa plano de nós em vez de árvore aninhada       | aceito | improvável   |
+| [009](ADR-009-geo-layers-overlay.md)   | Camadas geográficas desenhadas no overlay         | aceito | Fase 11      |
+| [010](ADR-010-precompiled-geo-mesh.md) | Malha geográfica pré-compilada em Int32           | aceito | improvável   |
 
 ## Formato
 
