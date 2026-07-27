@@ -98,6 +98,33 @@ function geoViewportOf(map: MapLibreMap): GeoViewport {
   };
 }
 
+/**
+ * Sobrepõe as caixas reais dos nós geográficos no layout.
+ *
+ * O estágio de layout roda antes da projeção da malha, então mede o tamanho
+ * padrão do nó. Quem sabe a extensão do contorno é o passe geográfico, e é depois
+ * dele que o frame ganha um layout utilizável para clique e gizmo.
+ */
+function withGeoBounds(
+  layout: LayoutScreenScene,
+  bounds: ReadonlyMap<string, Rect>,
+): LayoutScreenScene {
+  if (bounds.size === 0) return layout;
+  const layouts = new Map(layout.layouts);
+  for (const [nodeId, box] of bounds) {
+    const current = layouts.get(nodeId);
+    if (current === undefined) continue;
+    layouts.set(nodeId, {
+      ...current,
+      bounds: box,
+      sizePx: [box.width, box.height],
+      // O passe só devolve caixa para nó que desenhou, então ele não está culled.
+      culled: false,
+    });
+  }
+  return { ...layout, layouts };
+}
+
 interface OverlayFrame {
   readonly composition: Composition;
   readonly evaluated: EvaluatedScene;
@@ -398,7 +425,9 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
         frameRef.current = {
           composition,
           evaluated,
-          layout,
+          // Clique e gizmo consultam este layout. Sem as caixas reais eles apontariam
+          // para um quadrado de 64 px na âncora em vez do território inteiro.
+          layout: withGeoBounds(layout, geo.bounds),
           screen,
           behaviors: pass.diagnostics,
           effects: particles.diagnostics,
@@ -412,6 +441,7 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
             culled: geo.culled,
             vertices: geo.vertices,
             level: geo.level,
+            bounds: geo.bounds,
           },
           paths: projectPaths(
             session.document.paths,

@@ -76,6 +76,8 @@ export {
   type GeoViewBounds,
 } from "./geo-mesh.js";
 
+export { clipBufferSize, clipPolyline, clipRing, type ClipBounds } from "./clip.js";
+
 export { createRegionCatalog, type RegionCatalog, type RegionHit } from "./region-catalog.js";
 
 export { BUILTIN_GAZETTEER_PLACES } from "./gazetteer-data.js";

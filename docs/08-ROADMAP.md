@@ -153,24 +153,23 @@ Limitações honestas (preview, não export):
 ### 7B — Camadas geográficas: contornos, estados, estradas
 
 > 🚧 **Em curso.** Entregue: malha compilada (ADR-009 e ADR-010), leitor,
-> catálogo de busca, tipos de nó `geo.region` e `geo.rivers`, e o passe que
-> projeta a geometria por frame. Verificado no Electron real: o contorno da
-> Ucrânia cai sobre as fronteiras do basemap, o nível de simplificação segue o
-> zoom, e território fora da vista não é projetado.
+> catálogo de busca, tipos de nó `geo.region` e `geo.rivers`, o passe que projeta
+> a geometria por frame, e o recorte contra a vista.
 >
-> **Limite medido, ainda aberto:** zoom de cidade (z13) com um país inteiro na
-> cena custa ~16 ms de frame, no teto dos 16,6 ms. O anel continental da Rússia
-> tem caixa que **contém** a vista, então nem o descarte por feição nem o por anel
-> alcançam — projeta-se 25 mil vértices dos quais nenhum aparece. O zoom
-> geopolítico de verdade (z2–z9) fica em 3,4 a 11,2 ms, dentro do orçamento.
-> Conserto identificado: recortar a geometria contra a vista em graus
-> (Sutherland–Hodgman) antes de projetar, o que reduz o anel ao que é visível mais
-> os cantos. Fica para o 7B.3c.
+> Verificado no Electron real: o contorno da Ucrânia cai sobre as fronteiras do
+> basemap; o nível de detalhe sobe com o zoom; território fora da vista não é
+> projetado; e o preenchimento acerta em quatorze pixels medidos em cidades
+> conhecidas — Kiev, Lviv, Smolensk e Moscou pintados; Minsk, Vilnius, Varsóvia,
+> Bucareste e o Báltico limpos.
 >
-> **Falta também:** hit test e gizmo usam a caixa do nó, que o estágio de layout
-> ainda calcula como 64×64 na âncora — clicar no meio da Ucrânia não seleciona o
-> território. O passe já corrige `size` para o renderer, mas a caixa do
-> `scene-graph` continua a do nó padrão.
+> **Orçamento resolvido.** Zoom de cidade com um país inteiro na cena custava
+> ~16 ms de 16,6. O recorte em graus antes da projeção derrubou para 1,4 ms: a
+> Rússia em z13 sobre Kiev sai como quatro cantos da vista em vez de 25 mil
+> vértices que ninguém veria. Pior frame medido em qualquer zoom: 5,9 ms.
+>
+> **Falta:** `geo.roads` (com medição própria, como o ADR-009 exige),
+> `area.transfer` em OkLab, painel de seleção de território na UI, e o
+> verificador dos quatro critérios.
 
 **Objetivo.** País, estado, rio e estrada viram nós animáveis, não decoração do
 basemap.

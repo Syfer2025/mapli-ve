@@ -19,8 +19,8 @@
  */
 
 import type { EvaluatedScene } from "@theatrum/animation";
-import type { Vec2 } from "@theatrum/core-math";
-import type { GeoMesh } from "@theatrum/gis";
+import { rect, type Rect, type Vec2 } from "@theatrum/core-math";
+import { clipBufferSize, clipPolyline, clipRing, type GeoMesh } from "@theatrum/gis";
 import type { ScreenScene as LayoutScreenScene } from "@theatrum/scene-graph";
 import type { ScreenNode, ScreenScene } from "@theatrum/renderer";
 import { geoMeshFor } from "../../geo/geo-data.js";
@@ -44,6 +44,14 @@ export interface GeoExpansion {
   readonly vertices: number;
   /** Nível de simplificação em vigor, para o painel de depuração. */
   readonly level: number;
+  /**
+   * Caixa real da geometria projetada, por nó.
+   *
+   * O estágio de layout mede o tamanho padrão do nó, então sem isto clique e gizmo
+   * apontam para um quadrado de 64 px na âncora em vez do território. Quem monta o
+   * frame sobrepõe estas caixas no layout antes de testar clique.
+   */
+  readonly bounds: ReadonlyMap<string, Rect>;
 }
 
 export interface GeoViewport {
@@ -51,6 +59,20 @@ export interface GeoViewport {
   /** Caixa visível em graus, folgada. `undefined` desliga o descarte. */
   readonly bounds: { west: number; south: number; east: number; north: number } | undefined;
 }
+
+/**
+ * Buffers de recorte, vivos entre frames.
+ *
+ * Módulo em vez de parâmetro porque são detalhe de implementação do passe e
+ * crescem sob demanda até o maior anel que a sessão viu. Não guardam estado
+ * observável: o conteúdo é sobrescrito a cada anel, então nada aqui influencia o
+ * resultado de um frame — o determinismo do ADR-003 fica intacto.
+ */
+const scratch = {
+  degrees: new Float64Array(4096),
+  clipped: new Float64Array(8192),
+  spare: new Float64Array(8192),
+};
 
 function stringProp(props: Readonly<Record<string, unknown>>, key: string): string {
   const value = props[key];
@@ -107,6 +129,7 @@ export function expandGeoNodes(
       culled: 0,
       vertices: 0,
       level: 0,
+      bounds: new Map(),
     });
   }
 
@@ -116,6 +139,7 @@ export function expandGeoNodes(
   let culled = 0;
   let vertices = 0;
   let reportedLevel = 0;
+  const bounds = new Map<string, Rect>();
 
   for (const nodeId of owners) {
     const node = screen.nodes.get(nodeId);
@@ -148,30 +172,90 @@ export function expandGeoNodes(
     const level = mesh.levelForZoom(viewport.zoom);
     reportedLevel = level;
     const rings: Vec2[][] = [];
-    let current: Vec2[] | undefined;
     const anchor = hostLayout.anchorPx;
+    const closed = node.type === "geo.region";
+    const clip = viewport.bounds;
+
+    /**
+     * Recorte em graus **antes** de projetar.
+     *
+     * Sem ele, um anel cuja caixa contém a vista — o continente russo em zoom de
+     * cidade — projeta cada vértice para descobrir que nenhum aparece. Com ele, a
+     * saída é o que cabe na tela mais os cantos, e a projeção só paga por isso.
+     *
+     * O buffer de graus é reaproveitado entre anéis e entre frames: o custo de
+     * alocação some, que era o motivo de `forEachVertex` não alocar.
+     */
+    let degrees = scratch.degrees;
+    let pending = 0;
+    const openRing = (count: number): void => {
+      if (degrees.length < count * 2) {
+        degrees = new Float64Array(count * 2);
+        scratch.degrees = degrees;
+      }
+      pending = 0;
+    };
+    const pushDegrees = (lng: number, lat: number): void => {
+      degrees[pending * 2] = lng;
+      degrees[pending * 2 + 1] = lat;
+      pending += 1;
+    };
+
+    /** Projeta uma fatia de graus em pixels relativos à âncora. */
+    const emit = (source: Float64Array, offset: number, count: number): void => {
+      if (count < 2) return;
+      const ring = new Array<Vec2>(count);
+      for (let index = 0; index < count; index += 1) {
+        const screenPoint = project([
+          source[(offset + index) * 2] ?? 0,
+          source[(offset + index) * 2 + 1] ?? 0,
+        ]);
+        // Relativo à âncora: é o que faz mover, girar e escalar o território
+        // funcionar como em qualquer outro nó.
+        ring[index] = [screenPoint[0] - anchor[0], screenPoint[1] - anchor[1]];
+      }
+      rings.push(ring);
+    };
+
+    const flushRing = (): void => {
+      if (pending === 0) return;
+      if (clip === undefined) {
+        emit(degrees, 0, pending);
+        pending = 0;
+        return;
+      }
+      const size = clipBufferSize(pending);
+      if (scratch.clipped.length < size) {
+        scratch.clipped = new Float64Array(size);
+        scratch.spare = new Float64Array(size);
+      }
+      if (closed) {
+        const kept = clipRing(degrees, pending, clip, scratch.clipped, scratch.spare);
+        // −1 significa que o recorte não caberia no buffer. Projetar o anel inteiro
+        // é correto, só mais caro — melhor que geometria truncada.
+        if (kept < 0) emit(degrees, 0, pending);
+        else if (kept > 0) emit(scratch.clipped, 0, kept);
+      } else {
+        clipPolyline(degrees, pending, clip, scratch.clipped, (offset, count) => {
+          emit(scratch.clipped, offset, count);
+        });
+      }
+      pending = 0;
+    };
 
     mesh.forEachVertex(
       geoId,
       level,
       (_ringIndex, count) => {
-        // Dimensionar antes: a malha já sabe quantos vértices o anel terá neste
-        // nível, então o array nasce do tamanho final.
-        current = new Array<Vec2>(count);
-        (current as { length: number }).length = 0;
-        rings.push(current);
+        flushRing();
+        openRing(count);
       },
-      (lng, lat) => {
-        if (current === undefined) return;
-        const screenPoint = project([lng, lat]);
-        // Relativo à âncora: é o que faz mover, girar e escalar o território
-        // funcionar como em qualquer outro nó.
-        current.push([screenPoint[0] - anchor[0], screenPoint[1] - anchor[1]]);
-      },
+      pushDegrees,
       // Descarte por anel: sem ele um país que cruza o antimeridiano projeta o
       // mundo inteiro em qualquer zoom, porque a caixa dele cobre tudo.
-      viewport.bounds,
+      clip,
     );
+    flushRing();
 
     const usable = rings.filter((ring) => ring.length >= 2);
     if (usable.length === 0) continue;
@@ -215,6 +299,14 @@ export function expandGeoNodes(
         visible: true,
       }),
     };
+    // Volta ao espaço de tela: os anéis são relativos à âncora.
+    bounds.set(
+      nodeId,
+      rect.fromPoints([
+        [anchor[0] + minX, anchor[1] + minY],
+        [anchor[0] + maxX, anchor[1] + maxY],
+      ]),
+    );
     nodes.set(nodeId, next);
   }
 
@@ -228,5 +320,6 @@ export function expandGeoNodes(
     culled,
     vertices,
     level: reportedLevel,
+    bounds,
   });
 }
