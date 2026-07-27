@@ -1,0 +1,28 @@
+# Fim de linha é LF no repositório e no disco, em qualquer sistema.
+#
+# Sem isto, o `core.autocrlf=true` que o Git instala por padrão no Windows
+# converte tudo para CRLF ao dar checkout — e o Prettier deste projeto exige
+# `endOfLine: "lf"`. O resultado é `pnpm check` falhando em cada arquivo do
+# repositório, num clone recém-feito, sem ninguém ter editado nada.
+* text=auto eol=lf
+
+# Binários: nunca converter, nem tentar diff textual.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.pmtiles binary
+*.pbf binary
+*.glb binary
+*.gltf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.mp4 binary
+*.webm binary
+
+# O lockfile é gerado: não polui revisão de código.
+pnpm-lock.yaml -diff linguist-generated
