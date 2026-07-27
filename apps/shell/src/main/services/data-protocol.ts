@@ -16,6 +16,8 @@ const MIME_TYPES: Readonly<Record<string, string>> = {
   // Malha geográfica compilada por tools/build-geo.ts (ADR-010).
   ".bin": "application/octet-stream",
   ".geojson": "application/geo+json",
+  ".glb": "model/gltf-binary",
+  ".gltf": "model/gltf+json",
   ".json": "application/json",
   ".pbf": "application/x-protobuf",
   ".pmtiles": "application/vnd.pmtiles",

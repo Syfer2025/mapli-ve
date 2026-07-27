@@ -878,7 +878,7 @@ const GEO_SHAPE_PROPERTIES: readonly PropertyDescriptor[] = Object.freeze([
   property({
     path: "props.geoId",
     label: "Território",
-    kind: "text",
+    kind: "geo-id",
     group: "content",
     binding: "animatable",
     animatable: false,

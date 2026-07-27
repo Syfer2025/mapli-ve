@@ -7,6 +7,12 @@ import {
 import type { Anchor, AssetDescriptor, Node, SizeSpec } from "@theatrum/schema";
 import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "react";
 import { editorActions } from "../../document/editor-session.js";
+import {
+  ensureSearchableLayers,
+  geoLoadStatus,
+  geoMeshFor,
+  regionCatalog,
+} from "../../geo/geo-data.js";
 import { useEditorSession } from "../../document/useEditorSession.js";
 import { Button, Field, FieldGroup, NumberDrag, Panel } from "../../ui/index.js";
 import { readAnimatableProperty } from "../timeline/timeline-model.js";
@@ -28,6 +34,12 @@ export interface InspectorPanelProps {
 interface PropertyControlProps {
   readonly property: InspectorProperty;
   readonly assets: readonly AssetDescriptor[];
+  /**
+   * Nó em edição. Quase todo controle não precisa — comita pelo `onCommit` e
+   * pronto. O seletor de território precisa porque escolher a feição também move a
+   * âncora, e as duas coisas são um gesto só.
+   */
+  readonly nodeId: string;
   readonly onCommit: (value: unknown) => void;
 }
 
@@ -129,6 +141,7 @@ export function InspectorPanel({ registry = BUILTIN_REGISTRY }: InspectorPanelPr
                       <Control
                         property={property}
                         assets={session.document.assets}
+                        nodeId={node.id}
                         onCommit={(value) => commitProperty(property, value)}
                       />
                       {property.descriptor.binding === "animatable" &&
@@ -208,6 +221,7 @@ const PROPERTY_CONTROLS: Readonly<Record<PropertyKind, PropertyControl>> = Objec
   boolean: BooleanPropertyControl,
   enum: EnumPropertyControl,
   asset: AssetPropertyControl,
+  "geo-id": GeoIdPropertyControl,
   anchor: AnchorPropertyControl,
   size: SizePropertyControl,
   points: PointsPropertyControl,
@@ -368,6 +382,90 @@ function AssetPropertyControl({ property, assets, onCommit }: PropertyControlPro
         </option>
       ))}
     </select>
+  );
+}
+
+/**
+ * Seleção de território por busca.
+ *
+ * Não é `select` com seis mil opções: são 258 países, 4.589 estados e 1.366 rios,
+ * e uma lista assim é inútil de rolar. Digitar filtra pelo catálogo — nome, nome
+ * longo, sigla ISO de duas ou três letras, código de subdivisão.
+ *
+ * Escolher o território também **reposiciona a âncora** para o ponto
+ * representativo da feição, porque é dele que a geometria projetada é medida. Sem
+ * isso, trocar a Ucrânia pela Polônia deixaria o contorno polonês desenhado em
+ * volta de uma âncora ucraniana — e as duas coisas têm de andar juntas para o
+ * `Ctrl+Z` desfazer um gesto, não meio.
+ */
+function GeoIdPropertyControl({ property, nodeId, onCommit }: PropertyControlProps): ReactNode {
+  const current = typeof property.value === "string" ? property.value : "";
+  const [query, setQuery] = useState("");
+  const [ready, setReady] = useState(() => geoLoadStatus().length > 0);
+
+  // As camadas entram sob demanda: abrir o Inspector de um território é o sinal de
+  // que a busca vai ser usada.
+  useEffect(() => {
+    if (ready) return;
+    let active = true;
+    void ensureSearchableLayers().then(() => {
+      if (active) setReady(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, [ready]);
+
+  const catalog = ready ? regionCatalog() : undefined;
+  const selected = catalog?.byId(current);
+  const hits = query.trim() === "" ? [] : (catalog?.search(query, 12) ?? []);
+
+  const choose = (id: string): void => {
+    const mesh = geoMeshFor(id);
+    const feature = mesh?.feature(id);
+    if (feature !== undefined) {
+      editorActions.setNodeAnchor(nodeId, {
+        space: "geo",
+        lngLat: [feature.center[0], feature.center[1]],
+      });
+    }
+    onCommit(id);
+    setQuery("");
+  };
+
+  return (
+    <span className="inspector-panel__geo">
+      <input
+        className="inspector-panel__input"
+        type="search"
+        value={query}
+        disabled={!property.available}
+        placeholder={selected === undefined ? "Buscar país, estado ou rio…" : selected.name}
+        aria-label={property.descriptor.label}
+        onChange={(event) => setQuery(event.target.value)}
+      />
+      {selected === undefined ? null : (
+        <span className="inspector-panel__geo-current">
+          {selected.name} · <code>{selected.id}</code>
+        </span>
+      )}
+      {!ready ? <span className="inspector-panel__geo-hint">carregando malha…</span> : null}
+      {hits.length === 0 ? null : (
+        <ul className="inspector-panel__geo-hits">
+          {hits.map((hit) => (
+            <li key={hit.id}>
+              <button type="button" onClick={() => choose(hit.id)}>
+                <strong>{hit.name}</strong>
+                <span>{hit.detail}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {ready && query.trim() !== "" && hits.length === 0 ? (
+        <span className="inspector-panel__geo-hint">nada encontrado</span>
+      ) : null}
+    </span>
   );
 }
 

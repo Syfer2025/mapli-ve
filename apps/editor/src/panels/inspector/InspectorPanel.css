@@ -187,3 +187,63 @@
 .inspector-panel .ui-field__control {
   align-items: flex-start;
 }
+
+/* Seletor de território: campo de busca com resultados abaixo. Não é `select`
+   porque o catálogo tem mais de seis mil feições. */
+.inspector-panel__geo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.inspector-panel__geo-current {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspector-panel__geo-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.inspector-panel__geo-hits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-raised);
+}
+
+.inspector-panel__geo-hits button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  width: 100%;
+  padding: 4px 6px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.inspector-panel__geo-hits button:hover,
+.inspector-panel__geo-hits button:focus-visible {
+  background: var(--surface-hover);
+}
+
+.inspector-panel__geo-hits span {
+  font-size: 10px;
+  color: var(--text-muted);
+}

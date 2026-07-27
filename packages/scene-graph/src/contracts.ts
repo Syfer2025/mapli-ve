@@ -18,6 +18,8 @@ export type PropertyKind =
   | "boolean"
   | "enum"
   | "asset"
+  /** Feição da malha geográfica, escolhida por busca. Ver `region-catalog`. */
+  | "geo-id"
   | "anchor"
   | "size"
   | "points";
