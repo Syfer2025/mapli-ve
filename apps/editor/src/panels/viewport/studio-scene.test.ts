@@ -9,6 +9,7 @@ import type { EvaluatedScene } from "@theatrum/animation";
 import {
   MAX_STAGE_SIZE_METERS,
   collectStudioModels,
+  collectStudioPois,
   collectStudioStage,
   stripAlpha,
 } from "./studio-scene.js";
@@ -19,6 +20,7 @@ interface FakeNode {
   readonly visible?: boolean;
   readonly rotation?: number;
   readonly opacity?: number;
+  readonly name?: string;
 }
 
 function evaluated(entries: readonly (readonly [string, FakeNode])[]): EvaluatedScene {
@@ -33,6 +35,7 @@ function evaluated(entries: readonly (readonly [string, FakeNode])[]): Evaluated
         {
           id,
           type: entry.type,
+          name: entry.name ?? id,
           visible: entry.visible ?? true,
           props: entry.props,
           transform: { rotation: entry.rotation ?? 0, opacity: entry.opacity ?? 1 },
@@ -157,6 +160,86 @@ describe("collectStudioModels", () => {
       ]),
     );
     expect(models).toEqual([]);
+  });
+});
+
+describe("collectStudioPois", () => {
+  it("lê ponto e enquadramento, e o nome vem do nó", () => {
+    const pois = collectStudioPois(
+      evaluated([
+        [
+          "p1",
+          {
+            type: "studio.poi",
+            name: "Cabine",
+            props: {
+              pointX: 1.5,
+              pointY: 2,
+              pointZ: -0.5,
+              distanceMeters: 6,
+              azimuthDeg: 120,
+              elevationDeg: 25,
+            },
+          },
+        ],
+      ]),
+    );
+    expect(pois).toEqual([
+      {
+        id: "p1",
+        name: "Cabine",
+        point: [1.5, 2, -0.5],
+        distanceMeters: 6,
+        azimuthDeg: 120,
+        elevationDeg: 25,
+      },
+    ]);
+  });
+
+  it("preenche os padrões do tipo quando as props faltam", () => {
+    const pois = collectStudioPois(evaluated([["p", { type: "studio.poi", props: {} }]]));
+    expect(pois[0]?.point).toEqual([0, 0, 0]);
+    expect(pois[0]?.distanceMeters).toBe(12);
+    expect(pois[0]?.elevationDeg).toBe(18);
+  });
+
+  /**
+   * Distância zero põe a câmera dentro do ponto e o `lookAt` degenera; elevação
+   * de 90° alinha a direção da câmera com o `up` e a matriz perde uma dimensão.
+   * Os dois limites são os mesmos do palco, e valem aqui pelo mesmo motivo.
+   */
+  it("limita distância e elevação ao que a câmera orbital sabe representar", () => {
+    const pois = collectStudioPois(
+      evaluated([
+        ["a", { type: "studio.poi", props: { distanceMeters: 0, elevationDeg: 400 } }],
+        ["b", { type: "studio.poi", props: { distanceMeters: -3, elevationDeg: -400 } }],
+      ]),
+    );
+    expect(pois[0]?.distanceMeters).toBeGreaterThan(0);
+    expect(pois[0]?.elevationDeg).toBe(89);
+    expect(pois[1]?.distanceMeters).toBeGreaterThan(0);
+    expect(pois[1]?.elevationDeg).toBe(-89);
+  });
+
+  it("ignora ponto invisível e nó que não é ponto", () => {
+    const pois = collectStudioPois(
+      evaluated([
+        ["oculto", { type: "studio.poi", props: {}, visible: false }],
+        ["modelo", { type: "model3d", props: { assetId: "sha:1" } }],
+      ]),
+    );
+    expect(pois).toEqual([]);
+  });
+
+  it("mantém a ordem de avaliação, que é a ordem em que o roteiro visita", () => {
+    const pois = collectStudioPois(
+      evaluated([
+        ["primeiro", { type: "studio.poi", props: {} }],
+        ["modelo", { type: "model3d", props: { assetId: "sha:1" } }],
+        ["segundo", { type: "studio.poi", props: {} }],
+      ]),
+    );
+    expect(pois.map((poi) => poi.id)).toEqual(["primeiro", "segundo"]);
   });
 });
 

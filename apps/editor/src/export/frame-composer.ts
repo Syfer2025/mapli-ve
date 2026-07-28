@@ -50,6 +50,12 @@ export const EXPORT_MODES: readonly ExportMode[] = Object.freeze([
 export const EXCLUDED_SURFACE_SELECTORS: readonly string[] = Object.freeze([
   ".scene-overlay__ui",
   ".timeline-panel__canvas",
+  // Marcadores de ponto de interesse do palco (ADR-015). O ADR sugeria desenhá-los
+  // no overlay Pixi do palco, que já existe — mas aquele overlay É composto, e o
+  // marcador é chrome de autoria. Numa superfície própria, "não sai no vídeo" é
+  // propriedade desta lista, não consequência de o usuário lembrar de desligar o
+  // modo de marcação antes de exportar.
+  ".studio-viewport__markers",
 ]);
 
 /**

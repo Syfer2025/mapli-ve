@@ -70,6 +70,23 @@ export interface StudioModelState {
   readonly opacity: number;
 }
 
+/**
+ * Um ponto de interesse do palco no frame, já avaliado ([ADR-015](../../../../../docs/adr/ADR-015-studio-points-of-interest.md)).
+ *
+ * `point` está em metros de mundo do palco — o mesmo espaço do `pick` e do alvo
+ * da câmera — e o enquadramento é absoluto, os mesmos três números que o
+ * `studio.stage` anima. Visitar o ponto é copiá-los.
+ */
+export interface StudioPoiState {
+  readonly id: string;
+  /** O nome é o do NÓ: é ele que o painel de camadas edita. */
+  readonly name: string;
+  readonly point: readonly [number, number, number];
+  readonly distanceMeters: number;
+  readonly azimuthDeg: number;
+  readonly elevationDeg: number;
+}
+
 export interface StudioScene {
   readonly stage: StudioStageState | null;
   readonly models: readonly StudioModelState[];
@@ -139,6 +156,32 @@ export function collectStudioModels(evaluated: EvaluatedScene): readonly StudioM
 }
 
 /**
+ * Os pontos de interesse do frame, na ordem de avaliação — que é a ordem do
+ * painel de camadas, e portanto a ordem em que o roteiro os visita.
+ *
+ * Ponto invisível (nó desligado, fora da faixa de tempo, opacidade zerada no pai)
+ * fica de fora do que se **desenha**. O roteiro não passa por aqui: ele compila
+ * lendo o documento, não um frame, senão a câmera do frame 300 dependeria de
+ * quais nós estavam visíveis no frame em que alguém clicou "compilar".
+ */
+export function collectStudioPois(evaluated: EvaluatedScene): readonly StudioPoiState[] {
+  const result: StudioPoiState[] = [];
+  for (const [id, node] of evaluated.nodes) {
+    if (node.type !== "studio.poi" || node.visible === false) continue;
+    const props = node.props as Readonly<Record<string, unknown>>;
+    result.push({
+      id,
+      name: node.name,
+      point: [num(props, "pointX", 0), num(props, "pointY", 0), num(props, "pointZ", 0)],
+      distanceMeters: Math.max(0.01, num(props, "distanceMeters", 12)),
+      azimuthDeg: num(props, "azimuthDeg", 35),
+      elevationDeg: Math.max(-89, Math.min(89, num(props, "elevationDeg", 18))),
+    });
+  }
+  return result;
+}
+
+/**
  * Teto do vão de um modelo no palco. 500 m cobre o maior objeto que alguém
  * apresenta (um porta-aviões tem 330) e impede que a escala geográfica herdada
  * de uma cena de mapa engula a câmera.
@@ -172,6 +215,22 @@ interface StudioInstance {
   readonly footprint: ModelTemplate["footprint"];
 }
 
+/**
+ * Onde um clique encontrou a superfície de um modelo do palco.
+ *
+ * O ponto vem em **metros de mundo do palco**, que é o mesmo espaço em que o
+ * `studio.poi` guarda `pointX/Y/Z` e em que a câmera do `studio.stage` mira. Sem
+ * conversão no meio: o que o dono clicou é o que o roteiro vai enquadrar.
+ */
+export interface StudioPick {
+  /** Metros de palco: x leste, y altura, z sul. */
+  readonly point: readonly [number, number, number];
+  /** Qual `model3d` foi atingido — para nomear o ponto e diagnosticar. */
+  readonly modelId: string;
+  /** Distância da câmera até o ponto, em metros. */
+  readonly distanceMeters: number;
+}
+
 /** Diagnóstico DEV, e o que o verificador de fase lê. */
 export interface StudioStatus {
   readonly active: boolean;
@@ -195,6 +254,7 @@ export class StudioSceneRuntime {
   private readonly camera = new THREE.PerspectiveCamera(38, 1, 0.05, 20_000);
   private readonly renderer: THREE.WebGLRenderer;
   private readonly loader = new GLTFLoader();
+  private readonly raycaster = new THREE.Raycaster();
   private readonly grid: StudioGrid;
   private readonly shadowProjector: StudioShadowProjector;
   private readonly rig: LightRig;
@@ -338,6 +398,57 @@ export class StudioSceneRuntime {
     const ndc = new THREE.Vector3(point[0], point[1], point[2]).project(this.camera);
     if (ndc.z > 1) return null;
     return [((ndc.x + 1) / 2) * width, ((1 - ndc.y) / 2) * height];
+  }
+
+  /**
+   * O ponto da superfície de um modelo sob um pixel da tela ([ADR-015](../../../../../docs/adr/ADR-015-studio-points-of-interest.md)).
+   *
+   * É o inverso exato de `project`, e é o que faz o ponto de interesse nascer de
+   * onde o dono **vê** que é a cabine, em vez de onde um exportador de OBJ achou
+   * que era. `x`/`y` em pixels CSS relativos ao canvas.
+   *
+   * **Só modelo, nunca o chão.** O piso é infinito: um clique que erra o objeto
+   * acertaria o chão a qualquer distância e criaria um ponto plausível no lugar
+   * errado — o modo de falha que este projeto chama de silencioso. Errar devolve
+   * `null`, e o painel diz que errou.
+   *
+   * **Modelo em parse não é alvo.** Ele ainda não tem geometria, então o raio
+   * passa direto. Quem chama deve consultar `pendingModels()` antes de tratar
+   * `null` como "não há nada aqui" — é a consequência declarada no ADR-015.
+   */
+  pick(x: number, y: number, width: number, height: number): StudioPick | null {
+    if (this.stage === null || width <= 0 || height <= 0) return null;
+    const targets: THREE.Object3D[] = [];
+    const owners = new Map<THREE.Object3D, string>();
+    for (const [id, instance] of this.instances) {
+      if (!instance.root.visible) continue;
+      targets.push(instance.root);
+      owners.set(instance.root, id);
+    }
+    if (targets.length === 0) return null;
+    // As instâncias têm `matrixAutoUpdate = false` e são posicionadas escrevendo
+    // `matrix` à mão, então sem esta linha o raio cruzaria a pose do frame
+    // anterior — erro de um frame que só apareceria como ponto ligeiramente fora
+    // do lugar ao marcar com a câmera em movimento.
+    this.scene.updateMatrixWorld(true);
+    this.raycaster.setFromCamera(
+      new THREE.Vector2((x / width) * 2 - 1, -(y / height) * 2 + 1),
+      this.camera,
+    );
+    const hits = this.raycaster.intersectObjects(targets, true);
+    const hit = hits[0];
+    if (hit === undefined) return null;
+    let owner: string | undefined;
+    for (let node: THREE.Object3D | null = hit.object; node !== null; node = node.parent) {
+      owner = owners.get(node);
+      if (owner !== undefined) break;
+    }
+    if (owner === undefined) return null;
+    return {
+      point: [hit.point.x, hit.point.y, hit.point.z],
+      modelId: owner,
+      distanceMeters: hit.distance,
+    };
   }
 
   /**

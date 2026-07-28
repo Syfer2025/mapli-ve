@@ -55,3 +55,36 @@
   height: 100%;
   pointer-events: none;
 }
+
+/*
+ * Marcadores dos pontos de interesse (ADR-015).
+ *
+ * Superfície própria, e não o overlay Pixi acima: aquele é composto no frame de
+ * export, este não aparece em lista nenhuma do `frame-composer`. É o mesmo
+ * arranjo do canvas de gizmos do Viewport, e é o que faz "nenhum elemento de UI
+ * no vídeo" ser propriedade da estrutura em vez de disciplina de quem exporta.
+ */
+.studio-viewport__markers {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* Mira só no modo de marcação: fora dele o palco inteiro é área de câmera. */
+.studio-viewport--marking {
+  cursor: crosshair;
+}
+
+.studio-viewport__tools {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}

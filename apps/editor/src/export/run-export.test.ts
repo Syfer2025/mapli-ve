@@ -253,6 +253,10 @@ describe("selectExportSurfaces", () => {
       }
     }
     expect(EXCLUDED_SURFACE_SELECTORS).toContain(".scene-overlay__ui");
+    // E os marcadores de ponto de interesse do palco, pela mesma razão: o modo de
+    // marcação é do editor, e esquecê-lo ligado não pode custar um numerozinho
+    // verde em cima do míssil no vídeo entregue.
+    expect(EXCLUDED_SURFACE_SELECTORS).toContain(".studio-viewport__markers");
   });
 });
 
