@@ -12,25 +12,26 @@ morde, e como não repetir erro já cometido.
 
 ## 1. Onde parou
 
-Último commit: `6f7b895`. Cadeia do `pnpm check` verde — 972 testes em 97
-arquivos, 315 módulos, 827 dependências, sem violação de camada; build
+Último commit: `77aa7e4`. Cadeia do `pnpm check` verde — 997 testes em 98
+arquivos, 319 módulos, 836 dependências, sem violação de camada; build
 electron-vite ok.
 
 Fases 0–6 concluídas. **O bloco 7 inteiro está fechado** (única exceção declarada:
-7E.4, VFX, que o dono mandou adiar) e o **núcleo da Fase 8 está provado** — o
-critério byte-idêntico, o mais importante do projeto. Cada bloco tem verificador
-próprio dirigindo o Electron real por CDP:
+7E.4, VFX, que o dono mandou adiar) e a **Fase 8 produz arquivo de vídeo MP4
+H.264**, byte-idêntico entre execuções — o critério mais importante do projeto.
+Cada bloco tem verificador próprio dirigindo o Electron real por CDP:
 
-| Bloco                    | Verificador       | Resultado |
-| ------------------------ | ----------------- | --------- |
-| 7A · biblioteca e assets | `verify:phase7a`  | verde     |
-| 7B · camadas geográficas | `verify:phase7b`  | 4/4       |
-| 7C · rotas e setas       | `verify:phase7c`  | verde     |
-| 7D · textos no mapa      | `verify:phase7d`  | 4/4       |
-| 7E.3 · modo estúdio      | `verify:phase7e3` | 5/5       |
-| 8 · export byte-idêntico | `verify:phase8`   | 6/6       |
+| Bloco                    | Verificador           | Resultado |
+| ------------------------ | --------------------- | --------- |
+| 7A · biblioteca e assets | `verify:phase7a`      | verde     |
+| 7B · camadas geográficas | `verify:phase7b`      | 4/4       |
+| 7C · rotas e setas       | `verify:phase7c`      | verde     |
+| 7D · textos no mapa      | `verify:phase7d`      | 4/4       |
+| 7E.3 · modo estúdio      | `verify:phase7e3`     | 5/5       |
+| 8 · export byte-idêntico | `verify:phase8`       | 6/6       |
+| 8 · arquivo MP4 H.264    | `verify:phase8-video` | 6/6       |
 
-Entregue nesta sessão, em cinco commits:
+Entregue nesta sessão, em sete commits:
 
 | Commit    | O quê                                                         |
 | --------- | ------------------------------------------------------------- |
@@ -39,6 +40,8 @@ Entregue nesta sessão, em cinco commits:
 | `ad290d3` | 7D — halo, quebra de linha e rótulo por duplo clique no mapa  |
 | `b12765d` | Fase 8 — export de sequência PNG byte-idêntico (ADR-013)      |
 | `6f7b895` | Painel de fila de render, com progresso e relatório de settle |
+| `6d17cbb` | Fecha a suspeita herdada dos filtros no caminho de export     |
+| `77aa7e4` | Arquivo de vídeo: H.264 em MP4, byte-idêntico e decodificável |
 
 Entregue no 7B, em cinco commits:
 
@@ -101,20 +104,35 @@ vídeo de preview como textura, com qualidade menor.
 
 ## 3. O que vem agora
 
-O bloco 7 está fechado e o **núcleo da Fase 8 também**: o critério byte-idêntico
-está provado (`pnpm verify:phase8`, 6/6). Sobra:
+O bloco 7 está fechado e a **Fase 8 produz arquivo de vídeo**: MP4 H.264,
+byte-idêntico entre execuções, e o Chromium decodifica. Dois verificadores:
+`verify:phase8` (6/6, sequência PNG e determinismo) e `verify:phase8-video`
+(6/6, o arquivo MP4). Sobra:
 
-1. **Codecs.** `WebCodecsEncoder`, `FFmpegPipeEncoder` com sidecar, GIF, ProRes
-   4444 com alfa. A sequência PNG já sai byte-idêntica, então o caminho até o
-   arquivo de vídeo é encanamento sobre uma base provada — não é onde o risco
-   está.
-2. **Resolução acima do tamanho da janela.** Hoje o frame sai no tamanho do
-   viewport. É o gatilho declarado no
-   [ADR-013](adr/ADR-013-export-frame-composition.md) para voltar à janela de
-   render oculta.
-3. **Fase 7 (ações).** Os templates de impacto. Nada dela ameaça o que já está
+1. **Resolução acima do tamanho da janela.** Hoje o frame sai no tamanho do
+   viewport, e o H.264 exige dimensão par — 1227×643 vira 1226×642. É o gatilho
+   declarado no [ADR-013](adr/ADR-013-export-frame-composition.md) para voltar à
+   janela de render oculta.
+2. **Fase 7 (ações).** Os templates de impacto. Nada dela ameaça o que já está
    provado.
+3. **Formatos que faltam:** GIF, ProRes 4444 com alfa, sequência com canal alfa.
+   O muxer atual é só vídeo — áudio entraria como trilha 2.
 4. **Motion blur, checkpoint e retomada.**
+
+### O muxer MP4 é código nosso, e o que ele ensinou
+
+`packages/export/src/mp4-muxer.ts`, com 25 testes. Duas coisas para lembrar antes
+de tocar nele:
+
+- **Errar a largura de um campo não dá erro.** O `tkhd` saiu doze bytes curto na
+  primeira versão — faltavam `duration` e metade do `reserved`. As caixas
+  continuavam íntegras, todos os tamanhos batiam, nenhum parser reclamava; só o
+  decodificador recusava, sem dizer nada. Há testes que afirmam os **80 bytes** do
+  corpo do `tkhd` e os **96** do `mvhd` exatamente por isso.
+- **`latencyMode: "quality"` não é preferência, é requisito.** Em `realtime` o
+  codificador descarta trabalho conforme o relógio de parede, e dois exports do
+  mesmo projeto divergem. Medido: em `quality`, doze frames codificados duas vezes
+  dão os mesmos bytes.
 
 ### O que não confiar sem medir de novo
 

@@ -949,7 +949,13 @@ Escopo:
 
 ## Fase 8 — Exportação
 
-**Estado: núcleo entregue e provado; codecs pendentes.**
+**Estado: entregue e provado até o arquivo de vídeo. Formatos extras pendentes.**
+
+O editor **produz MP4 H.264**. WebCodecs codifica, um muxer próprio
+(`packages/export/src/mp4-muxer.ts`, 25 testes) empacota em MP4 fragmentado, e o
+Chromium decodifica o resultado. Provado por `pnpm verify:phase8-video`, **6/6**:
+o arquivo sai, a estrutura é fMP4 com `avcC` no lugar, duas execuções dão o mesmo
+SHA-256, e o player abre. Ver [ADR-013](adr/ADR-013-export-frame-composition.md).
 
 O critério 2 — **exportar o mesmo projeto duas vezes produz arquivos byte a byte
 idênticos** — está **provado no Electron real**. É o critério mais importante do
@@ -997,11 +1003,10 @@ Duas armadilhas que a medição encontrou, ambas silenciosas:
    num efeito de dependências vazias, e naquele instante o mapa ainda não existe.
    O export respondia "mapa indisponível" para sempre. Agora vem de uma ref.
 
-**Falta** (e nada disso ameaça o determinismo já provado): `WebCodecsEncoder`,
-`FFmpegPipeEncoder` com sidecar, GIF, ProRes 4444 com alfa, motion blur por
-sampling temporal, painel de fila com progresso e ETA, checkpoint e retomada, e
-resolução acima do tamanho da janela — que é quando o
-[ADR-013](adr/ADR-013-export-frame-composition.md) manda voltar à janela oculta.
+**Falta** (e nada disso ameaça o determinismo já provado): GIF, ProRes 4444 com
+alfa, motion blur por sampling temporal, checkpoint e retomada, e resolução acima
+do tamanho da janela — que é quando o ADR-013 manda voltar à janela oculta. O
+painel de fila já existe, com progresso, ETA e relatório de settle.
 
 **Objetivo original.** Arquivo de vídeo. A fase que prova o determinismo.
 
