@@ -152,6 +152,34 @@ export function addLightRig(scene: THREE.Scene, rig: LightRig): void {
   scene.add(rig.ambient, rig.key, rig.fill, rig.rim);
 }
 
+/** O mínimo que a contabilidade de carga precisa saber de um nó com GLB. */
+export interface ModelLoadNodeLike {
+  readonly id: string;
+  readonly assetSrc: string;
+}
+
+/**
+ * Quantos modelos ainda podem aparecer na cena — nem carregados, nem falhados.
+ *
+ * É o número que o `settle` do export espera chegar a zero antes de capturar:
+ * um GLB em parse é trabalho pendente. Um GLB que FALHOU não entra na conta —
+ * ele já resolveu, sem modelo, e tratá-lo como pendente congelaria o export no
+ * timeout à espera de uma instância que nunca vai nascer. A camada do mapa e o
+ * palco do estúdio têm o mesmo padrão de carga assíncrona, e esta conta é a
+ * única parte que não pode divergir entre os dois.
+ */
+export function countPendingModels(
+  nodes: readonly ModelLoadNodeLike[],
+  loaded: ReadonlySet<string>,
+  failedSrcs: ReadonlySet<string>,
+): number {
+  let pending = 0;
+  for (const node of nodes) {
+    if (!loaded.has(node.id) && !failedSrcs.has(node.assetSrc)) pending += 1;
+  }
+  return pending;
+}
+
 export function describeError(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === "object" && error !== null && "message" in error) {

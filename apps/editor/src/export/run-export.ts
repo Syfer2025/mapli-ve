@@ -29,8 +29,14 @@ export interface ExportHost {
   readonly seek: (frame: number) => void;
   /** Frame que o overlay desenhou por último, e quantas vezes ele repintou. */
   readonly observe: () => { readonly frame: number; readonly renders: number };
-  /** Verdadeiro enquanto o mapa ainda tem trabalho pendente. */
+  /** Verdadeiro enquanto câmera ou tiles do mapa ainda têm trabalho pendente. */
   readonly mapBusy: () => boolean;
+  /**
+   * Verdadeiro durante decode/parse de assets que ainda podem aparecer no
+   * frame. Tem orçamento próprio porque um GLB grande legitimamente leva mais
+   * que o settle normal do mapa, sobretudo na primeira execução.
+   */
+  readonly assetsBusy: () => boolean;
   /** Pixels do frame atual, ou `null` se não há o que compor. */
   readonly compose: () => ComposedFrame | null;
   readonly writeFrame: (
@@ -71,6 +77,13 @@ const QUIET_MS = 60;
 
 /** Teto por frame. Estourar conta em `settleFailed` e não interrompe o job. */
 const SETTLE_TIMEOUT_MS = 4_000;
+
+/**
+ * Teto do carregamento inicial de assets. Não aumentar o teto comum para isto:
+ * câmera ou tile presos precisam continuar falhando cedo, enquanto parsear um
+ * GLB grande a frio pode levar vários segundos e ainda ser trabalho legítimo.
+ */
+const ASSET_SETTLE_TIMEOUT_MS = 30_000;
 
 const POLL_MS = 8;
 
@@ -130,28 +143,43 @@ export async function runExport(options: ExportOptions): Promise<ExportReport> {
  * significa que geometria ou tile acabou de chegar, e capturar ali gravaria um
  * frame pela metade.
  *
- * `mapBusy` entra como terceira condição porque o mapa pode estar carregando um
- * tile **sem** ter causado repintura ainda.
+ * `mapBusy` e `assetsBusy` entram porque tile ou GLB podem estar carregando
+ * **sem** ter causado repintura ainda. Asset tem teto próprio: o relógio comum
+ * recomeça enquanto ele está pendente, mas o teto de asset continua absoluto.
  */
 async function waitForQuiet(
   host: ExportHost,
   frame: number,
 ): Promise<{ readonly quiet: boolean; readonly elapsedMs: number }> {
   const startedAt = performance.now();
+  let ordinaryDeadline = startedAt + SETTLE_TIMEOUT_MS;
   let quietSince: number | null = null;
   let lastRenders = -1;
 
-  while (performance.now() - startedAt < SETTLE_TIMEOUT_MS) {
+  while (true) {
+    const now = performance.now();
     const observed = host.observe();
-    const busy = host.mapBusy();
-    if (observed.frame === frame && !busy) {
-      if (observed.renders === lastRenders) {
-        if (quietSince !== null && performance.now() - quietSince >= QUIET_MS) {
-          return { quiet: true, elapsedMs: performance.now() - startedAt };
-        }
-      } else {
+    const mapBusy = host.mapBusy();
+    const assetsBusy = host.assetsBusy();
+    if (assetsBusy) {
+      if (now - startedAt >= ASSET_SETTLE_TIMEOUT_MS) {
+        return { quiet: false, elapsedMs: now - startedAt };
+      }
+      // O orçamento curto mede mapa/quietude, não tempo legítimo de parse.
+      ordinaryDeadline = now + SETTLE_TIMEOUT_MS;
+    } else if (now >= ordinaryDeadline) {
+      return { quiet: false, elapsedMs: now - startedAt };
+    }
+
+    if (observed.frame === frame && !mapBusy && !assetsBusy) {
+      if (observed.renders !== lastRenders || quietSince === null) {
         lastRenders = observed.renders;
-        quietSince = performance.now();
+        // `quietSince === null` cobre a transição ocupado → livre mesmo quando
+        // o término do trabalho não dispara repaint. Sem isto, assets/tiles
+        // podem zerar com o contador igual e a quietude nunca começa a contar.
+        quietSince = now;
+      } else if (now - quietSince >= QUIET_MS) {
+        return { quiet: true, elapsedMs: now - startedAt };
       }
     } else {
       // Frame errado ou mapa ocupado zera a contagem: quietude parcial não conta.
@@ -160,7 +188,6 @@ async function waitForQuiet(
     }
     await sleep(POLL_MS);
   }
-  return { quiet: false, elapsedMs: performance.now() - startedAt };
 }
 
 function sleep(ms: number): Promise<void> {

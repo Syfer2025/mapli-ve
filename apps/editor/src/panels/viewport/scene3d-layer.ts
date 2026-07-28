@@ -11,9 +11,11 @@
  * O sync é chamado pelo `SceneOverlay` a cada frame renderizado; fora dele a
  * camada não repinta sozinha, para não queimar GPU com o mapa parado.
  *
- * Escopo honesto: isto é preview de viewport. O export determinístico (Fase 8)
- * ainda não captura WebGL do mapa; opacidade hierárquica também não é aplicada
- * ao modelo (materiais GLTF são compartilhados entre instâncias).
+ * Escopo honesto: opacidade hierárquica não é aplicada ao modelo (materiais
+ * GLTF são compartilhados entre instâncias). O export da Fase 8 captura esta
+ * camada junto com o canvas do mapa (ADR-013) — e é por isso que ela expõe
+ * `pendingModels()` por caminho não-DEV: capturar não é o mesmo que esperar
+ * o GLB carregar.
  */
 
 import { type EvaluatedScene } from "@theatrum/animation";
@@ -28,6 +30,7 @@ import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { assetBytes } from "../../assets/asset-media.js";
+import { countPendingModels } from "./three-assets.js";
 
 export const SCENE3D_LAYER_ID = "theatrum-scene3d";
 
@@ -241,6 +244,12 @@ class Scene3dLayerRuntime {
   private renderer: THREE.WebGLRenderer | null = null;
   private nodes: readonly Model3dSceneNode[] = [];
   private lastError: string | null = null;
+  /**
+   * Srcs cujo GLB já resolveu SEM modelo (parse falhou ou asset ausente).
+   * Sem este conjunto o `pending` fica preso acima de zero para sempre e o
+   * settle do export travaria no timeout: erro é resolução, não espera.
+   */
+  private readonly failedSrcs = new Set<string>();
   private renderCount = 0;
   private lastNdc: readonly [number, number, number] | null = null;
   private disposed = false;
@@ -308,12 +317,21 @@ class Scene3dLayerRuntime {
     return {
       nodes: this.nodes.length,
       loaded: this.instances.size,
-      pending: this.nodes.length - this.instances.size,
+      pending: this.pendingModels(),
       routes: this.routes.size,
       renders: this.renderCount,
       ndc: this.lastNdc,
       lastError: this.lastError,
     };
+  }
+
+  /**
+   * Modelos que ainda podem aparecer na cena: nem carregados, nem resolvidos
+   * por erro. É o sinal que o settle do export espera zerar antes de capturar
+   * — sem ele o frame sai sem a aeronave se o GLB ainda está no parse.
+   */
+  pendingModels(): number {
+    return countPendingModels(this.nodes, new Set(this.instances.keys()), this.failedSrcs);
   }
 
   /** Diagnóstico DEV: texturas e materiais das instâncias carregadas. */
@@ -566,7 +584,16 @@ class Scene3dLayerRuntime {
     const cached = this.templates.get(src);
     if (cached !== undefined) return cached;
     const bytes = assetBytes(src);
-    if (bytes === null) return Promise.resolve(null);
+    if (bytes === null) {
+      // Asset ausente resolve SEM modelo, e o settle precisa contar isso como
+      // resolução — senão o export espera para sempre uma instância que nunca
+      // nasce. Se os bytes aparecerem depois, a falha se desfaz na próxima
+      // chamada, porque este caminho não entra no cache de templates.
+      this.failedSrcs.add(src);
+      this.lastError ??= `asset ausente: ${src}`;
+      return Promise.resolve(null);
+    }
+    this.failedSrcs.delete(src);
     const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
     const promise = new Promise<THREE.Object3D | null>((resolve) => {
       this.loader.parse(
@@ -618,6 +645,8 @@ class Scene3dLayerRuntime {
               : typeof error === "object" && error !== null && "message" in error
                 ? String((error as { message: unknown }).message)
                 : String(error);
+          // Falha de parse também é resolução: sem isto o pending nunca zera.
+          this.failedSrcs.add(src);
           resolve(null);
         },
       );
@@ -862,4 +891,14 @@ export function detachScene3dLayer(map: MapLibreMap): void {
 export function syncScene3dLayer(map: MapLibreMap, nodes: Scene3dNodes): void {
   if (map.getLayer(SCENE3D_LAYER_ID) === undefined) return;
   runtimeFor(map).sync(nodes);
+}
+
+/**
+ * Modelos 3D ainda pendentes na camada deste mapa — o caminho NÃO-DEV do
+ * sinal. O `__theatrumScene3d` só é publicado em desenvolvimento, e um settle
+ * de export que lesse só dali perderia a guarda em silêncio no build de
+ * produção: capturaria cedo sem erro nenhum, que é o pior modo de falha.
+ */
+export function scene3dLayerPending(map: MapLibreMap): number {
+  return runtimes.get(map)?.pendingModels() ?? 0;
 }

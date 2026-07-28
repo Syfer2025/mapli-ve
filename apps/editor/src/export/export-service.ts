@@ -36,6 +36,14 @@ const BITS_PER_PIXEL_PER_FRAME = 0.12;
 export interface OverlayProbe {
   readonly frame: number;
   readonly renders: number;
+  /**
+   * Assets do documento ainda carregando (GLB em parse na camada 3D ou no
+   * palco). Um asset que falhou conta como resolvido, sem modelo — nunca
+   * como pendente, senão o settle travaria no timeout. Sem este número o
+   * settle é cego para a carga do GLB: o frame sai sem a aeronave quando o
+   * export começa antes do parse, e duas execuções do mesmo projeto divergem.
+   */
+  readonly pendingAssets: number;
 }
 
 export interface StartExportOptions {
@@ -107,6 +115,9 @@ export async function startPngSequenceExport(
         // está vindo do disco. Capturar com tile pendente grava o mapa pela
         // metade, e qual metade depende da velocidade do disco.
         mapBusy: () => options.map.isMoving() || !options.map.areTilesLoaded(),
+        // GLB em parse tem orçamento próprio no pump: pode legitimamente levar
+        // mais que os 4 s do mapa sem autorizar tile/câmera presos por 30 s.
+        assetsBusy: () => options.probe().pendingAssets > 0,
         compose: () => composer.compose(),
         writeFrame: async (filename, frame) => {
           const result = await bridge.export.frame({
@@ -210,7 +221,9 @@ export async function startVideoExport(options: StartExportOptions): Promise<Sta
       host: {
         seek: (frame) => editorActions.setPlayhead(frame),
         observe: options.probe,
+        // Mesma trinca do caminho PNG acima: câmera, tiles e GLB pendente.
         mapBusy: () => options.map.isMoving() || !options.map.areTilesLoaded(),
+        assetsBusy: () => options.probe().pendingAssets > 0,
         compose: () => composer.compose(),
         writeFrame: async (_name, frame: ComposedFrame) => {
           if (encoder.current === null) {

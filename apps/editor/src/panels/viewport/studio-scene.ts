@@ -20,6 +20,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import {
   addLightRig,
+  countPendingModels,
   createLightRig,
   createStudioEnvironment,
   loadModelTemplate,
@@ -161,6 +162,8 @@ export interface StudioStatus {
   readonly active: boolean;
   readonly models: number;
   readonly loaded: number;
+  /** Modelos que ainda podem aparecer — o que o settle do export espera zerar. */
+  readonly pending: number;
   readonly renders: number;
   readonly cameraPosition: readonly [number, number, number] | null;
   readonly contextLost: boolean;
@@ -181,6 +184,12 @@ export class StudioSceneRuntime {
   private readonly rig: LightRig;
   private readonly templates = new Map<string, Promise<ModelTemplate | null>>();
   private readonly instances = new Map<string, StudioInstance>();
+  /**
+   * Srcs cujo GLB já resolveu SEM modelo. Erro é resolução, não espera: sem
+   * este conjunto o pending nunca zeraria e o settle do export travaria no
+   * timeout — o mesmo motivo do conjunto gêmeo na camada 3D do mapa.
+   */
+  private readonly failedSrcs = new Set<string>();
   private models: readonly StudioModelState[] = [];
   private stage: StudioStageState | null = null;
   private environment: THREE.Texture | null = null;
@@ -246,11 +255,21 @@ export class StudioSceneRuntime {
       active: this.stage !== null,
       models: this.models.length,
       loaded: this.instances.size,
+      pending: this.pendingModels(),
       renders: this.renderCount,
       cameraPosition: position === null ? null : [position.x, position.y, position.z],
       contextLost: this.renderer.getContext().isContextLost(),
       lastError: this.lastError,
     };
+  }
+
+  /**
+   * Modelos que ainda podem aparecer no palco: nem carregados, nem resolvidos
+   * por erro. O settle do export espera isto zerar — o palco é uma das três
+   * superfícies compostas no frame, e um GLB em parse é trabalho pendente.
+   */
+  pendingModels(): number {
+    return countPendingModels(this.models, new Set(this.instances.keys()), this.failedSrcs);
   }
 
   /** Reconcilia e desenha um frame. `width`/`height` em pixels CSS. */
@@ -351,7 +370,10 @@ export class StudioSceneRuntime {
     const cached = this.templates.get(src);
     if (cached !== undefined) return cached;
     const promise = loadModelTemplate(this.loader, src).then(({ template, error }) => {
-      if (error !== null) this.lastError = error;
+      if (error !== null) {
+        this.lastError = error;
+        this.failedSrcs.add(src);
+      }
       return template;
     });
     this.templates.set(src, promise);

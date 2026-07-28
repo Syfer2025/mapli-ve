@@ -11,7 +11,7 @@
  * três canvases empilhados — é provada ao vivo em `tools/verify-phase8.mjs`.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { percentile, runExport, type ExportHost } from "./run-export.js";
 import {
   EXCLUDED_SURFACE_SELECTORS,
@@ -52,6 +52,7 @@ function host(overrides: Partial<ExportHost> & { rendersPorFrame?: number } = {}
       return { frame: current, renders };
     },
     mapBusy: () => false,
+    assetsBusy: () => false,
     compose: () => FRAME,
     writeFrame: (filename, frame) => {
       written.push({ filename, width: frame.width, height: frame.height });
@@ -102,6 +103,32 @@ describe("runExport", () => {
     const report = await runExport({ plan: { ...PLAN, durationFrames: 1 }, host: h.host });
     expect(report.written).toBe(1);
     expect(chamadas).toBeGreaterThanOrEqual(8);
+  });
+
+  it("asset grande pode ultrapassar 4 s sem liberar captura nem falhar o settle", async () => {
+    // O pump mede com `performance.now()` e dorme com `setTimeout`: os dois
+    // relógios precisam avançar juntos, senão o teste fica eternamente em 0 ms.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    try {
+      let assetPendente = true;
+      const h = host({ assetsBusy: () => assetPendente });
+      const exportando = runExport({
+        plan: { ...PLAN, durationFrames: 1 },
+        host: h.host,
+      });
+
+      await vi.advanceTimersByTimeAsync(4_500);
+      expect(h.written).toHaveLength(0);
+
+      assetPendente = false;
+      await vi.advanceTimersByTimeAsync(100);
+      const report = await exportando;
+      expect(report.written).toBe(1);
+      expect(report.settleFailed).toBe(0);
+      expect(report.settleP99Ms).toBeGreaterThan(4_000);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("conta settleFailed quando a quietude não chega, sem abortar o job", async () => {

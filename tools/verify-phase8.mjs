@@ -15,6 +15,10 @@
  * 3. Nenhum gizmo aparece em nenhum frame: com um nó selecionado — o que desenha
  *    alça de transformação no viewport — os hashes continuam os mesmos.
  * 4. O relatório traz `settleFailed: 0` e p99 de settle dentro do orçamento.
+ * 5. Dois nós geo com filtros continuam determinísticos.
+ * 6. Com cache frio, `model3d` e `route3d` já aparecem no primeiro export; a
+ *    execução quente produz os mesmos hashes. Esta é a prova de que o settle
+ *    espera o parse assíncrono do GLB, não apenas câmera e tiles.
  *
  * Escreve numa pasta temporária escolhida sem diálogo (o verificador chama o
  * escritor direto), e desfaz o que criou no documento.
@@ -186,6 +190,119 @@ const MONTAR_CENA = `(async () => {
   return { rot, ucr };
 })()`;
 
+/**
+ * Monta `model3d` + `route3d` e devolve IMEDIATAMENTE, sem esperar o GLB.
+ *
+ * A cópia do GLB recebe apenas um `asset.extras` único. O conteúdo visual não
+ * muda, mas o hash do asset muda a cada execução do verificador, garantindo
+ * que o cache de templates esteja realmente frio mesmo se o script for rodado
+ * duas vezes no mesmo renderer.
+ */
+const MONTAR_CENA_3D = `(async () => {
+  const S = session();
+  const response = await fetch('/models/fa-18f.glb');
+  if (!response.ok) throw new Error('GLB não servido pelo dev server: ' + response.status);
+  const source = new Uint8Array(await response.arrayBuffer());
+  const sourceView = new DataView(source.buffer, source.byteOffset, source.byteLength);
+  if (
+    source.byteLength < 20 ||
+    sourceView.getUint32(0, true) !== 0x46546c67 ||
+    sourceView.getUint32(4, true) !== 2 ||
+    sourceView.getUint32(16, true) !== 0x4e4f534a
+  ) {
+    throw new Error('fa-18f.glb não é um GLB 2.0 com JSON no primeiro chunk');
+  }
+
+  const oldJsonLength = sourceView.getUint32(12, true);
+  const restStart = 20 + oldJsonLength;
+  if (restStart > source.byteLength) throw new Error('chunk JSON inválido no fa-18f.glb');
+  const jsonText = new TextDecoder().decode(source.subarray(20, restStart)).trimEnd();
+  const gltf = JSON.parse(jsonText);
+  const previousExtras =
+    gltf.asset.extras !== null &&
+    typeof gltf.asset.extras === 'object' &&
+    !Array.isArray(gltf.asset.extras)
+      ? gltf.asset.extras
+      : {};
+  gltf.asset.extras = {
+    ...previousExtras,
+    theatrumSettleProbe: crypto.randomUUID(),
+  };
+
+  const jsonBytes = new TextEncoder().encode(JSON.stringify(gltf));
+  const jsonLength = Math.ceil(jsonBytes.byteLength / 4) * 4;
+  const bytes = new Uint8Array(20 + jsonLength + (source.byteLength - restStart));
+  bytes.set(source.subarray(0, 12));
+  const outputView = new DataView(bytes.buffer);
+  outputView.setUint32(8, bytes.byteLength, true);
+  outputView.setUint32(12, jsonLength, true);
+  outputView.setUint32(16, 0x4e4f534a, true);
+  bytes.set(jsonBytes, 20);
+  bytes.fill(0x20, 20 + jsonBytes.byteLength, 20 + jsonLength);
+  bytes.set(source.subarray(restStart), 20 + jsonLength);
+
+  const before = new Set(S.getSnapshot().document.assets.map((asset) => asset.src));
+  await S.actions.importAssetFiles([
+    new File([bytes], 'fa-18f-settle-probe.glb', { type: 'model/gltf-binary' }),
+  ]);
+  const asset = S.getSnapshot().document.assets.find(
+    (candidate) => !before.has(candidate.src) && candidate.kind === 'model',
+  );
+  if (!asset) throw new Error('asset GLB único não entrou no documento');
+
+  const pathId = S.actions.createPath({
+    name: 'Rota 3D · prova de settle',
+    space: 'geo',
+    interpolation: 'catmull-rom',
+    vertices: [
+      [34.4, 49.65],
+      [35.6, 50.2],
+      [36.8, 50.75],
+    ].map((point) => ({ point, inHandle: null, outHandle: null })),
+  });
+  if (!pathId) throw new Error('createPath da prova 3D falhou');
+
+  const modelId = S.actions.addNodeOfType('model3d');
+  if (!modelId) throw new Error('addNodeOfType model3d falhou');
+  S.actions.renameNode(modelId, 'F/A-18F · prova de settle');
+  S.actions.setNodeAnchor(modelId, { space: 'geo', lngLat: [34.4, 49.65] });
+  if (!S.actions.setPropertyValue(modelId, 'props.assetId', asset.src)) {
+    throw new Error('props.assetId não aceitou o GLB da prova');
+  }
+  S.actions.setPropertyValue(modelId, 'props.scaleMeters', 120000);
+  S.actions.setPropertyValue(modelId, 'props.altitudeMeters', 60000);
+  const behaviorId = S.actions.assignMotionPath(modelId, pathId, { from: 0, to: 8 });
+  if (!behaviorId) throw new Error('assignMotionPath da prova 3D falhou');
+
+  const routeId = S.actions.addNodeOfType('route3d');
+  if (!routeId) throw new Error('addNodeOfType route3d falhou');
+  S.actions.renameNode(routeId, 'Rota 3D · prova de settle');
+  if (!S.actions.setPropertyValue(routeId, 'props.pathId', pathId)) {
+    throw new Error('props.pathId não aceitou o caminho da prova');
+  }
+  S.actions.setPropertyValue(routeId, 'props.color', '#f2a13cff');
+  S.actions.setPropertyValue(routeId, 'props.widthMeters', 18000);
+  S.actions.setPropertyValue(routeId, 'props.altitudeMeters', 35000);
+  S.actions.setPropertyValue(routeId, 'props.arcMeters', 90000);
+  S.actions.setPropertyValue(routeId, 'props.curtainOpacity', 0.18);
+  S.actions.setPropertyValue(routeId, 'props.progressStart', 0);
+  S.actions.setPropertyValue(routeId, 'props.progressEnd', 1);
+
+  S.actions.setPlayhead(0);
+  S.actions.clearSelection();
+  const composition = S.getSnapshot().document.compositions.find(
+    (candidate) => candidate.id === S.getSnapshot().selectedCompositionId,
+  );
+  const nodes = composition ? Object.values(composition.nodes) : [];
+  return {
+    modelId,
+    routeId,
+    pathId,
+    model3d: nodes.filter((node) => node.type === 'model3d').length,
+    route3d: nodes.filter((node) => node.type === 'route3d').length,
+  };
+})()`;
+
 /** Roda um export do trecho [0..8] e devolve o relatório. */
 const EXPORTAR = `(async () => {
   const r = await overlay().exportPngSequence({
@@ -355,6 +472,43 @@ async function main() {
           `${comFiltros.bytesA} frames, hashes entre execuções ${filtrosIguais ? "idênticos" : "DIVERGEM"}, ` +
           `${filtrosDistintos} distintos entre frames` +
           `${comFiltros.erro === null ? "" : `; erro na sessão: ${comFiltros.erro}`}`,
+      );
+
+      // ── 6. GLB frio: model3d + route3d já no primeiro export ─────────────
+      //
+      // `MONTAR_CENA_3D` termina antes do parse. Se o settle vir apenas câmera,
+      // tiles e repinturas, o primeiro export sai sem a aeronave e diverge do
+      // segundo, cujo template já está quente. O asset tem src único para que
+      // rodar este verificador de novo no mesmo renderer continue sendo prova.
+      const cena3d = await client.evaluate(MONTAR_CENA_3D);
+      const frio3d = await client.evaluate(EXPORTAR);
+      const quente3d = await client.evaluate(EXPORTAR);
+      const hashes3dIguais =
+        frio3d.hashes.length > 0 &&
+        frio3d.hashes.length === quente3d.hashes.length &&
+        frio3d.hashes.every(
+          (hash, index) =>
+            hash.filename === quente3d.hashes[index].filename &&
+            hash.sha256 === quente3d.hashes[index].sha256,
+        );
+      const visual3dEntrou =
+        frio3d.hashes.length === comFiltros.b.length &&
+        frio3d.hashes.some((hash, index) => hash.sha256 !== comFiltros.b[index]?.sha256);
+      const distintos3d = new Set(frio3d.hashes.map((hash) => hash.sha256)).size;
+      const settle3dOk =
+        frio3d.ok && quente3d.ok && frio3d.settleFailed === 0 && quente3d.settleFailed === 0;
+      record(
+        "6 · settle espera GLB frio de model3d com route3d",
+        cena3d.model3d > 0 &&
+          cena3d.route3d > 0 &&
+          hashes3dIguais &&
+          visual3dEntrou &&
+          distintos3d > 1 &&
+          settle3dOk,
+        `model3d=${cena3d.model3d} route3d=${cena3d.route3d}; ` +
+          `${frio3d.hashes.length} frames, frio×quente ${hashes3dIguais ? "idênticos" : "DIVERGEM"}; ` +
+          `visual 3D ${visual3dEntrou ? "entrou no frame" : "não alterou o frame"}; ` +
+          `${distintos3d} hashes distintos; settleFailed frio=${frio3d.settleFailed} quente=${quente3d.settleFailed}`,
       );
     }
   } finally {

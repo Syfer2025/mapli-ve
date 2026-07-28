@@ -28,7 +28,12 @@ import { editorActions } from "../../document/editor-session.js";
 import { useEditorSession } from "../../document/useEditorSession.js";
 import { Button } from "../../ui/index.js";
 import { createMapLibreProjectorPort } from "./maplibre-adapters.js";
-import { collectModel3dNodes, collectRoute3dNodes, syncScene3dLayer } from "./scene3d-layer.js";
+import {
+  collectModel3dNodes,
+  collectRoute3dNodes,
+  scene3dLayerPending,
+  syncScene3dLayer,
+} from "./scene3d-layer.js";
 import {
   collectStudioModels,
   collectStudioStage,
@@ -351,6 +356,10 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
       probe: () => ({
         frame: frameRef.current?.screen.frame ?? -1,
         renders: renderCountRef.current,
+        // GLB em parse é trabalho pendente que o settle precisa ver: a camada
+        // 3D do mapa e o palco do estúdio. Erro de carga conta como resolvido
+        // lá dentro — senão um modelo quebrado travaria o export no timeout.
+        pendingAssets: scene3dLayerPending(map) + (studioRef.current?.pendingModels() ?? 0),
       }),
     });
     return () => bindExportViewport(null);
@@ -959,6 +968,8 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
           probe: () => ({
             frame: frameRef.current?.screen.frame ?? -1,
             renders: renderCountRef.current,
+            // Mesma guarda do bind acima: GLB pendente segura o settle.
+            pendingAssets: scene3dLayerPending(liveMap) + (studioRef.current?.pendingModels() ?? 0),
           }),
           ...(options?.range === undefined ? {} : { range: options.range }),
           ...(options?.outputFps === undefined ? {} : { outputFps: options.outputFps }),
