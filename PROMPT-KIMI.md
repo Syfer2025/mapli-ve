@@ -1,4 +1,4 @@
-# Prompt para o Kimi K3 — continuar o Theatrum
+# Prompt de continuação — Theatrum
 
 Copie tudo abaixo da linha e cole na sessão nova.
 
@@ -7,7 +7,7 @@ Copie tudo abaixo da linha e cole na sessão nova.
 Você vai continuar o **Theatrum**, um editor de animação geopolítica/militar
 estilo After Effects, 100% local e offline. Repositório em `D:\maplive\map\mapli-ve`,
 remote `https://github.com/Syfer2025/mapli-ve` (branch `main`, último commit
-`f9a895e`).
+`f460b1a`).
 
 ## Antes de escrever qualquer código, leia nesta ordem
 
@@ -18,8 +18,9 @@ remote `https://github.com/Syfer2025/mapli-ve` (branch `main`, último commit
    seção **7A+** tem três afirmações **riscadas** porque foram derrubadas por
    medição no 7A++. Leia o 7A++ antes de tocar na camada 3D.
 3. `docs/adr/` — as decisões já tomadas, com alternativa honesta e consequência
-   negativa declarada. **ADR-012** (canvas próprio do palco 3D) e **ADR-013**
-   (composição do frame de export) são os mais recentes.
+   negativa declarada. **ADR-014** (palco em painel próprio) e **ADR-015** (pontos
+   de interesse) são os mais recentes. O ADR-015 tem uma **nota de implementação**
+   no fim com três desvios da própria letra dele, e o motivo medido de cada um.
 
 ## Bootstrap — obrigatório, e as mensagens de erro não dizem que falta bootstrap
 
@@ -31,93 +32,76 @@ pnpm install && pnpm data:fetch && pnpm geo:build && pnpm check
 errado. `Malha "countries" ausente` pede `geo:build`. `data:fetch` é o único
 comando do projeto que usa rede. Detalhe em 09-CONTINUIDADE §4.18.
 
-Se `pnpm` não estiver no PATH da sua máquina, rode os binários direto:
-`export PATH="$PWD/node_modules/.bin:$PATH"` e então `tsc -b`, `eslint .`,
+Se `pnpm` não estiver no PATH da sua máquina — **é o caso da máquina do dono** —
+rode os binários direto: `export PATH="$PWD/node_modules/.bin:$PATH"` e então
+`tsc -b`, `tsc -p tsconfig.test.json`, `tsc -p tsconfig.node.json`,
+`tsc -p apps/shell/tsconfig.json`, `tsc -p apps/editor/tsconfig.json`, `eslint .`,
 `prettier --check .`, `depcruise packages apps --config .dependency-cruiser.cjs`,
-`vitest run`, `electron-vite dev`.
+`vitest run`, `electron-vite dev`. E `node tools/fetch-data.ts --verify` à mão
+antes do dev, porque o `predev` também chama `pnpm`.
 
-Estado esperado depois do bootstrap: **998 testes em 98 arquivos, verde**, 319
-módulos, sem violação de camada, build electron-vite ok.
+Estado esperado depois do bootstrap: **1.052 testes em 106 arquivos, verde**, 344
+módulos e 930 dependências sem violação de camada, build electron-vite ok.
 
 ## Onde o projeto está
 
 Fases 0–6 concluídas. Bloco 7 inteiro fechado (única exceção declarada: 7E.4,
 VFX volumétrico, adiado pelo dono e bloqueado por não haver Blender/Houdini/
-OpenVDB na máquina). **Fase 8 produz MP4 H.264 byte-idêntico entre execuções** —
-o critério que o roteiro chama de mais importante do projeto.
+OpenVDB na máquina). A **Fase 8 produz MP4 H.264, GIF, ProRes 4444 com alfa e PNG
+normal/alfa, byte-idênticos entre execuções** — o critério que o roteiro chama de
+mais importante do projeto.
 
-Sete verificadores dirigem o **Electron real** por CDP na porta 9222:
-`verify:phase7a`, `7b` (4/4), `7c`, `7d` (4/4), `7e3` (5/5), `phase8` (7/7),
-`phase8-video` (6/6). Suíte de unidade: 1028 testes em 104 arquivos.
+Oito verificadores dirigem o **Electron real** por CDP na porta 9222:
+`verify:phase7a`, `7b` (4/4), `7c`, `7d` (4/4), `7e3` (**6/6**), `phase8` (7/7),
+`phase8-video` (6/6), `phase8-formats` (5/5).
 
-**Depois disso veio o ADR-014**, que tirou o Palco 3D de dentro do painel Viewport
-e o transformou em aba própria, com pilha de superfícies própria. Quatro etapas,
-todas fechadas e provadas. Três coisas que ele ensinou e que você vai encontrar:
+**O ADR-015 acabou de ser fechado** — era o último pedido do dono: a câmera vai
+até o míssil e ele fala do míssil. Quatro peças entregues: tipo de nó
+`studio.poi`, botão **Marcar pontos** com raycast na superfície do modelo,
+marcadores numerados, e **Compilar roteiro**, que transforma a sequência de
+pontos em keyframes das seis props de câmera do `studio.stage`.
 
-- O dockview **só monta o painel ativo**. As superfícies da aba inativa não
-  existem no DOM — não é `visibility`, é montagem. Foi isso que quebrou o `settle`
-  do export, o `atFrame` do verificador e o critério 4 do 7E.3: **sinal do painel
-  errado**, três vezes com roupas diferentes. Se algo não aparece, pergunte primeiro
-  qual aba está na frente.
-- O dockview escuta **pointer**: `element.click()` não troca de aba. Precisa de
-  `Input.dispatchMouseEvent` por coordenada — e nem isso funciona sempre (não
-  descobri por quê; está registrado como pendência no verificador).
-- O export **detecta** o modo pela pilha montada (`detectExportMode`), em vez de
-  carregar uma lista fixa de superfícies. Você exporta o que está vendo.
+Três coisas dele que você vai encontrar, e que não deve "melhorar" sem medir:
 
-## Sua primeira tarefa: implementar o ADR-015 (pontos de interesse do palco)
+- **O marcador não vai no overlay Pixi do palco.** Aquele overlay É composto no
+  frame de export. Marcador é chrome de autoria e mora em
+  `.studio-viewport__markers`, declarado em `EXCLUDED_SURFACE_SELECTORS`. É assim
+  que o critério 8 da Fase 8 — nenhum elemento de UI em nenhum frame — continua
+  sendo atendido por construção, e não por alguém lembrar de desligar um modo.
+- **O ponto vem de clique, não de nó do glTF.** Foi medido: o obuseiro 2S19M1 do
+  dono tem 0 animações, 0 skins e 51 nós irmãos `Object_2`…`Object_50`, agrupados
+  por **material** — 20 das 49 malhas atravessam mais de 60% de um eixo do
+  veículo. Não existe "o nó da torre". Vale para qualquer modelo OBJ → Sketchfab.
+- **POI leva a câmera até a torre; não a gira.** Girar exige `gltf.animations`,
+  hoje descartado em `three-assets.ts`, e um modelo com a torre como nó separado.
 
-Leia `docs/adr/ADR-015-studio-points-of-interest.md` inteiro. Ele tem a forma
-decidida e cinco consequências declaradas. Resumo do que manda fazer:
+## O que fazer, na ordem
 
-O dono quer apresentar equipamento militar no Palco 3D: a câmera vai até o míssil
-e ele fala do míssil; vai até a cabine e fala da cabine, com texto entrando em cada
-parada. Os pontos vêm de **clique na superfície do modelo**, não dos nós do glTF.
-
-**Por que não dos nós do glTF, e não tente "melhorar" isso:** foi medido. O
-obuseiro 2S19M1 do dono tem 0 animações, 0 skins, e 51 nós irmãos planos chamados
-`Object_2` a `Object_50`. Veio de um OBJ e a Sketchfab agrupou por **material** — 20
-das 49 malhas ocupam mais de 60% de um eixo do veículo, várias em 100%. Não existe
-"o nó da torre". Para conferir por conta própria: leia o chunk JSON do GLB direto
-(header de 12 bytes, depois chunks de 8) e compare os `min`/`max` dos accessors de
-POSITION, que o glTF obriga a existir.
-
-Peças a construir, na ordem:
-
-1. **Tipo de nó `studio.poi`**: nome, ponto em metros no espaço do palco, e o
-   enquadramento da câmera ao visitá-lo. Segue o padrão de `studio.stage` em
-   `packages/scene-graph/src/builtin-node-types.ts` — e como o palco, **não** deve
-   herdar `COMMON_PROPERTIES` sem pensar. Ver ADR-014: `transform.opacity` num nó
-   que não é desenhável foi armadilha real, porque o avaliador deriva `visible` de
-   `opacity > 0` (`packages/animation/src/evaluate.ts:151`).
-2. **Botão "Marcar pontos"** no `StudioViewport`. Ligado, clique na superfície faz
-   raycast contra a cena do palco e cria o POI ali. O `StudioSceneRuntime` já tem a
-   cena e a câmera; falta expor um método de picking.
-3. **Marcadores visíveis** dos POI existentes, no overlay Pixi do palco — que já
-   existe e já desenha `label.callout`, provado no verificador 5/5.
-4. **Roteiro** como sequência de visitas, **compilando para keyframes** nas props de
-   câmera que o `studio.stage` já tem. Não faça um player paralelo: compilar mantém
-   a câmera função pura de (documento, frame), preserva o export byte-idêntico e dá
-   o editor de curvas de graça. Siga o precedente da Fase 7 (ações live →
-   keyframes) em vez de inventar outro.
-
-**O que NÃO está no escopo, e não confunda:** POI leva a câmera **até** a torre; não
-**gira** a torre. Girar exige `gltf.animations` — hoje descartado em
-`three-assets.ts` — e um modelo com a torre como nó separado, que o 2S19 não tem.
-
-**Como verificar:** `node tools/verify-phase7e3.mjs` com a aba "Palco 3D" ativa.
-Deve continuar 5/5 depois do seu trabalho, e ganhar critério novo para o POI.
-
-## Depois disso, na ordem do roteiro
-
-1. **Resolução acima do tamanho da janela.** Hoje o frame sai no tamanho do
+1. **Aviso de POI órfão na interface.** É o limite declarado do ADR-015 e o único
+   pedaço dele que ficou sem entregar: o ponto guarda **metros absolutos** do
+   palco, então mover o `model3d` em `stageX`/`stageZ` — ou trocar o GLB — deixa
+   os pontos onde estavam, e eles podem cair no vazio. O ADR diz que "o aviso cabe
+   na interface, não no modelo de dados". Não conserte mudando o modelo de dados
+   sem escrever um ADR novo: amarrar POI a nó do arquivo é justamente o que o
+   ADR-015 rejeitou.
+2. **Resolução acima do tamanho da janela.** Hoje o frame sai no tamanho do
    viewport e o H.264 exige dimensão par (1227×643 vira 1226×642). É o gatilho
-   declarado no ADR-013 para voltar à janela de render oculta.
-2. **Fase 7 (ações).** Templates de impacto. Nada dela ameaça o que já está provado.
-3. **Formatos que faltam:** GIF, ProRes 4444 com alfa, sequência com canal alfa.
-   O muxer MP4 é código nosso (`packages/export/src/mp4-muxer.ts`, 25 testes) e é
-   só vídeo — áudio entraria como trilha 2.
+   declarado no ADR-013 para voltar à janela de render oculta — e é a decisão que
+   deve fechar de vez o `packages/engine`, hoje um esqueleto enquanto
+   `apps/editor` importa L2/L3 direto.
+3. **Fase 7 (ações): templates de impacto.** Nada dela ameaça o que já está provado.
 4. **Motion blur, checkpoint e retomada.**
+5. **Duas decisões conscientes que estão pendentes por omissão, não por escolha:**
+   - `tools/eslint-rules/rules.test.ts` estoura o limite de 5 s sob contenção de
+     workers e passa em 4 s rodando sozinho. É orçamento de tempo, não regressão —
+     mas um teste que fica vermelho conforme a carga da máquina precisa de decisão
+     explícita, não de sorte.
+   - `fc.assert` roda **sem semente fixa** em toda a base. Num projeto cuja tese
+     central é determinismo, vale decidir de propósito entre `{ seed: N }`
+     (reprodutível, achado congelado) e semente livre (continua procurando).
+6. **Operacional:** rodar `pnpm dist:win` de novo para incorporar os exemplos ao
+   instalador. A tentativa de 2026-07-28 parou por cota de autorização de rede,
+   não por erro de código.
 
 ## Regras desta base que não são negociáveis
 
@@ -129,8 +113,7 @@ Deve continuar 5/5 depois do seu trabalho, e ganhar critério novo para o POI.
 - **Decisão de arquitetura vira ADR** antes do código, com alternativas honestas e
   consequência negativa declarada. Uma decisão por arquivo.
 - **Medir, não achar.** Quando o número contraria a expectativa, o número ganha.
-  Duas afirmações "provadas" deste roteiro já caíram por medição — uma delas
-  custou o volume 3D do modelo por uma sessão inteira.
+  Três afirmações "provadas" deste roteiro já caíram por medição.
 - **Limite conhecido vai para o roteiro**, não some. Afrouxar teste para ficar
   verde é o erro que este projeto não comete.
 - **Entrega em blocos.** Parar no fim de cada bloco, relatar, e só então seguir.
@@ -138,16 +121,29 @@ Deve continuar 5/5 depois do seu trabalho, e ganhar critério novo para o POI.
 - **Captura de tela não prova sozinha** (09-CONTINUIDADE §4.5). Meça em pixel, ou
   leia o estado pelo CDP.
 
-## Uma armadilha específica sua
+## Quatro armadilhas que vão te morder nesta ordem
 
-09-CONTINUIDADE §4.17: **qualquer asserção sobre ângulo tem de ser modular.**
-Comparar `normalizeDegrees(a)` com `normalizeDegrees(b)` por diferença linear
-atravessa a costura 0/360 — dois ângulos idênticos a menos de 6e-14 medem
-diferença de 360. Isso derrubou um teste de propriedade de forma intermitente, e o
-vermelho parecia infraestrutura. Vale para banking, `geo-bearing` e
-`orbitCameraPosition`. E note que `fc.assert` roda **sem semente fixa** em toda a
-base: hoje isso é por omissão, não por decisão — se quiser reprodutibilidade,
-essa é uma decisão consciente a tomar.
+1. **Sinal do painel errado.** O dockview **só monta o painel ativo** — as
+   superfícies da aba inativa não existem no DOM, e não é `visibility`, é
+   montagem. Isso já quebrou quatro coisas com roupas diferentes, a última na
+   sessão passada: rodar `verify:phase8` logo depois do `verify:phase7e3` faz 5 de
+   7 critérios falharem com `.maplibregl-canvas ausente`, e a leitura certa não é
+   "o export quebrou". **Quando algo não aparece, pergunte primeiro qual aba está
+   na frente.**
+2. **Trocar de aba do dockview por CDP** só é confiável despachando
+   `PointerEvent('pointerdown'/'pointerup')` **no próprio elemento da aba**, com
+   `bubbles`, `composed`, `pointerId` e `isPrimary` preenchidos.
+   `Input.dispatchMouseEvent` por coordenada funciona "às vezes" — era a pendência
+   do ADR-014, e está resolvida assim.
+3. **Ângulo é grandeza modular, dos dois lados.** Do lado de quem **afirma**:
+   comparar `normalizeDegrees(a)` com `normalizeDegrees(b)` por diferença linear
+   atravessa a costura 0/360 (§4.17). Do lado de quem **escreve**: keyframes de
+   azimute em 350° e 10° fazem a câmera dar uma volta de 340° pelo lado errado —
+   por isso existe `unwrapAzimuths` em `studio-tour.ts`. Vale para banking,
+   `geo-bearing` e `orbitCameraPosition`.
+4. **Backtick e barra invertida em string de shell** somem sem erro (§4.1). Use as
+   ferramentas de escrita de arquivo, e barra normal em caminho de Windows dentro
+   de JSON.
 
-Comece confirmando o bootstrap e a suíte verde. Depois relate o que encontrou
-antes de mexer no `settle`.
+Comece confirmando o bootstrap e a suíte verde, com os oito verificadores. Depois
+relate o que encontrou antes de mexer no `settle` ou no caminho de export.
