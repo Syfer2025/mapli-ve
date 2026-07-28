@@ -27,12 +27,24 @@ const catalog = createRegionCatalog([
   loadMesh("countries"),
   loadMesh("states"),
   loadMesh("rivers"),
+  loadMesh("roads"),
 ]);
 
 describe("catálogo de territórios", () => {
-  it("indexa as três camadas juntas", () => {
-    // 258 países + 4589 estados + 1366 rios, menos feições sem nome.
+  it("indexa as quatro camadas juntas", () => {
+    // 258 países + 4589 estados + 1366 rios + 187 redes de estradas, menos
+    // feições sem nome.
     expect(catalog.size).toBeGreaterThan(5000);
+  });
+
+  it("a rede de estradas aparece com o nome do país e subtítulo próprio", () => {
+    const hits = catalog.search("Ukraine");
+    const estradas = hits.find((hit) => hit.kind === "road");
+    expect(estradas?.id).toBe("roads:UKR");
+    expect(estradas?.name).toBe("Ukraine");
+    expect(estradas?.detail).toMatch(/^Estradas/);
+    // E não atrapalha o país, que continua primeiro.
+    expect(hits[0]?.kind).toBe("country");
   });
 
   it("nome de país acha o país em primeiro lugar", () => {

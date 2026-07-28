@@ -984,6 +984,33 @@ export const GEO_RIVERS_NODE_TYPE = defineNodeType({
   defaultSizeMode: "screen",
 });
 
+/**
+ * Rede de estradas de um país inteiro, agrupada na compilação (ADR-011).
+ *
+ * Mesma primitiva do rio — anel aberto — mas a feição não é uma linha nomeada:
+ * são centenas de segmentos sob um `roads:ISO`. A junção espacial que decide
+ * "de quem é" cada segmento está em `tools/build-geo.ts`.
+ */
+export const GEO_ROADS_NODE_TYPE = defineNodeType({
+  type: "geo.roads",
+  category: "geo",
+  label: "Estradas",
+  icon: "route",
+  defaultProps: {
+    geoId: animatable(""),
+    fill: animatable("#00000000"),
+    fillAlpha: animatable(0),
+    stroke: animatable("#fb923cff"),
+    strokeWidth: animatable(1.5),
+    strokeAlpha: animatable(0.9),
+  },
+  propertySchema: GeoShapePropsSchema,
+  properties: [...COMMON_PROPERTIES, ...GEO_SHAPE_PROPERTIES],
+  supportsChildren: false,
+  defaultAnchorSpace: "geo",
+  defaultSizeMode: "screen",
+});
+
 export const ROUTE3D_NODE_TYPE = defineNodeType({
   type: "route3d",
   category: "geo",
@@ -1105,6 +1132,7 @@ export const BUILTIN_NODE_TYPE_IDS = Object.freeze([
   "shape.circle",
   "geo.region",
   "geo.rivers",
+  "geo.roads",
   "symbol.icon",
   "unit.armor",
   "unit.infantry",
@@ -1127,6 +1155,7 @@ export const BUILTIN_NODE_TYPES: readonly NodeTypeDefinition[] = Object.freeze([
   SHAPE_CIRCLE_NODE_TYPE,
   GEO_REGION_NODE_TYPE,
   GEO_RIVERS_NODE_TYPE,
+  GEO_ROADS_NODE_TYPE,
   SYMBOL_ICON_NODE_TYPE,
   UNIT_ARMOR_NODE_TYPE,
   UNIT_INFANTRY_NODE_TYPE,

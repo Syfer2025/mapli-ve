@@ -446,7 +446,12 @@ export const editorActions = Object.freeze({
     feature: { readonly id: string; readonly name: string; readonly kind: string },
     center: readonly [number, number],
   ): string | null {
-    const type = feature.kind === "river" ? "geo.rivers" : "geo.region";
+    const type =
+      feature.kind === "river"
+        ? "geo.rivers"
+        : feature.kind === "road"
+          ? "geo.roads"
+          : "geo.region";
     const nodeId = this.addNodeOfType(type);
     if (nodeId === null) return null;
     this.renameNode(nodeId, feature.name);

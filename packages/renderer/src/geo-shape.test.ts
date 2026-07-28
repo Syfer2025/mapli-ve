@@ -56,9 +56,10 @@ describe("primitiva de geometria geográfica", () => {
     expect(visual.rings[0]?.[2]).toEqual([100, 100]);
   });
 
-  it("região fecha o anel; rio não", () => {
+  it("região fecha o anel; rio e estradas não", () => {
     expect(geoShapeOf("geo.region", { rings: RINGS }).closed).toBe(true);
     expect(geoShapeOf("geo.rivers", { rings: RINGS, closed: false }).closed).toBe(false);
+    expect(geoShapeOf("geo.roads", { rings: RINGS, closed: false }).closed).toBe(false);
     // Só `false` explícito abre; ausência fecha.
     expect(geoShapeOf("geo.rivers", { rings: RINGS }).closed).toBe(true);
   });

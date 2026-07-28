@@ -11,8 +11,11 @@ import {
   ensureSearchableLayers,
   geoLoadStatus,
   geoMeshFor,
+  loadedGeoMesh,
   regionCatalog,
+  type GeoLayer,
 } from "../../geo/geo-data.js";
+import type { GeoFeatureKind } from "@theatrum/gis";
 import { useEditorSession } from "../../document/useEditorSession.js";
 import { Button, Field, FieldGroup, NumberDrag, Panel } from "../../ui/index.js";
 import { readAnimatableProperty } from "../timeline/timeline-model.js";
@@ -40,6 +43,8 @@ interface PropertyControlProps {
    * âncora, e as duas coisas são um gesto só.
    */
   readonly nodeId: string;
+  /** Tipo do nó em edição — o seletor de território filtra a busca por ele. */
+  readonly nodeType: string;
   readonly onCommit: (value: unknown) => void;
 }
 
@@ -142,6 +147,7 @@ export function InspectorPanel({ registry = BUILTIN_REGISTRY }: InspectorPanelPr
                         property={property}
                         assets={session.document.assets}
                         nodeId={node.id}
+                        nodeType={node.type}
                         onCommit={(value) => commitProperty(property, value)}
                       />
                       {property.descriptor.binding === "animatable" &&
@@ -388,9 +394,16 @@ function AssetPropertyControl({ property, assets, onCommit }: PropertyControlPro
 /**
  * Seleção de território por busca.
  *
- * Não é `select` com seis mil opções: são 258 países, 4.589 estados e 1.366 rios,
- * e uma lista assim é inútil de rolar. Digitar filtra pelo catálogo — nome, nome
- * longo, sigla ISO de duas ou três letras, código de subdivisão.
+ * Não é `select` com seis mil opções: são 258 países, 4.589 estados, 1.366 rios
+ * e 187 redes de estradas, e uma lista assim é inútil de rolar. Digitar filtra
+ * pelo catálogo — nome, nome longo, sigla ISO de duas ou três letras, código de
+ * subdivisão.
+ *
+ * A busca é **recortada pelo tipo do nó**: um `geo.region` oferece países e
+ * estados, um `geo.rivers` oferece rios, um `geo.roads` oferece as redes por
+ * país (ADR-011). Sem o recorte, escolher "Ucrânia (estradas)" para um nó de
+ * território gravaria um id que ele não sabe desenhar — e a camada errada não
+ * é nem carregada, porque cada recorte tem seu peso de download.
  *
  * Escolher o território também **reposiciona a âncora** para o ponto
  * representativo da feição, porque é dele que a geometria projetada é medida. Sem
@@ -398,27 +411,60 @@ function AssetPropertyControl({ property, assets, onCommit }: PropertyControlPro
  * volta de uma âncora ucraniana — e as duas coisas têm de andar juntas para o
  * `Ctrl+Z` desfazer um gesto, não meio.
  */
-function GeoIdPropertyControl({ property, nodeId, onCommit }: PropertyControlProps): ReactNode {
+
+/** Camadas que a busca precisa, por tipo de nó. Fora da tabela: todas. */
+const GEO_SEARCH_LAYERS: Readonly<Record<string, readonly GeoLayer[]>> = Object.freeze({
+  "geo.region": Object.freeze(["countries", "states"] as const),
+  "geo.rivers": Object.freeze(["rivers"] as const),
+  "geo.roads": Object.freeze(["roads"] as const),
+});
+
+/** Tipos de feição que o nó sabe desenhar. Fora da tabela: todos. */
+const GEO_SEARCH_KINDS: Readonly<Record<string, readonly GeoFeatureKind[]>> = Object.freeze({
+  "geo.region": Object.freeze(["country", "state"] as const),
+  "geo.rivers": Object.freeze(["river"] as const),
+  "geo.roads": Object.freeze(["road"] as const),
+});
+
+const GEO_SEARCH_PLACEHOLDER: Readonly<Record<string, string>> = Object.freeze({
+  "geo.region": "Buscar país ou estado…",
+  "geo.rivers": "Buscar rio…",
+  "geo.roads": "Buscar rede de estradas por país…",
+});
+
+function GeoIdPropertyControl({
+  property,
+  nodeId,
+  nodeType,
+  onCommit,
+}: PropertyControlProps): ReactNode {
   const current = typeof property.value === "string" ? property.value : "";
   const [query, setQuery] = useState("");
-  const [ready, setReady] = useState(() => geoLoadStatus().length > 0);
+  const layers = GEO_SEARCH_LAYERS[nodeType];
+  const [ready, setReady] = useState(() =>
+    layers === undefined
+      ? geoLoadStatus().length > 0
+      : layers.every((layer) => loadedGeoMesh(layer) !== undefined),
+  );
 
   // As camadas entram sob demanda: abrir o Inspector de um território é o sinal de
-  // que a busca vai ser usada.
+  // que a busca vai ser usada — e só as camadas que o tipo do nó entende.
   useEffect(() => {
     if (ready) return;
     let active = true;
-    void ensureSearchableLayers().then(() => {
+    void ensureSearchableLayers(layers).then(() => {
       if (active) setReady(true);
     });
     return () => {
       active = false;
     };
-  }, [ready]);
+  }, [ready, layers]);
 
+  const kinds = GEO_SEARCH_KINDS[nodeType];
   const catalog = ready ? regionCatalog() : undefined;
   const selected = catalog?.byId(current);
-  const hits = query.trim() === "" ? [] : (catalog?.search(query, 12) ?? []);
+  const found = query.trim() === "" ? [] : (catalog?.search(query, 12) ?? []);
+  const hits = kinds === undefined ? found : found.filter((hit) => kinds.includes(hit.kind));
 
   const choose = (id: string): void => {
     const mesh = geoMeshFor(id);
@@ -440,7 +486,11 @@ function GeoIdPropertyControl({ property, nodeId, onCommit }: PropertyControlPro
         type="search"
         value={query}
         disabled={!property.available}
-        placeholder={selected === undefined ? "Buscar país, estado ou rio…" : selected.name}
+        placeholder={
+          selected === undefined
+            ? (GEO_SEARCH_PLACEHOLDER[nodeType] ?? "Buscar território…")
+            : selected.name
+        }
         aria-label={property.descriptor.label}
         onChange={(event) => setQuery(event.target.value)}
       />

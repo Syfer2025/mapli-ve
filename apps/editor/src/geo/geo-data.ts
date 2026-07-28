@@ -26,15 +26,19 @@ import {
 const DATA_BASE = "theatrum-data://local/geo";
 
 /** Camadas compiladas por `tools/build-geo.ts`. */
-export const GEO_LAYERS = Object.freeze(["countries", "states", "rivers"] as const);
+export const GEO_LAYERS = Object.freeze(["countries", "states", "rivers", "roads"] as const);
 
 export type GeoLayer = (typeof GEO_LAYERS)[number];
 
-/** Prefixo de id por camada, como o compilador escreve: `c:UKR`, `s:BR-PR`, `r:Nile`. */
+/**
+ * Prefixo de id por camada, como o compilador escreve: `c:UKR`, `s:BR-PR`,
+ * `r:Nile`, `roads:UKR`.
+ */
 const LAYER_BY_PREFIX: Readonly<Record<string, GeoLayer>> = Object.freeze({
   c: "countries",
   s: "states",
   r: "rivers",
+  roads: "roads",
 });
 
 /** Descobre a camada a partir do id, sem precisar carregar nada. */
@@ -163,8 +167,10 @@ export function regionCatalog(): RegionCatalog {
 }
 
 /** Garante as camadas de busca carregadas. Chamado quando o painel abre. */
-export async function ensureSearchableLayers(): Promise<readonly GeoLayerLoad[]> {
-  const results = await Promise.all(GEO_LAYERS.map((layer) => loadGeoLayer(layer)));
+export async function ensureSearchableLayers(
+  layers: readonly GeoLayer[] = GEO_LAYERS,
+): Promise<readonly GeoLayerLoad[]> {
+  const results = await Promise.all(layers.map((layer) => loadGeoLayer(layer)));
   for (const load of results) resolved.set(load.layer, load);
   catalogCache = undefined;
   return Object.freeze(results);

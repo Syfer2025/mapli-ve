@@ -22,7 +22,7 @@ import type { GeoBounds, LngLat } from "./types.js";
 /** Versão de formato que este leitor entende. Ver `MESH_FORMAT_VERSION`. */
 export const GEO_MESH_FORMAT_VERSION = 1;
 
-export type GeoFeatureKind = "country" | "state" | "river";
+export type GeoFeatureKind = "country" | "state" | "river" | "road";
 
 export interface GeoRingEntry {
   /** Índice do primeiro vértice no buffer, em vértices — não em bytes. */
@@ -146,7 +146,7 @@ function ringInView(ring: GeoRingEntry, view: GeoViewBounds): boolean {
 }
 
 function isFeatureKind(value: string): value is GeoFeatureKind {
-  return value === "country" || value === "state" || value === "river";
+  return value === "country" || value === "state" || value === "river" || value === "road";
 }
 
 /**

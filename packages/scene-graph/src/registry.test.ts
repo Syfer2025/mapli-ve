@@ -42,16 +42,16 @@ function rootNode(): Node {
 }
 
 describe("builtin node type registry", () => {
-  it("registra exatamente os dezessete tipos base em ordem explícita", () => {
+  it("registra exatamente os dezoito tipos base em ordem explícita", () => {
     const registry = createBuiltinNodeTypeRegistry();
-    expect(registry.size).toBe(17);
+    expect(registry.size).toBe(18);
     expect(registry.list().map((item) => item.type)).toEqual(BUILTIN_NODE_TYPE_IDS);
     expect(BUILTIN_NODE_TYPES.map((item) => item.type)).toEqual(BUILTIN_NODE_TYPE_IDS);
   });
 
-  it("território e rio têm preenchimento e contorno independentes", () => {
+  it("território, rio e estradas têm preenchimento e contorno independentes", () => {
     const registry = createBuiltinNodeTypeRegistry();
-    for (const type of ["geo.region", "geo.rivers"] as const) {
+    for (const type of ["geo.region", "geo.rivers", "geo.roads"] as const) {
       const definition = registry.get(type);
       expect(definition?.category, type).toBe("geo");
       // Âncora geográfica: os anéis chegam relativos ao centro do território.
@@ -77,9 +77,13 @@ describe("builtin node type registry", () => {
     }
   });
 
-  it("o rio nasce sem preenchimento; o território nasce com", () => {
+  it("o rio e as estradas nascem sem preenchimento; o território nasce com", () => {
     const registry = createBuiltinNodeTypeRegistry();
     const river = registry.createDefaultProps("geo.rivers") as Record<
+      string,
+      { readonly value: unknown }
+    >;
+    const roads = registry.createDefaultProps("geo.roads") as Record<
       string,
       { readonly value: unknown }
     >;
@@ -88,10 +92,12 @@ describe("builtin node type registry", () => {
       { readonly value: unknown }
     >;
     expect(river["fillAlpha"]?.value).toBe(0);
+    expect(roads["fillAlpha"]?.value).toBe(0);
     expect(region["fillAlpha"]?.value).toBeGreaterThan(0);
-    // Os dois nascem com contorno visível: um nó invisível ao ser criado parece
+    // Os três nascem com contorno visível: um nó invisível ao ser criado parece
     // que o comando falhou.
     expect(river["strokeAlpha"]?.value).toBeGreaterThan(0);
+    expect(roads["strokeAlpha"]?.value).toBeGreaterThan(0);
     expect(region["strokeAlpha"]?.value).toBeGreaterThan(0);
   });
 

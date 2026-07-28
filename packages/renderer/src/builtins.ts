@@ -208,6 +208,7 @@ export const BUILTIN_RENDERABLE_TYPES = [
   "shape.circle",
   "geo.region",
   "geo.rivers",
+  "geo.roads",
   "symbol.icon",
   "unit.armor",
   "unit.infantry",
@@ -231,9 +232,10 @@ const BUILTIN_EVALUATORS: Readonly<
   "shape.line": lineVisual,
   "shape.polygon": polygonVisual,
   "shape.circle": circleVisual,
-  // Região e rio compartilham a primitiva: o que muda é `closed` nas props.
+  // Região, rio e estradas compartilham a primitiva: o que muda é `closed` nas props.
   "geo.region": geoShapeVisual,
   "geo.rivers": geoShapeVisual,
+  "geo.roads": geoShapeVisual,
   "symbol.icon": iconVisual,
   "unit.armor": armorVisual,
   "unit.infantry": infantryVisual,

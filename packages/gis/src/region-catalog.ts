@@ -46,6 +46,7 @@ const KIND_WEIGHT: Readonly<Record<GeoFeatureKind, number>> = Object.freeze({
   country: 1,
   state: 0.94,
   river: 0.9,
+  road: 0.88,
 });
 
 function countryOf(feature: GeoFeature): string | undefined {
@@ -67,6 +68,11 @@ function detailOf(feature: GeoFeature): string {
     case "river": {
       const klass = feature.props["featurecla"];
       return klass === undefined ? "Rio" : `Rio · ${klass}`;
+    }
+    case "road": {
+      // A malha de estradas é por país (ADR-011); a rodovia não tem nome próprio.
+      const continent = feature.props["CONTINENT"];
+      return continent === undefined ? "Estradas" : `Estradas · ${continent}`;
     }
   }
 }
