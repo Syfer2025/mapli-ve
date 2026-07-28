@@ -61,7 +61,21 @@ function compositionToViewport(composition: Composition, viewport: Vec2): Mat2D 
 }
 
 interface StudioDebugWindow extends Window {
-  __theatrumStudio?: { readonly status: () => ReturnType<StudioSceneRuntime["status"]> };
+  __theatrumStudio?: {
+    readonly status: () => ReturnType<StudioSceneRuntime["status"]>;
+    /**
+     * Onde um ponto do palco cai na tela, em pixels CSS.
+     *
+     * Diagnostico DEV, no mesmo espirito do `__theatrumScene3d.materials()`:
+     * existe para o verificador poder afirmar que o rotulo tecnico segue a
+     * PROJECAO da camera orbital, e nao uma posicao qualquer. Sem isto o criterio
+     * teria de ler o layout de outro painel — que foi exatamente o acoplamento
+     * que o ADR-014 desfez.
+     */
+    readonly project: (
+      point: readonly [number, number, number],
+    ) => readonly [number, number] | null;
+  };
 }
 
 export function StudioViewport(): ReactNode {
@@ -74,6 +88,8 @@ export function StudioViewport(): ReactNode {
   /** Sobe quando o Pixi termina de inicializar: o primeiro frame precisa dele. */
   const [rendererRevision, setRendererRevision] = useState(0);
   const [size, setSize] = useState<readonly [number, number]>([0, 0]);
+  /** Espelho do tamanho para o diagnostico, que roda fora do ciclo do React. */
+  const sizeRef = useRef<readonly [number, number]>([0, 0]);
   /** Bump para repintar quando o GLB termina de carregar, fora do ciclo do React. */
   const [assetRevision, setAssetRevision] = useState(0);
   const [status, setStatus] = useState("palco vazio · adicione um nó Palco 3D");
@@ -98,7 +114,10 @@ export function StudioViewport(): ReactNode {
     // ADR-014; se algum dia houver dois palcos, este é o ponto que muda.
     setActiveStudioRuntime(runtime);
     if (import.meta.env.DEV) {
-      (window as StudioDebugWindow).__theatrumStudio = { status: () => runtime.status() };
+      (window as StudioDebugWindow).__theatrumStudio = {
+        status: () => runtime.status(),
+        project: (point) => runtime.project(point, sizeRef.current[0], sizeRef.current[1]),
+      };
     }
     return () => {
       runtimeRef.current = null;
@@ -173,6 +192,7 @@ export function StudioViewport(): ReactNode {
       (candidate) => candidate.id === session.selectedCompositionId,
     );
     if (composition === undefined) return;
+    sizeRef.current = size;
 
     // Duas etapas separadas de propósito, igual ao Viewport: `evaluate` é puro e
     // não conhece comportamentos (L2 não importa L3); o passe de comportamentos

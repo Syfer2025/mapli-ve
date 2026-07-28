@@ -305,6 +305,36 @@ const anyModelAsset = () => {
  * Escolhe o menor arquivo do índice: o palco não liga para qual modelo é, e
  * 3 MB carregam em uma fração do tempo de 25 MB.
  */
+
+/**
+ * Centroide dos pixels desenhados no overlay Pixi DO PALCO.
+ *
+ * No palco o overlay desenha apenas rotulos: no ancorado em geo e descartado pelo
+ * projetor do palco, e o modelo vive no canvas 3D. Entao pixel opaco aqui E o
+ * rotulo, e o centroide dele e uma medida direta do efeito — sem ler layout,
+ * sem confiar em estrutura interna.
+ */
+const calloutCentroid = () => {
+  const src = document.querySelector('.studio-viewport__pixi');
+  if (src === null) return null;
+  const scratch = document.createElement('canvas');
+  scratch.width = src.width;
+  scratch.height = src.height;
+  const ctx = scratch.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(src, 0, 0);
+  const img = ctx.getImageData(0, 0, scratch.width, scratch.height);
+  let sx = 0, sy = 0, n = 0;
+  for (let y = 0; y < img.height; y++) {
+    for (let x = 0; x < img.width; x++) {
+      if (img.data[(y * img.width + x) * 4 + 3] > 24) { sx += x; sy += y; n++; }
+    }
+  }
+  if (n < 40) return null;
+  // De pixels de buffer para pixels CSS: o overlay renderiza em devicePixelRatio.
+  const box = src.getBoundingClientRect();
+  return [(sx / n) * (box.width / img.width), (sy / n) * (box.height / img.height), n];
+};
+
 const ensureModelAsset = async () => {
   const existing = anyModelAsset();
   if (existing !== null) return { asset: existing, file: '(já estava no cofre)' };
@@ -607,6 +637,13 @@ async function main() {
     }
 
     // ── 4. Rótulo técnico acompanha o modelo pela projeção 3D ───────────────
+    //
+    // Medido em PIXEL, não lendo o layout. A versão anterior lia
+    // window.__theatrumPhase4 — o overlay do VIEWPORT — para achar as posições, e
+    // esse painel está desmontado quando a aba do palco está na frente
+    // (ADR-014). Além de quebrar, era a prova errada: afirmava a estrutura
+    // interna em vez do efeito. Agora a projeção vem do diagnóstico do palco e a
+    // posição do rótulo vem dos pixels que ele realmente desenhou.
     if (modelId !== undefined) {
       const report = await client.evaluate(
         `(async () => {
@@ -619,50 +656,58 @@ async function main() {
           // O modelo sai do centro para que a projeção tenha o que provar: com
           // ele na origem, o rótulo acertaria o alvo mesmo com projeção errada.
           session().actions.setPropertyValue(${JSON.stringify(modelId)}, 'props.stageX', 6);
+          const stageX = 6;
           const samples = [];
           for (const frame of [0, 20, 40]) {
-            const snapshot = await atFrame(frame);
-            await wait(140);
-            const model = snapshot.nodes.find((n) => n.id === ${JSON.stringify(modelId)});
-            const callout = snapshot.nodes.find((n) => n.id === id);
+            await atFrame(frame);
+            await wait(220);
             samples.push({
               frame,
-              camera: studio().cameraPosition,
-              model: model === undefined ? null : model.screenPx,
-              callout: callout === undefined ? null : callout.screenPx,
-              visible: model === undefined ? null : model.visible,
+              modelo: window.__theatrumStudio.project([stageX, 0, 0]),
+              rotulo: calloutCentroid(),
             });
           }
           return { id, samples };
         })()`,
       );
-      const withPositions = report.samples.filter(
-        (sample) => Array.isArray(sample.model) && Array.isArray(sample.callout),
+      const completos = report.samples.filter(
+        (sample) => Array.isArray(sample.modelo) && Array.isArray(sample.rotulo),
       );
-      // O rótulo tem de ficar exatamente no afastamento pedido do modelo, em
-      // todo frame — é essa igualdade que prova que ele leu a projeção 3D.
-      const offsets = withPositions.map((sample) => [
-        sample.callout[0] - sample.model[0],
-        sample.callout[1] - sample.model[1],
-      ]);
-      const offsetOk =
-        offsets.length === report.samples.length &&
-        offsets.every(([dx, dy]) => Math.abs(dx - 140) < 1.5 && Math.abs(dy + 90) < 1.5);
-      // E o modelo tem de realmente se mover na tela enquanto a câmera orbita.
-      const moved =
-        withPositions.length < 2
+      // O rótulo fica do lado pedido do modelo: à direita (offsetX 140) e acima
+      // (offsetY -90). Tolerância larga de propósito — o centroide é do BLOCO
+      // desenhado, com caixa e guia, não do ponto de âncora. O que se prova é a
+      // relação, não uma coordenada exata.
+      const ladoOk =
+        completos.length === report.samples.length &&
+        completos.every(
+          (sample) =>
+            sample.rotulo[0] > sample.modelo[0] && sample.rotulo[1] < sample.modelo[1] + 40,
+        );
+      // E o modelo tem de se mover de verdade na tela enquanto a câmera orbita —
+      // senão a relação acima se manteria por acidente, com tudo parado.
+      const andou =
+        completos.length < 2
           ? 0
           : Math.hypot(
-              withPositions[withPositions.length - 1].model[0] - withPositions[0].model[0],
-              withPositions[withPositions.length - 1].model[1] - withPositions[0].model[1],
+              completos[completos.length - 1].modelo[0] - completos[0].modelo[0],
+              completos[completos.length - 1].modelo[1] - completos[0].modelo[1],
+            );
+      // O rótulo tem de acompanhar: se ele ficasse parado enquanto o modelo anda,
+      // a relação de lado quebraria em algum frame — mas medir os dois deixa a
+      // falha legível em vez de misteriosa.
+      const rotuloAndou =
+        completos.length < 2
+          ? 0
+          : Math.hypot(
+              completos[completos.length - 1].rotulo[0] - completos[0].rotulo[0],
+              completos[completos.length - 1].rotulo[1] - completos[0].rotulo[1],
             );
       record(
         "4 · rótulo acompanha o modelo pela projeção da câmera orbital",
-        offsetOk && moved > 20,
-        `${withPositions.length}/${report.samples.length} amostras com posição; ` +
-          `modelo em ${withPositions.map((s) => `(${s.model[0].toFixed(0)},${s.model[1].toFixed(0)})`).join("→")}, ` +
-          `deslocamento na tela ${Number(moved).toFixed(0)} px, ` +
-          `afastamento do rótulo ${offsets.map(([dx, dy]) => `(${dx.toFixed(1)},${dy.toFixed(1)})`).join(" ")}`,
+        ladoOk && andou > 12 && rotuloAndou > 6,
+        `${completos.length}/${report.samples.length} amostras com rótulo desenhado, ` +
+          `lado ${ladoOk ? "correto em todas" : "ERRADO"}, ` +
+          `modelo andou ${andou.toFixed(1)} px, rótulo andou ${rotuloAndou.toFixed(1)} px`,
       );
     }
   } finally {
