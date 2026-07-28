@@ -26,7 +26,8 @@
 
 .scene-overlay,
 .scene-overlay__pixi,
-.scene-overlay__ui {
+.scene-overlay__ui,
+.scene-overlay__studio {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -39,8 +40,33 @@
 }
 
 .scene-overlay__pixi,
-.scene-overlay__ui {
+.scene-overlay__ui,
+.scene-overlay__studio {
   display: block;
+}
+
+/*
+ * O palco fica ENTRE o mapa e o overlay Pixi: ele substitui o mapa como fundo,
+ * e rótulos, efeitos e filtros da Fase 6 continuam desenhando por cima sem saber
+ * que o fundo mudou (ADR-012).
+ *
+ * `visibility` em vez de `display: none` porque um canvas WebGL sem caixa de
+ * layout tem tamanho zero, e o contexto teria de ser redimensionado a cada
+ * entrada no modo. Invisível ele mantém o tamanho e o primeiro frame do modo
+ * sai correto.
+ */
+.scene-overlay__studio {
+  z-index: 0;
+  visibility: hidden;
+}
+
+.scene-overlay--studio .scene-overlay__studio {
+  visibility: visible;
+}
+
+/* Sem mapa no palco: ele continua vivo (e projetando) mas não pinta pixel. */
+.map-viewport__stage:has(.scene-overlay--studio) .map-viewport__map {
+  visibility: hidden;
 }
 
 .scene-overlay__ui {

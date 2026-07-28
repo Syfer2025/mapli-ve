@@ -300,6 +300,44 @@ const Model3dPropsSchema = z
     altitudeMeters: NumberPropertySchema,
     /** Correção do eixo do nariz do modelo, somada ao rumo do caminho. */
     headingOffset: NumberPropertySchema,
+    /**
+     * Posição no chão do palco, em metros a partir do centro (x leste, z sul).
+     * Só o modo estúdio lê: no mapa quem posiciona é a âncora geográfica.
+     *
+     * Opcionais porque chegaram depois: um projeto salvo antes do bloco 7E tem
+     * `model3d` sem elas, e exigi-las transformaria toda cena antiga em erro de
+     * validação. Ausente vale zero — o centro do palco.
+     */
+    stageX: NumberPropertySchema.optional(),
+    stageZ: NumberPropertySchema.optional(),
+  })
+  .passthrough();
+
+/**
+ * Palco do modo estúdio: chão infinito, luz e a câmera orbital.
+ *
+ * Por que a câmera é um nó e não estado do painel: keyframe. Um voo de câmera é
+ * animação como qualquer outra, e o único jeito de ele ser gravado, editado na
+ * timeline, desfeito e exportado de forma determinística é ele viver no
+ * documento, com as mesmas propriedades animáveis de qualquer nó.
+ */
+const StudioStagePropsSchema = z
+  .object({
+    targetX: NumberPropertySchema,
+    targetY: NumberPropertySchema,
+    targetZ: NumberPropertySchema,
+    distanceMeters: PositiveNumberPropertySchema,
+    azimuthDeg: NumberPropertySchema,
+    elevationDeg: NumberPropertySchema,
+    fovDeg: PositiveNumberPropertySchema,
+    background: ColorPropertySchema,
+    floor: ColorPropertySchema,
+    gridColor: ColorPropertySchema,
+    gridSpacingMeters: PositiveNumberPropertySchema,
+    gridOpacity: UnitNumberPropertySchema,
+    keyIntensity: NonNegativeNumberPropertySchema,
+    rimIntensity: NonNegativeNumberPropertySchema,
+    environmentIntensity: NonNegativeNumberPropertySchema,
   })
   .passthrough();
 
@@ -837,6 +875,8 @@ export const MODEL3D_NODE_TYPE = defineNodeType({
     scaleMeters: animatable(30_000),
     altitudeMeters: animatable(0),
     headingOffset: animatable(0),
+    stageX: animatable(0),
+    stageZ: animatable(0),
   },
   propertySchema: Model3dPropsSchema,
   properties: [
@@ -873,9 +913,231 @@ export const MODEL3D_NODE_TYPE = defineNodeType({
       step: 5,
       unit: "degrees",
     }),
+    property({
+      path: "props.stageX",
+      label: "Palco · leste",
+      kind: "number",
+      group: "layout",
+      binding: "animatable",
+      animatable: true,
+      step: 1,
+      unit: "meters",
+    }),
+    property({
+      path: "props.stageZ",
+      label: "Palco · sul",
+      kind: "number",
+      group: "layout",
+      binding: "animatable",
+      animatable: true,
+      step: 1,
+      unit: "meters",
+    }),
   ],
   supportsChildren: false,
   defaultAnchorSpace: "geo",
+  defaultSizeMode: "screen",
+});
+
+/**
+ * Palco do modo estúdio (7E.3): o cenário infinito onde um equipamento é
+ * apresentado longe de qualquer mapa.
+ *
+ * O nó não desenha nada no Pixi nem no mapa — ele **é** o modo. Quando existe um
+ * `studio.stage` visível, o viewport troca o mapa pelo canvas do estúdio
+ * ([ADR-012](../../../docs/adr/ADR-012-studio-own-canvas.md)), e os `model3d` da
+ * composição passam a ser posicionados por `stageX`/`stageZ`/`altitudeMeters` em
+ * metros, não por âncora geográfica.
+ *
+ * A câmera mora aqui, em coordenadas esféricas, porque um voo de câmera é
+ * animação: alvo, distância, azimute e elevação são propriedades animáveis como
+ * quaisquer outras, e a conta que as transforma em posição é pura
+ * (`orbitCameraPosition`, em L0).
+ *
+ * Os rótulos técnicos continuam sendo `label.callout` no overlay Pixi: eles
+ * seguem o nó alvo pela posição de tela, e no estúdio essa posição vem da
+ * projeção 3D em vez do mapa. Nada de código novo do lado do rótulo.
+ */
+export const STUDIO_STAGE_NODE_TYPE = defineNodeType({
+  type: "studio.stage",
+  category: "media",
+  label: "Palco 3D",
+  icon: "video",
+  defaultProps: {
+    targetX: animatable(0),
+    targetY: animatable(0),
+    targetZ: animatable(0),
+    distanceMeters: animatable(40),
+    azimuthDeg: animatable(35),
+    elevationDeg: animatable(14),
+    fovDeg: animatable(38),
+    background: animatable("#0b0f14ff"),
+    floor: animatable("#141a22ff"),
+    gridColor: animatable("#2f4256ff"),
+    gridSpacingMeters: animatable(5),
+    gridOpacity: animatable(0.55),
+    keyIntensity: animatable(2.6),
+    rimIntensity: animatable(1.8),
+    environmentIntensity: animatable(0.75),
+  },
+  propertySchema: StudioStagePropsSchema,
+  properties: [
+    ...COMMON_PROPERTIES,
+    property({
+      path: "props.targetX",
+      label: "Alvo · leste",
+      kind: "number",
+      group: "layout",
+      binding: "animatable",
+      animatable: true,
+      step: 0.5,
+      unit: "meters",
+    }),
+    property({
+      path: "props.targetY",
+      label: "Alvo · altura",
+      kind: "number",
+      group: "layout",
+      binding: "animatable",
+      animatable: true,
+      step: 0.5,
+      unit: "meters",
+    }),
+    property({
+      path: "props.targetZ",
+      label: "Alvo · sul",
+      kind: "number",
+      group: "layout",
+      binding: "animatable",
+      animatable: true,
+      step: 0.5,
+      unit: "meters",
+    }),
+    property({
+      path: "props.distanceMeters",
+      label: "Distância",
+      kind: "number",
+      group: "layout",
+      binding: "animatable",
+      animatable: true,
+      min: 0.01,
+      step: 1,
+      unit: "meters",
+    }),
+    property({
+      path: "props.azimuthDeg",
+      label: "Azimute",
+      kind: "number",
+      group: "layout",
+      binding: "animatable",
+      animatable: true,
+      step: 5,
+      unit: "degrees",
+    }),
+    property({
+      path: "props.elevationDeg",
+      label: "Elevação",
+      kind: "number",
+      group: "layout",
+      binding: "animatable",
+      animatable: true,
+      min: -89,
+      max: 89,
+      step: 2,
+      unit: "degrees",
+    }),
+    property({
+      path: "props.fovDeg",
+      label: "Campo de visão",
+      kind: "number",
+      group: "layout",
+      binding: "animatable",
+      animatable: true,
+      min: 5,
+      max: 120,
+      step: 1,
+      unit: "degrees",
+    }),
+    property({
+      path: "props.background",
+      label: "Fundo",
+      kind: "color",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+    }),
+    property({
+      path: "props.floor",
+      label: "Chão",
+      kind: "color",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+    }),
+    property({
+      path: "props.gridColor",
+      label: "Grade",
+      kind: "color",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+    }),
+    property({
+      path: "props.gridSpacingMeters",
+      label: "Passo da grade",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0.05,
+      step: 1,
+      unit: "meters",
+    }),
+    property({
+      path: "props.gridOpacity",
+      label: "Opacidade da grade",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      max: 1,
+      step: 0.05,
+      unit: "percent",
+    }),
+    property({
+      path: "props.keyIntensity",
+      label: "Luz principal",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      step: 0.1,
+    }),
+    property({
+      path: "props.rimIntensity",
+      label: "Contraluz",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      step: 0.1,
+    }),
+    property({
+      path: "props.environmentIntensity",
+      label: "Ambiente",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      step: 0.05,
+    }),
+  ],
+  supportsChildren: false,
+  defaultAnchorSpace: "comp",
   defaultSizeMode: "screen",
 });
 
@@ -1350,6 +1612,7 @@ export const BUILTIN_NODE_TYPE_IDS = Object.freeze([
   "unit.infantry",
   "model3d",
   "route3d",
+  "studio.stage",
 ] as const);
 
 export type BuiltinNodeType = (typeof BUILTIN_NODE_TYPE_IDS)[number];
@@ -1374,6 +1637,7 @@ export const BUILTIN_NODE_TYPES: readonly NodeTypeDefinition[] = Object.freeze([
   UNIT_INFANTRY_NODE_TYPE,
   MODEL3D_NODE_TYPE,
   ROUTE3D_NODE_TYPE,
+  STUDIO_STAGE_NODE_TYPE,
 ]);
 
 export function createBuiltinNodeTypeRegistry(): NodeTypeRegistry {

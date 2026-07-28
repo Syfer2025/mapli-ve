@@ -1,0 +1,173 @@
+/**
+ * Provas dos coletores do palco. São funções puras: o que elas leem do documento
+ * decide o que a GPU desenha, e um erro aqui aparece como um caça de trinta
+ * quilômetros ou uma câmera dentro do modelo.
+ */
+
+import { describe, expect, it } from "vitest";
+import type { EvaluatedScene } from "@theatrum/animation";
+import {
+  MAX_STAGE_SIZE_METERS,
+  collectStudioModels,
+  collectStudioStage,
+  stripAlpha,
+} from "./studio-scene.js";
+
+interface FakeNode {
+  readonly type: string;
+  readonly props: Record<string, unknown>;
+  readonly visible?: boolean;
+  readonly rotation?: number;
+  readonly opacity?: number;
+}
+
+function evaluated(entries: readonly (readonly [string, FakeNode])[]): EvaluatedScene {
+  return {
+    compositionId: "cmp",
+    frame: 0,
+    camera: {} as never,
+    drawOrder: entries.map(([id]) => id),
+    nodes: new Map(
+      entries.map(([id, entry]) => [
+        id,
+        {
+          id,
+          type: entry.type,
+          visible: entry.visible ?? true,
+          props: entry.props,
+          transform: { rotation: entry.rotation ?? 0, opacity: entry.opacity ?? 1 },
+        } as never,
+      ]),
+    ),
+  } as never;
+}
+
+describe("collectStudioStage", () => {
+  it("devolve null quando a composição não tem palco — é o que mantém o mapa no ar", () => {
+    expect(collectStudioStage(evaluated([["a", { type: "model3d", props: {} }]]))).toBeNull();
+  });
+
+  it("ignora palco invisível", () => {
+    const scene = evaluated([["p", { type: "studio.stage", props: {}, visible: false }]]);
+    expect(collectStudioStage(scene)).toBeNull();
+  });
+
+  it("com dois palcos vence o primeiro da ordem de avaliação", () => {
+    const scene = evaluated([
+      ["alto", { type: "studio.stage", props: { azimuthDeg: 10 } }],
+      ["baixo", { type: "studio.stage", props: { azimuthDeg: 200 } }],
+    ]);
+    expect(collectStudioStage(scene)?.nodeId).toBe("alto");
+    expect(collectStudioStage(scene)?.azimuthDeg).toBe(10);
+  });
+
+  it("preenche os padrões quando as props faltam", () => {
+    const stage = collectStudioStage(evaluated([["p", { type: "studio.stage", props: {} }]]));
+    expect(stage).not.toBeNull();
+    expect(stage?.distanceMeters).toBe(40);
+    expect(stage?.fovDeg).toBe(38);
+    expect(stage?.gridSpacingMeters).toBe(5);
+  });
+
+  it("limita campo de visão, grade e intensidades a valores desenháveis", () => {
+    const stage = collectStudioStage(
+      evaluated([
+        [
+          "p",
+          {
+            type: "studio.stage",
+            props: {
+              fovDeg: 400,
+              gridSpacingMeters: 0,
+              gridOpacity: 3,
+              keyIntensity: -5,
+              environmentIntensity: -1,
+            },
+          },
+        ],
+      ]),
+    );
+    expect(stage?.fovDeg).toBe(120);
+    expect(stage?.gridSpacingMeters).toBeGreaterThan(0);
+    expect(stage?.gridOpacity).toBe(1);
+    expect(stage?.keyIntensity).toBe(0);
+    expect(stage?.environmentIntensity).toBe(0);
+  });
+});
+
+describe("collectStudioModels", () => {
+  it("posiciona por stageX/altitude/stageZ, em metros", () => {
+    const models = collectStudioModels(
+      evaluated([
+        [
+          "f18",
+          {
+            type: "model3d",
+            props: { assetId: "sha:1", stageX: 3, altitudeMeters: 1.5, stageZ: -8 },
+          },
+        ],
+      ]),
+    );
+    expect(models[0]?.position).toEqual([3, 1.5, -8]);
+  });
+
+  it("soma a rotação do nó à correção de rumo — o mesmo contrato do mapa", () => {
+    const models = collectStudioModels(
+      evaluated([
+        ["f18", { type: "model3d", props: { assetId: "sha:1", headingOffset: 90 }, rotation: 45 }],
+      ]),
+    );
+    expect(models[0]?.headingDeg).toBe(135);
+  });
+
+  it("pula modelo sem asset — instância vazia não desenha e ainda ocupa slot", () => {
+    const models = collectStudioModels(
+      evaluated([
+        ["vazio", { type: "model3d", props: {} }],
+        ["ok", { type: "model3d", props: { assetId: "sha:1" } }],
+      ]),
+    );
+    expect(models.map((model) => model.id)).toEqual(["ok"]);
+  });
+
+  it("limita a escala herdada de uma cena de mapa", () => {
+    // 30 000 é o padrão do `model3d` no mapa: metros de TERRENO. Sem o teto, o
+    // mesmo nó arrastado para o palco vira um objeto de trinta quilômetros e a
+    // câmera, a 40 m do centro, fica dentro dele.
+    const models = collectStudioModels(
+      evaluated([["f18", { type: "model3d", props: { assetId: "sha:1", scaleMeters: 30_000 } }]]),
+    );
+    expect(models[0]?.sizeMeters).toBe(MAX_STAGE_SIZE_METERS);
+  });
+
+  it("nunca aceita escala zero ou negativa", () => {
+    for (const scaleMeters of [0, -20]) {
+      const models = collectStudioModels(
+        evaluated([["m", { type: "model3d", props: { assetId: "sha:1", scaleMeters } }]]),
+      );
+      expect(models[0]?.sizeMeters).toBeGreaterThan(0);
+    }
+  });
+
+  it("ignora tipos que não são model3d e nós invisíveis", () => {
+    const models = collectStudioModels(
+      evaluated([
+        ["rota", { type: "route3d", props: { assetId: "sha:1" } }],
+        ["oculto", { type: "model3d", props: { assetId: "sha:1" }, visible: false }],
+      ]),
+    );
+    expect(models).toEqual([]);
+  });
+});
+
+describe("stripAlpha", () => {
+  it("tira o par de alfa que faria THREE.Color devolver branco", () => {
+    expect(stripAlpha("#1a2b3c80")).toBe("#1a2b3c");
+    expect(stripAlpha("#1a2b3c")).toBe("#1a2b3c");
+  });
+
+  it("recusa lixo em vez de deixar o three reclamar e pintar branco", () => {
+    expect(stripAlpha("vermelho")).toBe("#000000");
+    expect(stripAlpha("")).toBe("#000000");
+  });
+});

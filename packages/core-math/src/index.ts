@@ -31,6 +31,15 @@ export {
 
 export { type Vec2, type Vec3, type Rect, VEC2_ZERO, VEC2_ONE, vec2, vec3, rect } from "./vec.js";
 
+export {
+  type OrbitState,
+  MAX_ELEVATION_DEG,
+  MIN_ORBIT_DISTANCE_METERS,
+  orbitCameraPosition,
+  orbitStateFromPosition,
+  orbitDistanceToFit,
+} from "./orbit.js";
+
 export { parseHexColor, formatHexColor, srgbToOklab, oklabToSrgb, lerpOklabHex } from "./color.js";
 
 export {

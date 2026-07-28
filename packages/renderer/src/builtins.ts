@@ -240,6 +240,7 @@ export const BUILTIN_RENDERABLE_TYPES = [
   "unit.infantry",
   "model3d",
   "route3d",
+  "studio.stage",
 ] as const;
 
 const BUILTIN_EVALUATORS: Readonly<
@@ -272,6 +273,10 @@ const BUILTIN_EVALUATORS: Readonly<
   // cena 3D, junto do modelo que a percorre.
   model3d: noVisual,
   route3d: noVisual,
+  // O palco não é desenhado, ele é o modo: enquanto existe um `studio.stage`
+  // visível o viewport troca o mapa pelo canvas do estúdio, e este nó só carrega
+  // câmera, luz e chão. Ver ADR-012.
+  "studio.stage": noVisual,
 };
 
 /**

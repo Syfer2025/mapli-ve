@@ -278,18 +278,58 @@ um `model3d` movido por comportamento, e a resposta depende da câmera daquele
 frame. Rótulo que arrasta atrás do objeto nasce de ler estado velho; há teste
 contra isso.
 
-#### 7E.3 — Cenário de estúdio ⏭️
+#### 7E.3 — Cenário de estúdio ✅
 
-A fazer. Modo de composição alternativo ao mapa: chão infinito com grade, câmera
-orbital animável por keyframe (alvo, distância, azimute, elevação), iluminação de
-estúdio, e anotações ancoradas a **pontos do modelo** em espaço local — girar a
-câmera tem de girar a anotação junto com a peça apontada.
+Entregue. Um nó `studio.stage` na composição troca o mapa por um palco: chão
+infinito, iluminação de três pontos e câmera orbital animável por keyframe.
 
-**Decisão pendente, e ela precisa de ADR com medição.** Hoje o `model3d` desenha
-numa camada custom do MapLibre, presa ao mapa. O estúdio precisa da mesma cena
-Three.js **sem** o mapa por baixo: segunda cena no mesmo canvas, ou canvas
-próprio? A Fase 6 mostrou que dois contextos WebGL no mesmo aplicativo custam
-caro. Medir antes de escolher.
+**A decisão pendente foi medida e virou o [ADR-012](adr/ADR-012-studio-own-canvas.md).**
+No aplicativo em execução são **2** contextos WebGL vivos (MapLibre e Pixi), o
+teto do Chromium é **16**, e criar um contexto 1280×720 custa **3,6 ms** — uma
+vez, na abertura, não por frame. Com essa folga, o que decide não é o custo e sim
+a direção da dependência: canvas próprio, para o estúdio não depender de um mapa
+escondido só para receber matriz e repintura.
+
+Peças, e por que estão onde estão:
+
+- **`orbitCameraPosition` em L0** (`packages/core-math/src/orbit.ts`). A câmera é
+  função pura de alvo, distância, azimute e elevação, longe do Three.js, porque o
+  export da Fase 8 precisa reproduzi-la. A elevação é limitada a ±89° **dentro**
+  da função: um keyframe em 88° e outro em 92° passa por 90° no meio, onde a
+  matriz de observação degenera, e a interpolação não pergunta a ninguém.
+- **Chão infinito em shader** (`studio-grid.ts`), não geometria. Um quad de tela
+  cheia que o fragment desprojeta até o plano y = 0; a espessura da linha é medida
+  em pixels via `fwidth`, então uma linha a 5 m e outra a 5 km têm a mesma nitidez.
+  Um `GridHelper` N × N mostraria a borda ao recuar e cintilaria à distância.
+- **`three-assets.ts`** carrega e normaliza o GLB para os dois modos. A extração
+  era parte da entrega, não limpeza futura: duas cópias da iluminação divergem no
+  primeiro ajuste feito em uma delas.
+- **Os rótulos técnicos não ganharam código.** `label.callout` procura o alvo em
+  `layout.layouts`; no palco quem preenche essa entrada é a projeção da câmera
+  orbital em vez do MapLibre. Modelo atrás da câmera vira `culled`, não uma
+  posição inventada — projeção com w negativo devolve coordenada espelhada.
+
+Três defeitos que só a medição em pixel encontrou, todos silenciosos:
+
+1. `RawShaderMaterial` **não injeta nada** — nem precisão, nem os atributos
+   padrão. Sem `in vec3 position;` declarado à mão o programa não linka, e o three
+   engole a falha: o chão simplesmente não aparecia, sem erro.
+2. As cores chegam **convertidas para linear** (`THREE.Color` converte ao ler um
+   hex), e um raw shader escreve no framebuffer sem a conversão de volta. O chão
+   `#141a22` saía como 2/3/4 em vez de 20/26/34, e a grade — uma mistura entre
+   duas cores já escuras — sumia junto. Nenhum erro, só ilegível.
+3. `WEBGL_lose_context.loseContext()` no descarte parecia certo e envenenava o
+   canvas: é definitivo, o elemento é reaproveitado entre montagens, e a montagem
+   seguinte pegava o contexto morto. O three só quebrava adiante, lendo
+   `precision` de null.
+
+Verificado em Electron real: `node tools/verify-phase7e3.mjs` — **5/5**. O palco
+substitui o mapa e desenha grade (7/7/6 transições de luminância em três linhas);
+um GLB da Biblioteca local pinta 6,64% da tela e some sem resíduo com opacidade 0;
+azimute animado de 0° a 180° mantém o raio em 40,000 m com dispersão de 0,0000 m e
+muda 13–15% dos pixels a cada amostra; o rótulo mantém o afastamento exato de
+(140, −90) px enquanto o modelo percorre 334 px de tela. Desfazer devolve o
+documento byte a byte e traz o mapa de volta.
 
 #### 7E.4 — VFX volumétrico ⛔ bloqueado por ferramenta
 

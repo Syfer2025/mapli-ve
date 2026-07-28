@@ -61,11 +61,15 @@ nesta sessão, duas não. Detalhe completo em
 | `6315d3b` | 7E.1 — camada de satélite por raiz nomeada, sem quebrar o offline |
 | `8ea54a9` | 7E.2 — rótulo com caixa e guia que acompanha objeto ou rota       |
 
-**7E.3, cenário de estúdio: a fazer.** Chão infinito com grade, câmera orbital
-animável, iluminação de estúdio, anotações presas a pontos do modelo. A decisão
-que trava o começo — segunda cena Three no mesmo canvas ou canvas próprio —
-precisa de ADR **com medição**, porque a Fase 6 mostrou que dois contextos WebGL
-no mesmo aplicativo custam caro.
+**7E.3, cenário de estúdio: entregue e provado (5/5 em `verify-phase7e3.mjs`).**
+A decisão que travava o começo foi medida e virou o
+[ADR-012](adr/ADR-012-studio-own-canvas.md): **2** contextos WebGL vivos hoje,
+teto do Chromium em **16**, criar um custa **3,6 ms** uma vez. Com essa folga o
+que decide é a direção da dependência, não o custo — canvas próprio, para o palco
+não depender de um mapa escondido. Um nó `studio.stage` na composição liga o modo;
+a câmera é `orbitCameraPosition` em L0, função pura, porque a Fase 8 vai precisar
+reproduzi-la. Ver [08-ROADMAP § 7E.3](08-ROADMAP.md#7e3--cenário-de-estúdio-)
+para as peças e os três defeitos silenciosos que só a medição em pixel achou.
 
 **7E.4, VFX volumétrico: bloqueado por ferramenta, não por decisão.** Os 7,6 GB
 de VDB da JangaFX que o dono deixou não rodam em WebGL — é formato de volume para
@@ -190,6 +194,36 @@ Duas mordidas da prova do `geo.roads`, na mesma sessão:
    despercebido em zoom de país. O remendo é `matriz × translate(pivot)`, em
    `geo-nodes.ts`; a prova geométrica com vários vértices é o que pega essa
    classe de defeito — um vértice só pode casar com a estrada vizinha errada.
+
+### 4.11 `RawShaderMaterial` não injeta nada
+
+O `ShaderMaterial` normal do three declara `position`, `normal`, `uv`,
+`modelViewMatrix` e a precisão por você. O **Raw** não declara nenhum. Um vertex
+shader que usa `position` sem a linha `in vec3 position;` não linka, e o three
+engole a falha: o objeto simplesmente não aparece, sem erro no console e sem
+`gl.getError()` diferente de zero. Se um material próprio não desenha, comece
+declarando os atributos à mão.
+
+### 4.12 Cor em raw shader sai escura: falta o encode sRGB
+
+`THREE.Color.set('#141a22')` **converte de sRGB para linear** ao ler o hex — é o
+padrão desde o r152. Um `ShaderMaterial` normal recebe a conversão de volta
+injetada na saída; um Raw não. O resultado é o valor linear escrito como se fosse
+sRGB: `#141a22` (20/26/34) vira 2/3/4 na tela. Quase preto, sem erro nenhum, e
+qualquer coisa desenhada por mistura entre duas cores escuras desaparece junto.
+Faça o encode no fim do fragmento — a mistura antes, em linear, que é onde ela
+está correta. Referência: `linearToSrgb` em
+`apps/editor/src/panels/viewport/studio-grid.ts`.
+
+### 4.13 `loseContext()` mata o canvas para sempre
+
+Parece a forma educada de devolver um contexto WebGL, e é uma armadilha quando o
+elemento canvas é reaproveitado: `WEBGL_lose_context.loseContext()` é definitivo,
+não existe restauração automática, e a próxima montagem do componente recebe o
+contexto morto de volta em `getContext`. O three aceita e só quebra adiante, com
+`TypeError: Cannot read properties of null (reading 'precision')` no meio da
+inicialização — nenhuma palavra sobre contexto perdido. Use só `renderer.dispose()`
+e deixe o navegador recolher o contexto junto com o elemento.
 
 ## 5. Como verificar de verdade
 
