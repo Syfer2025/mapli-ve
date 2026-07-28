@@ -1,5 +1,10 @@
 import { DATA_BASE_URL } from "@theatrum/shell";
-import type { LayerSpecification, StyleSpecification } from "maplibre-gl";
+import type {
+  LayerSpecification,
+  RasterSourceSpecification,
+  StyleSpecification,
+} from "maplibre-gl";
+import { rasterSourceUrl, type RasterBasemap } from "./raster-basemap.js";
 
 export type MapStyleId = "dark-relief" | "historical-parchment" | "minimal-political";
 
@@ -233,3 +238,71 @@ export function createMapStyle(styleId: MapStyleId): StyleSpecification {
     layers: layers(palette),
   };
 }
+
+/**
+ * Estilo com imagem de satélite por baixo.
+ *
+ * Duas variantes, e a diferença entre elas é o que a AiTelly usa nas cenas:
+ * satélite **puro** para o plano geral, e satélite **com rótulos** quando a cena
+ * precisa nomear cidades e países. A segunda reaproveita as camadas de rótulo do
+ * estilo vetorial — não há um segundo conjunto de tipografia para manter.
+ *
+ * A opacidade entra como parâmetro porque o documento pode animá-la: é o que
+ * permite dissolver de vetorial para satélite dentro de uma animação, em vez de
+ * trocar de estilo no meio e piscar.
+ */
+export function createSatelliteStyle(
+  basemap: RasterBasemap,
+  options: { readonly labels: boolean; readonly opacity?: number } = { labels: true },
+): StyleSpecification {
+  const palette = PALETTES["dark-relief"];
+  const source = rasterSourceUrl(basemap);
+  const raster: RasterSourceSpecification = {
+    type: "raster",
+    tileSize: basemap.tileSize,
+    minzoom: basemap.minZoom,
+    maxzoom: basemap.maxZoom,
+    attribution: basemap.attribution,
+    ...(source.kind === "pmtiles" ? { url: source.url } : { tiles: [source.url] }),
+  };
+
+  /**
+   * Só rótulo e fronteira sobrevivem por cima da imagem. Preenchimento de país e
+   * cor de oceano tapariam justamente o que a imagem tem a dizer.
+   */
+  const overlays = options.labels
+    ? layers(palette).filter((layer) =>
+        ["country-borders", "country-labels", "cities", "city-labels"].includes(layer.id),
+      )
+    : [];
+
+  return {
+    version: 8,
+    name: `${basemap.label}${options.labels ? " com rótulos" : ""}`,
+    glyphs: GLYPHS_URL,
+    sources: {
+      satellite: raster,
+      "natural-earth": {
+        type: "vector",
+        url: BASEMAP_URL,
+        attribution: "Natural Earth · domínio público",
+      },
+      places: { type: "geojson", data: PLACES_URL },
+    },
+    layers: [
+      // Fundo escuro por baixo: enquanto um tile não chega, buraco preto é menos
+      // ruim que o cinza padrão do MapLibre, que parece terreno.
+      { id: "void", type: "background", paint: { "background-color": "#05070a" } },
+      {
+        id: SATELLITE_LAYER_ID,
+        type: "raster",
+        source: "satellite",
+        paint: { "raster-opacity": options.opacity ?? 1 },
+      },
+      ...overlays,
+    ],
+  };
+}
+
+/** Id da camada raster, para animar a opacidade sem recriar o estilo. */
+export const SATELLITE_LAYER_ID = "satellite-imagery";

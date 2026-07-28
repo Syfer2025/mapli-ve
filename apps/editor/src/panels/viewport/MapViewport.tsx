@@ -27,7 +27,19 @@ import {
 } from "react";
 import { Button } from "../../ui/index.js";
 import { createMapLibreCameraPort } from "./maplibre-adapters.js";
-import { createMapStyle, MAP_STYLE_OPTIONS, type MapStyleId } from "./map-styles.js";
+import {
+  createMapStyle,
+  createSatelliteStyle,
+  MAP_STYLE_OPTIONS,
+  type MapStyleId,
+} from "./map-styles.js";
+import {
+  loadRasterBasemaps,
+  parseStyleChoice,
+  rasterBasemapById,
+  type RasterBasemap,
+  type StyleChoice,
+} from "./raster-basemap.js";
 import { attachScene3dLayer, detachScene3dLayer } from "./scene3d-layer.js";
 import { loadNaturalEarthGazetteer } from "./natural-earth-gazetteer.js";
 import { SceneOverlay } from "./SceneOverlay.js";
@@ -98,6 +110,22 @@ function formatTime(currentFrame: number): string {
   return `00:${String(wholeSeconds).padStart(2, "0")}:${String(subframe).padStart(2, "0")}`;
 }
 
+/**
+ * Resolve a escolha do seletor no estilo concreto.
+ *
+ * Satélite cujo id sumiu — imagem removida do disco entre sessões — volta ao
+ * relevo escuro em vez de deixar o mapa em branco. Perder o estilo é chato;
+ * perder o mapa é pior.
+ */
+function styleSpecFor(choice: StyleChoice) {
+  const parsed = parseStyleChoice(choice);
+  if (parsed.kind === "satellite") {
+    const basemap = rasterBasemapById(parsed.id);
+    if (basemap !== undefined) return createSatelliteStyle(basemap, { labels: parsed.labels });
+  }
+  return createMapStyle((parsed.kind === "vector" ? parsed.id : "dark-relief") as MapStyleId);
+}
+
 export function MapViewport(): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -107,7 +135,9 @@ export function MapViewport(): ReactNode {
   const loopRef = useRef(false);
   const fpsRef = useRef({ startedAt: 0, frames: 0 });
 
-  const [styleId, setStyleId] = useState<MapStyleId>("dark-relief");
+  const [styleId, setStyleId] = useState<StyleChoice>("dark-relief");
+  /** Imagens de satélite achadas nesta máquina; vazio esconde as opções. */
+  const [rasters, setRasters] = useState<readonly RasterBasemap[]>([]);
   const [mapInstance, setMapInstance] = useState<MapLibreMap | null>(null);
   const [cameraRevision, setCameraRevision] = useState(0);
   const [mapStatus, setMapStatus] = useState("iniciando mapa local…");
@@ -197,7 +227,7 @@ export function MapViewport(): ReactNode {
 
     const map = new maplibregl.Map({
       container,
-      style: createMapStyle(styleId),
+      style: styleSpecFor(styleId),
       center: [WARSAW.center[0], WARSAW.center[1]],
       zoom: WARSAW.zoom,
       bearing: WARSAW.bearing,
@@ -302,10 +332,22 @@ export function MapViewport(): ReactNode {
     loopRef.current = isLooping;
   }, [isLooping]);
 
-  const selectStyle = (nextStyle: MapStyleId): void => {
+  // Imagem de satélite é opcional e local: descobre uma vez, e a ausência
+  // simplesmente não acrescenta opção ao seletor.
+  useEffect(() => {
+    let active = true;
+    void loadRasterBasemaps().then((found) => {
+      if (active) setRasters(found);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const selectStyle = (nextStyle: StyleChoice): void => {
     setStyleId(nextStyle);
     setMapStatus("aplicando estilo local…");
-    mapRef.current?.setStyle(createMapStyle(nextStyle), { diff: false });
+    mapRef.current?.setStyle(styleSpecFor(nextStyle), { diff: false });
   };
 
   const goToHit = useCallback(
@@ -368,6 +410,12 @@ export function MapViewport(): ReactNode {
               <option key={option.id} value={option.id}>
                 {option.label}
               </option>
+            ))}
+            {rasters.map((basemap) => (
+              <optgroup key={basemap.id} label={basemap.label}>
+                <option value={`sat:${basemap.id}`}>{basemap.label}</option>
+                <option value={`sat+:${basemap.id}`}>{basemap.label} com rótulos</option>
+              </optgroup>
             ))}
           </select>
         </label>
