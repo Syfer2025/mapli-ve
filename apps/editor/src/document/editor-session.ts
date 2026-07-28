@@ -743,6 +743,29 @@ export const editorActions = Object.freeze({
     }
   },
 
+  async openExample(exampleId: string): Promise<void> {
+    if (!confirmDiscard()) return;
+    update({ status: "Abrindo exemplo…", error: null });
+    try {
+      const opened = await bridge.project.openExample(exampleId);
+      if (opened.status === "cancelled") return;
+      const parsed = parseProjectContainer(opened.bytes);
+      if (!parsed.ok) {
+        update({ status: "Falha ao abrir exemplo", error: parsed.error.message });
+        return;
+      }
+      await replaceProject(
+        parsed.value.document,
+        opened.file,
+        "Exemplo aberto · Salvar criará uma cópia",
+        false,
+        containerExtrasFromOpenedProject(parsed.value),
+      );
+    } catch (error: unknown) {
+      update({ status: "Falha ao abrir exemplo", error: describeError(error) });
+    }
+  },
+
   async saveProject(saveAs = false): Promise<void> {
     update({ status: "Salvando…", error: null });
     const documentToSave = documentStore.get();

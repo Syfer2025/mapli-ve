@@ -12,7 +12,7 @@
  * Ver [ADR-013](../../../../../docs/adr/ADR-013-export-frame-composition.md).
  */
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { deflateSync, constants as zlibConstants } from "node:zlib";
@@ -23,12 +23,15 @@ export interface ExportBeginRequest {
   readonly jobName: string;
   /** Destino já conhecido; presente, o diálogo é pulado. */
   readonly directory?: string;
+  /** Cria uma pasta privada de PNGs para um encoder posterior. */
+  readonly staging?: boolean;
 }
 
 export interface ExportBeginResult {
   readonly ok: boolean;
   /** Pasta onde os frames serão escritos. Vazia quando o usuário cancelou. */
   readonly directory: string;
+  readonly framesDirectory?: string;
   readonly message?: string;
 }
 
@@ -67,7 +70,7 @@ export async function beginExport(
   if (request.directory !== undefined && request.directory !== "") {
     const explicit = resolve(request.directory);
     await mkdir(explicit, { recursive: true });
-    return { ok: true, directory: explicit };
+    return withStaging(explicit, request.staging === true);
   }
   const chosen = await dialog.showOpenDialog(window, {
     title: "Onde salvar a sequência de frames",
@@ -80,7 +83,14 @@ export async function beginExport(
   }
   const directory = join(chosen.filePaths[0], safeSegment(request.jobName));
   await mkdir(directory, { recursive: true });
-  return { ok: true, directory };
+  return withStaging(directory, request.staging === true);
+}
+
+async function withStaging(directory: string, staging: boolean): Promise<ExportBeginResult> {
+  if (!staging) return { ok: true, directory };
+  const framesDirectory = join(directory, `.theatrum-frames-${randomUUID()}`);
+  await mkdir(framesDirectory, { recursive: true });
+  return { ok: true, directory, framesDirectory };
 }
 
 /**

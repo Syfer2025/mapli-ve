@@ -44,6 +44,16 @@
   border-left: 1px solid var(--border);
 }
 
+.app__example-select {
+  max-width: 190px;
+  height: var(--control-height-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+
 .app__document-name {
   max-width: 240px;
   overflow: hidden;

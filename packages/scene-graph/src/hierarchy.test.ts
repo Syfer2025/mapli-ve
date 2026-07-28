@@ -60,6 +60,16 @@ describe("hierarchy invariants", () => {
     expect(topologicalOrder(result)).toEqual([result.root, "nd_back", "nd_nested", "nd_front"]);
   });
 
+  it("não guarda em cache uma composição mutável", () => {
+    const result = validTree();
+    expect(topologicalOrder(result)).toHaveLength(4);
+    const root = result.nodes[result.root];
+    if (root === undefined) throw new Error("fixture sem raiz");
+    root.children.push("nd_after");
+    result.nodes["nd_after"] = childNode(root, "nd_after", root.id);
+    expect(topologicalOrder(result).at(-1)).toBe("nd_after");
+  });
+
   it("reporta raiz ausente sem lançar durante a validação", () => {
     const result = composition();
     result.root = "nd_missing";

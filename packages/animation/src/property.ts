@@ -50,16 +50,29 @@ export function keyframeSegment<T>(
 export function evaluateProperty<T>(property: AnimatableProperty<T>, frame: number): T {
   const keyframes = property.keyframes;
   const first = keyframes[0];
-  if (first === undefined) return cloneValue(property.value);
-  if (frame <= first.frame) return cloneValue(first.value);
+  if (first === undefined) return evaluatedValue(property, property.value);
+  if (frame <= first.frame) return evaluatedValue(first, first.value);
 
   const last = keyframes[keyframes.length - 1];
-  if (last === undefined || frame >= last.frame) return cloneValue(last?.value ?? property.value);
+  if (last === undefined || frame >= last.frame) {
+    return last === undefined
+      ? evaluatedValue(property, property.value)
+      : evaluatedValue(last, last.value);
+  }
 
   const segment = keyframeSegment(property, frame);
   if (segment === null) return cloneValue(property.value);
   const progress = easedProgress(segment.left.out, segment.right.in, segment.progress);
   return interpolateKeyframes(segment.left, segment.right, progress);
+}
+
+/**
+ * O DocumentStore congela profundamente o documento. Valores que vêm dele já
+ * são imutáveis e podem ser compartilhados pelo frame avaliado sem alocação.
+ * Entradas mutáveis de testes/chamadores continuam recebendo uma cópia.
+ */
+function evaluatedValue<T>(owner: object, value: T): T {
+  return Object.isFrozen(owner) ? value : cloneValue(value);
 }
 
 /**

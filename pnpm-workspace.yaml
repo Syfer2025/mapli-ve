@@ -8,3 +8,6 @@ packages:
 allowBuilds:
   esbuild: true
   electron: true
+  # Dependência opcional do electron-builder para Squirrel; o Theatrum usa
+  # NSIS, então o script dela é deliberadamente ignorado.
+  electron-winstaller: false

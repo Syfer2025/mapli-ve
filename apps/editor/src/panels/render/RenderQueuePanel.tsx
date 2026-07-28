@@ -1,5 +1,6 @@
-import { useSyncExternalStore, type ReactNode } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
 import {
+  type ExportFormat,
   estimatedSecondsLeft,
   getExportJobSnapshot,
   isExportReady,
@@ -29,12 +30,29 @@ const STATUS_LABEL: Record<string, string> = {
   aborted: "interrompido",
 };
 
+const FORMAT_LABEL: Record<ExportFormat, string> = {
+  mp4: "MP4 · H.264",
+  gif: "GIF animado",
+  prores4444: "ProRes 4444 · alfa",
+  png: "Sequência PNG",
+  "png-alpha": "Sequência PNG · alfa",
+};
+
+const FORMAT_HINT: Record<ExportFormat, string> = {
+  mp4: "Vídeo H.264 para reprodução e publicação, codificado com WebCodecs.",
+  gif: "GIF com paleta calculada em dois passos sobre a sequência inteira.",
+  prores4444: "MOV ProRes 4444 para composição em NLE, sem mapa e com transparência.",
+  png: "Um PNG RGBA sem perda por frame, com mapa, palco 3D e overlay.",
+  "png-alpha": "Um PNG RGBA sem perda por frame, sem mapa e com transparência.",
+};
+
 export function RenderQueuePanel(): ReactNode {
   const job = useSyncExternalStore(subscribeExportJob, getExportJobSnapshot);
   const session = useEditorSession();
   const composition = session.document.compositions.find(
     (candidate) => candidate.id === session.selectedCompositionId,
   );
+  const [format, setFormat] = useState<ExportFormat>("mp4");
 
   const running = job.status === "running";
   const percent = job.total === 0 ? 0 : Math.round((100 * job.done) / job.total);
@@ -46,22 +64,27 @@ export function RenderQueuePanel(): ReactNode {
       title="Fila de render"
       toolbar={
         <>
+          <select
+            className="render-queue__format"
+            aria-label="Formato de exportação"
+            value={format}
+            disabled={running}
+            onChange={(event) => setFormat(event.target.value as ExportFormat)}
+          >
+            {(Object.keys(FORMAT_LABEL) as ExportFormat[]).map((value) => (
+              <option key={value} value={value}>
+                {FORMAT_LABEL[value]}
+              </option>
+            ))}
+          </select>
           <Button
             size="sm"
             variant="primary"
-            onClick={() => void startExportJob({ format: "mp4" })}
+            onClick={() => void startExportJob({ format })}
             disabled={running || !isExportReady() || composition === undefined}
-            aria-label="Exportar vídeo MP4"
+            aria-label={`Exportar ${FORMAT_LABEL[format]}`}
           >
-            Exportar MP4
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => void startExportJob({ format: "png" })}
-            disabled={running || !isExportReady() || composition === undefined}
-            aria-label="Exportar sequência PNG"
-          >
-            Sequência PNG
+            Exportar
           </Button>
           <Button
             size="sm"
@@ -114,14 +137,16 @@ export function RenderQueuePanel(): ReactNode {
 
         {report === null ? (
           <p className="render-queue__hint">
-            <strong>MP4</strong> codifica em H.264 com WebCodecs e empacota num MP4 fragmentado.
-            <strong> Sequência PNG</strong> escreve um arquivo por frame, sem perda. Nos dois casos
-            o frame é o mapa, o palco 3D e o overlay compostos, e exportar o mesmo trecho duas vezes
-            produz o mesmo resultado byte a byte.
+            <strong>{FORMAT_LABEL[format]}.</strong> {FORMAT_HINT[format]} Todos usam o mesmo pump
+            determinístico: o frame só é capturado depois de mapa, assets e overlay estabilizarem.
           </p>
         ) : (
           <dl className="render-queue__report">
-            <dt>{job.format === "mp4" ? "Frames codificados" : "Arquivos escritos"}</dt>
+            <dt>
+              {job.format === "png" || job.format === "png-alpha"
+                ? "Arquivos escritos"
+                : "Frames codificados"}
+            </dt>
             <dd>{report.written}</dd>
             {job.videoFile === null ? null : (
               <>
@@ -129,6 +154,14 @@ export function RenderQueuePanel(): ReactNode {
                 <dd>
                   {job.videoFile} · {(job.videoBytes / 1048576).toFixed(1)} MB
                 </dd>
+                {job.fileSha256 === null ? null : (
+                  <>
+                    <dt>SHA-256</dt>
+                    <dd className="render-queue__hash" title={job.fileSha256}>
+                      {job.fileSha256.slice(0, 16)}…
+                    </dd>
+                  </>
+                )}
               </>
             )}
             <dt>Settle falhou</dt>

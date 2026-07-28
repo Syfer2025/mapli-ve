@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="ocean" x1="32" y1="24" x2="222" y2="232" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#142A35"/>
+      <stop offset="1" stop-color="#071119"/>
+    </linearGradient>
+    <linearGradient id="route" x1="64" y1="183" x2="204" y2="71" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E88936"/>
+      <stop offset="1" stop-color="#FFC06A"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="54" fill="url(#ocean)"/>
+  <path d="M27 102c32-28 56-9 82-25 31-20 48-7 72-25 17-13 29-15 49-10" fill="none" stroke="#67C9BC" stroke-width="12" stroke-linecap="round"/>
+  <path d="M29 137c27-16 46-9 68-1 24 9 42 10 64-6 23-17 42-14 69-2" fill="none" stroke="#2D706E" stroke-width="9" stroke-linecap="round"/>
+  <path d="M38 174c25-8 44-3 65 11 24 16 51 18 75 2 18-12 33-14 49-11" fill="none" stroke="#24505B" stroke-width="8" stroke-linecap="round"/>
+  <path d="M60 192c35-17 50-51 82-65 20-9 39-25 54-47" fill="none" stroke="url(#route)" stroke-width="15" stroke-linecap="round"/>
+  <path d="m185 61 43-7-15 41-10-18-18-16Z" fill="#FFC06A"/>
+  <circle cx="59" cy="192" r="18" fill="#E88936" stroke="#FFE0B6" stroke-width="6"/>
+  <rect x="8" y="8" width="240" height="240" rx="54" fill="none" stroke="#78D4C8" stroke-opacity=".32" stroke-width="4"/>
+</svg>

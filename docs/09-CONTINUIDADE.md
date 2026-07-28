@@ -12,10 +12,11 @@ morde, e como não repetir erro já cometido.
 
 ## 1. Onde parou
 
-Cadeia do `pnpm check` verde — **1.006 testes em 99 arquivos**, 320 módulos, 838
-dependências, sem violação de camada; build electron-vite ok. Suíte rodada três
-vezes seguidas para confirmar estabilidade, porque havia um teste intermitente
-(agora corrigido, ver [§4.17](#417-comparar-ângulos-normalizados-com-régua-linear-atravessa-a-costura)).
+Cadeia final verde — **1.028 testes funcionais em 104 arquivos**, suíte isolada
+de performance com 6/6 testes, 336 módulos e 896 dependências sem violação de
+camada; build electron-vite e pacote Windows verificados. Os orçamentos de
+performance ficam isolados dos workers funcionais para medir o motor, não a
+contenção artificial do runner.
 
 Passe de auditoria em 2026-07-28, sobre o estado que o `77aa7e4` deixou:
 
@@ -27,19 +28,21 @@ Passe de auditoria em 2026-07-28, sobre o estado que o `77aa7e4` deixou:
 | Bootstrap necessário depois do 7B                         | documentado em [§4.18](#418-bootstrap-pnpm-install-e-geobuild-não-são-opcionais) |
 
 Fases 0–6 concluídas. **O bloco 7 inteiro está fechado** (única exceção declarada:
-7E.4, VFX, que o dono mandou adiar) e a **Fase 8 produz arquivo de vídeo MP4
-H.264**, byte-idêntico entre execuções — o critério mais importante do projeto.
+7E.4, VFX, que o dono mandou adiar) e a **Fase 8 produz MP4 H.264, GIF, ProRes
+4444 e PNG normal/alfa**. Os encoders repetíveis preservam o critério mais
+importante do projeto: saída idêntica entre execuções.
 Cada bloco tem verificador próprio dirigindo o Electron real por CDP:
 
-| Bloco                    | Verificador           | Resultado |
-| ------------------------ | --------------------- | --------- |
-| 7A · biblioteca e assets | `verify:phase7a`      | verde     |
-| 7B · camadas geográficas | `verify:phase7b`      | 4/4       |
-| 7C · rotas e setas       | `verify:phase7c`      | verde     |
-| 7D · textos no mapa      | `verify:phase7d`      | 4/4       |
-| 7E.3 · modo estúdio      | `verify:phase7e3`     | 5/5       |
-| 8 · export byte-idêntico | `verify:phase8`       | 7/7       |
-| 8 · arquivo MP4 H.264    | `verify:phase8-video` | 6/6       |
+| Bloco                    | Verificador             | Resultado |
+| ------------------------ | ----------------------- | --------- |
+| 7A · biblioteca e assets | `verify:phase7a`        | verde     |
+| 7B · camadas geográficas | `verify:phase7b`        | 4/4       |
+| 7C · rotas e setas       | `verify:phase7c`        | verde     |
+| 7D · textos no mapa      | `verify:phase7d`        | 4/4       |
+| 7E.3 · modo estúdio      | `verify:phase7e3`       | 5/5       |
+| 8 · export byte-idêntico | `verify:phase8`         | 7/7       |
+| 8 · arquivo MP4 H.264    | `verify:phase8-video`   | 6/6       |
+| 8 · GIF + ProRes/alfa    | `verify:phase8-formats` | 5/5       |
 
 Entregue nesta sessão, em sete commits:
 
@@ -120,27 +123,29 @@ para as peças e os três defeitos silenciosos que só a medição em pixel acho
 **7E.4, VFX volumétrico: bloqueado por ferramenta, não por decisão.** Os 7,6 GB
 de VDB da JangaFX que o dono deixou não rodam em WebGL — é formato de volume para
 renderizador offline. O caminho certo é converter em flipbook num passo de
-bootstrap, e isso exige Blender, Houdini ou uma biblioteca OpenVDB. **Verificado
-que nenhum existe nesta máquina**: sem `blender`, `ffmpeg`, `magick` nem Python
-real no PATH. Instalar um deles destrava; a alternativa de custo zero é usar o
-vídeo de preview como textura, com qualidade menor.
+bootstrap, e isso exige Blender, Houdini ou uma biblioteca OpenVDB. FFmpeg agora
+existe e atende os formatos da Fase 8, mas não lê VDB; Blender/Houdini/OpenVDB
+continuam ausentes. A alternativa de custo zero é usar o vídeo de preview como
+textura, com qualidade menor.
 
 ## 3. O que vem agora
 
-O bloco 7 está fechado e a **Fase 8 produz arquivo de vídeo**: MP4 H.264,
-byte-idêntico entre execuções, e o Chromium decodifica. Dois verificadores:
-`verify:phase8` (7/7, sequência PNG e determinismo) e `verify:phase8-video`
-(6/6, o arquivo MP4). Sobra:
+O bloco 7 está fechado e os **formatos principais da Fase 8 estão entregues**:
+MP4 H.264, GIF, ProRes 4444 com alfa e PNG normal/alfa. Os verificadores são
+`verify:phase8` (7/7), `verify:phase8-video` (6/6) e
+`verify:phase8-formats` (5/5). O instalador NSIS inclui os 15.034 arquivos de
+dados offline e o FFmpeg fixado; o arquivo de 1,6 GiB passou no teste integral
+do arquivo 7z interno. O fonte passou a incluir também os três exemplos e o
+seletor **Exemplos…** depois dessa prova. Portanto, o instalador que está em
+`release/` deve ser regenerado antes da entrega externa; a tentativa de
+2026-07-28 parou porque a autorização de rede atingiu a cota, não por erro de
+código. Sobra no produto:
 
 1. **Resolução acima do tamanho da janela.** Hoje o frame sai no tamanho do
    viewport, e o H.264 exige dimensão par — 1227×643 vira 1226×642. É o gatilho
    declarado no [ADR-013](adr/ADR-013-export-frame-composition.md) para voltar à
    janela de render oculta.
-2. **Fase 7 (ações).** Os templates de impacto. Nada dela ameaça o que já está
-   provado.
-3. **Formatos que faltam:** GIF, ProRes 4444 com alfa, sequência com canal alfa.
-   O muxer atual é só vídeo — áudio entraria como trilha 2.
-4. **Motion blur, checkpoint e retomada.**
+2. **Motion blur, checkpoint e retomada.**
 
 ### O `settle` 3D foi fechado e provado
 
@@ -503,17 +508,23 @@ Malha geográfica: `pnpm data:fetch` baixa as origens fixadas por hash e
 
 ## 7. Fases seguintes
 
-Ordem atual do roteiro: completar os **formatos extras da Fase 8** → 9, 10 e 11.
-Os blocos 7C/7D e a **Fase 7 de Ações** já foram concluídos.
+Ordem atual do roteiro combinado com o dono: formatos extras e instalador estão
+concluídos; o primeiro passe de **polimento, medição de performance, guia de uso
+e projetos de exemplo** também foi entregue. Os três gates de motor/timeline
+passam em `pnpm test:perf`, e os exemplos são gerados byte-idênticos por
+`pnpm examples:build`. Os blocos 7C/7D e a **Fase 7 de Ações** já foram
+concluídos. A única ação operacional pendente neste bloco é rodar novamente
+`pnpm dist:win` quando a autorização externa estiver disponível, para incorporar
+os exemplos ao executável.
 
-Duas pendências herdadas que valem atenção antes da Fase 8:
+Duas pendências arquiteturais herdadas que ainda valem atenção:
 
 1. **Critério 4 da Fase 6** está registrado como "delta mínimo de blend sob
    investigação de tolerância". É a mesma família de problema que o critério 2 da
    Fase 8 — arquivos idênticos byte a byte — vai cobrar a sério.
 2. **`packages/engine` continua stub** enquanto `apps/editor` importa L2 e L3
-   direto, divergindo de [02-MODULES](02-MODULES.md). A Fase 8 força a decisão: o
-   export roda o motor numa janela oculta, sem UI.
+   direto, divergindo de [02-MODULES](02-MODULES.md). A janela de render isolada
+   da continuação da Fase 8 deve fechar essa decisão.
 
 A Fase 8 é a que decide o projeto. O critério 2 dela — exportar o mesmo projeto
 duas vezes e obter arquivos idênticos byte a byte — é descrito no roteiro como o

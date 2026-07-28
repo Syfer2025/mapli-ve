@@ -16,6 +16,7 @@ import { percentile, runExport, type ExportHost } from "./run-export.js";
 import {
   EXCLUDED_SURFACE_SELECTORS,
   EXPORT_SURFACE_SELECTORS,
+  exportSurfaceSelectors,
   selectExportSurfaces,
 } from "./frame-composer.js";
 
@@ -229,6 +230,14 @@ describe("selectExportSurfaces", () => {
       ".scene-overlay__studio",
       ".scene-overlay__pixi",
     ]);
+  });
+
+  it("o matte exclui somente o mapa e preserva palco + overlay", () => {
+    expect(exportSurfaceSelectors(false)).toEqual([
+      ".scene-overlay__studio",
+      ".scene-overlay__pixi",
+    ]);
+    expect(exportSurfaceSelectors(true)).toBe(EXPORT_SURFACE_SELECTORS);
   });
 
   it("gizmos e timeline nunca entram — é o critério 8 da Fase 8", () => {

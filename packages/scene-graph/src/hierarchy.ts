@@ -10,6 +10,14 @@ function compareStrings(left: string, right: string): number {
 }
 
 /**
+ * Documentos em produção são profundamente congelados pelo DocumentStore.
+ * Nesse caso a ordem de uma composição não pode mudar entre frames, então
+ * validar e reconstruir a mesma travessia centenas de vezes por segundo seria
+ * trabalho puro desperdiçado. Fixtures mutáveis nunca entram no cache.
+ */
+const TOPOLOGICAL_ORDER_CACHE = new WeakMap<Composition, readonly string[]>();
+
+/**
  * Verifica a redundância deliberada `parent` + `children`, ciclos e alcance da
  * raiz. A ordem dos diagnósticos é estável e independe da ordem das chaves JSON.
  */
@@ -199,6 +207,11 @@ export function assertValidHierarchy(composition: Composition): void {
  * `children[]`, cujo índice zero desenha primeiro.
  */
 export function topologicalOrder(composition: Composition): readonly string[] {
+  const cacheable = Object.isFrozen(composition);
+  if (cacheable) {
+    const cached = TOPOLOGICAL_ORDER_CACHE.get(composition);
+    if (cached !== undefined) return cached;
+  }
   assertValidHierarchy(composition);
   const ordered: string[] = [];
   const pending = [composition.root];
@@ -213,7 +226,9 @@ export function topologicalOrder(composition: Composition): readonly string[] {
       if (childId !== undefined) pending.push(childId);
     }
   }
-  return Object.freeze(ordered);
+  const result = Object.freeze(ordered);
+  if (cacheable) TOPOLOGICAL_ORDER_CACHE.set(composition, result);
+  return result;
 }
 
 export function orderedChildren(composition: Composition, nodeId: string): readonly Node[] {

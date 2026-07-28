@@ -25,6 +25,7 @@ export default defineConfig({
         "@theatrum/core-utils": resolve(root, "packages/core-utils/src/index.ts"),
         "@theatrum/schema": resolve(root, "packages/schema/src/index.ts"),
         "@theatrum/project-io": resolve(root, "packages/project-io/src/index.ts"),
+        "@theatrum/export": resolve(root, "packages/export/src/index.ts"),
       },
     },
     build: {

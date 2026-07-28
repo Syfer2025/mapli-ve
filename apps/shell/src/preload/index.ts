@@ -52,9 +52,12 @@ const bridge = {
     begin: (request) => invoke("export:begin", request),
     frame: (request) => invoke("export:frame", request),
     append: (request) => invoke("export:append", request),
+    encode: (request) => invoke("export:encode", request),
   },
   project: {
     open: () => invoke("project:open"),
+    examples: () => invoke("project:examples"),
+    openExample: (id) => invoke("project:open-example", id),
     save: (request) => invoke("project:save", request),
     saveAs: (request) => invoke("project:save-as", request),
   },

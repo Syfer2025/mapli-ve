@@ -129,10 +129,9 @@ export function layoutScene<S>(
   validateDrawOrder(scene);
   const layouts = new Map<string, NodeLayout>();
   const visiting = new Set<string>();
-  // Ordem explícita por id para que a ordem de inserção do Map de entrada não
-  // afete a estrutura derivada. O drawOrder continua separado e preservado.
-  const nodeIds = [...scene.nodes.keys()].sort(compareStrings);
-  for (const nodeId of nodeIds) {
+  // `drawOrder` já é explícita, validada e independente da inserção do Map.
+  // Reutilizá-la evita ordenar todos os ids em cada frame.
+  for (const nodeId of scene.drawOrder) {
     resolveLayout(scene, nodeId, projector, context, layouts, visiting);
   }
 

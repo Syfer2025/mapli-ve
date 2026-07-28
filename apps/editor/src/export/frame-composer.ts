@@ -27,6 +27,11 @@ export const EXCLUDED_SURFACE_SELECTORS: readonly string[] = Object.freeze([
   ".timeline-panel__canvas",
 ]);
 
+/** Seletores do frame normal ou do matte transparente. */
+export function exportSurfaceSelectors(includeMap: boolean): readonly string[] {
+  return includeMap ? EXPORT_SURFACE_SELECTORS : EXPORT_SURFACE_SELECTORS.slice(1);
+}
+
 export interface ComposedFrame {
   readonly width: number;
   readonly height: number;
@@ -37,6 +42,8 @@ export interface ComposedFrame {
 export interface FrameComposerOptions {
   /** De onde procurar as superfícies. `document` no uso normal. */
   readonly root?: ParentNode;
+  /** `false` produz matte RGBA: palco/overlay sobre fundo transparente. */
+  readonly includeMap?: boolean;
 }
 
 /** O mínimo que a regra de seleção precisa saber de uma superfície. */
@@ -87,9 +94,11 @@ export class FrameComposer {
   #canvas: HTMLCanvasElement | null = null;
   #context: CanvasRenderingContext2D | null = null;
   readonly #root: ParentNode;
+  readonly #includeMap: boolean;
 
   constructor(options: FrameComposerOptions = {}) {
     this.#root = options.root ?? document;
+    this.#includeMap = options.includeMap ?? true;
   }
 
   /**
@@ -129,9 +138,17 @@ export class FrameComposer {
   }
 
   #surfaces(): readonly HTMLCanvasElement[] {
-    const candidates = EXPORT_SURFACE_SELECTORS.map((selector) => {
+    const selectors = exportSurfaceSelectors(this.#includeMap);
+    const candidates = selectors.map((selector) => {
       const element = this.#root.querySelector(selector);
-      return element instanceof HTMLCanvasElement ? element : null;
+      if (!(element instanceof HTMLCanvasElement)) return null;
+      // O palco permanece dimensionado enquanto está inativo. Sem respeitar
+      // `visibility`, o último frame do estúdio cobriria o mapa mesmo depois de
+      // o usuário voltar à composição geográfica. No modo estúdio acontece o
+      // inverso: o mapa escondido não deve ficar sob o matte.
+      const view = element.ownerDocument.defaultView;
+      if (view?.getComputedStyle(element).visibility === "hidden") return null;
+      return element;
     });
     return selectExportSurfaces(candidates);
   }

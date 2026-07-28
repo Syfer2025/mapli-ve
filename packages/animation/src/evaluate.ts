@@ -310,10 +310,11 @@ function soloVisibilitySet(
 }
 
 function tuple2(value: readonly [number, number]): Vec2 {
-  return Object.freeze([value[0], value[1]]) as Vec2;
+  return (Object.isFrozen(value) ? value : Object.freeze(value)) as Vec2;
 }
 
 function cloneValue<T>(value: T): T {
+  if (typeof value === "object" && value !== null && Object.isFrozen(value)) return value;
   if (Array.isArray(value)) {
     return Object.freeze(value.map((entry) => cloneValue(entry))) as T;
   }

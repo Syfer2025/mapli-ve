@@ -46,6 +46,8 @@ const fallback: TheatrumBridge = {
   },
   project: {
     open: () => Promise.resolve({ status: "cancelled" }),
+    examples: () => Promise.resolve([]),
+    openExample: () => Promise.resolve({ status: "cancelled" }),
     save: () => Promise.resolve({ status: "cancelled" }),
     saveAs: () => Promise.resolve({ status: "cancelled" }),
   },
@@ -88,6 +90,14 @@ const fallback: TheatrumBridge = {
       }),
     append: () =>
       Promise.resolve({ ok: false, bytes: 0, message: "Export exige o aplicativo Electron." }),
+    encode: (request) =>
+      Promise.resolve({
+        ok: false,
+        filename: request.outputFilename,
+        bytes: 0,
+        sha256: "",
+        message: "Export exige o aplicativo Electron.",
+      }),
   },
 };
 

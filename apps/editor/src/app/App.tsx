@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { DockviewReact } from "dockview-react";
 import { APP_NAME } from "@theatrum/schema";
+import type { ProjectExampleInfo } from "@theatrum/shell";
 import "dockview-react/dist/styles/dockview.css";
 import { PANEL_COMPONENTS } from "./panels.js";
 import { THEATRUM_DOCKVIEW_THEME } from "./theme.js";
@@ -75,11 +76,16 @@ export function App(): ReactNode {
 
 function TopBar({ onResetLayout }: { readonly onResetLayout: () => void }): ReactNode {
   const session = useEditorSession();
+  const [examples, setExamples] = useState<readonly ProjectExampleInfo[]>([]);
+
+  useEffect(() => {
+    void bridge.project.examples().then(setExamples);
+  }, []);
 
   return (
     <header className="app__topbar">
       <span className="app__brand">{APP_NAME}</span>
-      <span className="app__phase">Fase 7 · ações e simulações</span>
+      <span className="app__phase">mapa · ações · export offline</span>
 
       <div className="app__file-actions">
         <Button size="sm" variant="ghost" onClick={() => void editorActions.newProject()}>
@@ -88,6 +94,23 @@ function TopBar({ onResetLayout }: { readonly onResetLayout: () => void }): Reac
         <Button size="sm" variant="ghost" onClick={() => void editorActions.openProject()}>
           Abrir
         </Button>
+        <select
+          className="app__example-select"
+          aria-label="Abrir projeto de exemplo"
+          value=""
+          disabled={examples.length === 0}
+          onChange={(event) => {
+            const id = event.target.value;
+            if (id !== "") void editorActions.openExample(id);
+          }}
+        >
+          <option value="">Exemplos…</option>
+          {examples.map((example) => (
+            <option key={example.id} value={example.id}>
+              {example.label}
+            </option>
+          ))}
+        </select>
         <Button size="sm" variant="ghost" onClick={() => void editorActions.saveProject()}>
           Salvar
         </Button>

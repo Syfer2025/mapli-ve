@@ -8,6 +8,7 @@
     "lib": ["ES2023"],
     "paths": {
       "@theatrum/core-utils": ["../../packages/core-utils/src/index.ts"],
+      "@theatrum/export": ["../../packages/export/src/index.ts"],
       "@theatrum/schema": ["../../packages/schema/src/index.ts"],
       "@theatrum/project-io": ["../../packages/project-io/src/index.ts"]
     }

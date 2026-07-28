@@ -13,8 +13,17 @@
  */
 
 import type { Map as MapLibreMap } from "maplibre-gl";
-import { startPngSequenceExport, startVideoExport, type OverlayProbe } from "./export-service.js";
+import {
+  startAlphaPngSequenceExport,
+  startGifExport,
+  startPngSequenceExport,
+  startProRes4444Export,
+  startVideoExport,
+  type OverlayProbe,
+} from "./export-service.js";
 import type { ExportReport } from "./run-export.js";
+
+export type ExportFormat = "png" | "png-alpha" | "mp4" | "gif" | "prores4444";
 
 export interface ExportJobState {
   readonly status: "idle" | "running" | "done" | "failed" | "aborted";
@@ -28,10 +37,11 @@ export interface ExportJobState {
   readonly message: string | null;
   readonly report: ExportReport | null;
   /** Qual formato este job produziu. */
-  readonly format: "png" | "mp4";
-  /** Nome e tamanho do arquivo de video, quando houve um. */
+  readonly format: ExportFormat;
+  /** Nome e tamanho do arquivo único, quando houve um. */
   readonly videoFile: string | null;
   readonly videoBytes: number;
+  readonly fileSha256: string | null;
 }
 
 const IDLE: ExportJobState = Object.freeze({
@@ -46,6 +56,7 @@ const IDLE: ExportJobState = Object.freeze({
   format: "png",
   videoFile: null,
   videoBytes: 0,
+  fileSha256: null,
 });
 
 interface ViewportBinding {
@@ -86,8 +97,8 @@ export function requestExportAbort(): void {
 }
 
 export interface StartJobOptions {
-  /** `mp4` codifica com WebCodecs; `png` escreve um arquivo por frame. */
-  readonly format?: "png" | "mp4";
+  /** Formato final; matte é explícito nos dois formatos com alfa. */
+  readonly format?: ExportFormat;
   readonly range?: { readonly first: number; readonly last: number };
   readonly outputFps?: number;
   readonly directory?: string;
@@ -113,7 +124,16 @@ export async function startExportJob(options: StartJobOptions = {}): Promise<voi
   emit({ ...IDLE, status: "running", format });
   const startedAt = performance.now();
 
-  const executar = format === "mp4" ? startVideoExport : startPngSequenceExport;
+  const executar =
+    format === "mp4"
+      ? startVideoExport
+      : format === "gif"
+        ? startGifExport
+        : format === "prores4444"
+          ? startProRes4444Export
+          : format === "png-alpha"
+            ? startAlphaPngSequenceExport
+            : startPngSequenceExport;
   const result = await executar({
     map: current.map,
     probe: current.probe,
@@ -137,6 +157,7 @@ export async function startExportJob(options: StartJobOptions = {}): Promise<voi
     report,
     videoFile: result.videoFile ?? null,
     videoBytes: result.videoBytes ?? 0,
+    fileSha256: result.fileSha256 ?? null,
     // A primeira falha, quando há: uma lista de mil erros iguais não diz mais
     // que um, e o relatório completo fica acessível ao lado.
     message: result.message ?? report?.errors[0] ?? null,

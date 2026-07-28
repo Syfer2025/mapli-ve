@@ -46,6 +46,11 @@ export type ProjectOpenResult =
     }
   | { readonly status: "cancelled" };
 
+export interface ProjectExampleInfo {
+  readonly id: string;
+  readonly label: string;
+}
+
 export interface ProjectSaveRequest {
   readonly file: ProjectFileReference | null;
   readonly suggestedName: string;
@@ -124,6 +129,8 @@ export interface TheatrumBridge {
   };
   readonly project: {
     readonly open: () => Promise<ProjectOpenResult>;
+    readonly examples: () => Promise<readonly ProjectExampleInfo[]>;
+    readonly openExample: (id: string) => Promise<ProjectOpenResult>;
     readonly save: (request: ProjectSaveRequest) => Promise<ProjectSaveResult>;
     readonly saveAs: (request: ProjectSaveRequest) => Promise<ProjectSaveResult>;
   };
@@ -151,6 +158,7 @@ export interface TheatrumBridge {
     readonly begin: (request: ExportBeginRequest) => Promise<ExportBeginResult>;
     readonly frame: (request: ExportFrameRequest) => Promise<ExportFrameResult>;
     readonly append: (request: ExportAppendRequest) => Promise<ExportAppendResult>;
+    readonly encode: (request: ExportEncodeRequest) => Promise<ExportEncodeResult>;
   };
 }
 
@@ -163,11 +171,15 @@ export interface ExportBeginRequest {
    * verificador de fase roda sem interação.
    */
   readonly directory?: string;
+  /** Cria uma pasta privada de PNGs para GIF/ProRes. */
+  readonly staging?: boolean;
 }
 
 export interface ExportBeginResult {
   readonly ok: boolean;
   readonly directory: string;
+  /** Presente quando `staging` foi pedido; sempre filha direta de `directory`. */
+  readonly framesDirectory?: string;
   readonly message?: string;
 }
 
@@ -214,6 +226,27 @@ export interface ExportAppendResult {
   readonly message?: string;
 }
 
+export type ExportEncodeFormat = "gif" | "prores4444";
+
+/** Converte a sequência temporária de PNGs no arquivo final. */
+export interface ExportEncodeRequest {
+  readonly directory: string;
+  readonly framesDirectory: string;
+  readonly format: ExportEncodeFormat;
+  readonly fps: number;
+  readonly framePrefix: string;
+  readonly digits: number;
+  readonly outputFilename: string;
+}
+
+export interface ExportEncodeResult {
+  readonly ok: boolean;
+  readonly filename: string;
+  readonly bytes: number;
+  readonly sha256: string;
+  readonly message?: string;
+}
+
 /**
  * Mapa canal → { request, response }.
  *
@@ -226,6 +259,8 @@ export interface IpcContracts {
   "workspace:save": { request: WorkspaceState; response: void };
   "workspace:reset": { request: void; response: void };
   "project:open": { request: void; response: ProjectOpenResult };
+  "project:examples": { request: void; response: readonly ProjectExampleInfo[] };
+  "project:open-example": { request: string; response: ProjectOpenResult };
   "project:save": { request: ProjectSaveRequest; response: ProjectSaveResult };
   "project:save-as": { request: ProjectSaveRequest; response: ProjectSaveResult };
   "recovery:start": { request: RecoveryStartRequest; response: RecoveryOperationResult };
@@ -239,6 +274,7 @@ export interface IpcContracts {
   "export:begin": { request: ExportBeginRequest; response: ExportBeginResult };
   "export:frame": { request: ExportFrameRequest; response: ExportFrameResult };
   "export:append": { request: ExportAppendRequest; response: ExportAppendResult };
+  "export:encode": { request: ExportEncodeRequest; response: ExportEncodeResult };
 }
 
 export type IpcChannel = keyof IpcContracts;
@@ -251,6 +287,8 @@ export const IPC_CHANNELS = [
   "workspace:save",
   "workspace:reset",
   "project:open",
+  "project:examples",
+  "project:open-example",
   "project:save",
   "project:save-as",
   "recovery:start",
@@ -264,6 +302,7 @@ export const IPC_CHANNELS = [
   "export:begin",
   "export:frame",
   "export:append",
+  "export:encode",
 ] as const satisfies readonly IpcChannel[];
 
 /** Canal síncrono separado: nunca entra no fluxo normal de `invoke`. */

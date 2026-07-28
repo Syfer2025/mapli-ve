@@ -2,6 +2,7 @@
 node_modules/
 dist/
 out/
+release/
 .vite/
 *.tsbuildinfo
 
@@ -38,3 +39,6 @@ desktop.ini
 
 # medições e provas de bancada locais (ex.: scratchpad/measure-roads.ts do ADR-011)
 scratchpad/
+
+# sidecars binários preparados localmente para o empacotamento
+build/ffmpeg/*.exe

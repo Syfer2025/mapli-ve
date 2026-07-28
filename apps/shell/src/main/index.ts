@@ -18,7 +18,13 @@ import {
   saveWorkspace,
 } from "./services/workspace-store.js";
 import { registerDataProtocol, registerDataScheme } from "./services/data-protocol.js";
-import { openProjectFile, saveProjectFile, saveProjectFileAs } from "./services/project-files.js";
+import {
+  listProjectExamples,
+  openProjectExample,
+  openProjectFile,
+  saveProjectFile,
+  saveProjectFileAs,
+} from "./services/project-files.js";
 import {
   closeRecoveryClean,
   discardRecovery,
@@ -30,6 +36,7 @@ import {
   startRecovery,
 } from "./services/recovery.js";
 import { appendExportBytes, beginExport, writeExportFrame } from "./services/export-writer.js";
+import { encodeExportFrames } from "./services/ffmpeg-export.js";
 import {
   IPC_CHANNELS,
   MENU_ACTION_CHANNEL,
@@ -37,6 +44,7 @@ import {
   type AppInfo,
   type ExportAppendRequest,
   type ExportBeginRequest,
+  type ExportEncodeRequest,
   type ExportFrameRequest,
   type IpcChannel,
   type ProjectSaveRequest,
@@ -102,6 +110,8 @@ function registerIpc(): void {
       if (editorWindow === null) throw new Error("A janela do editor não está disponível.");
       return openProjectFile(editorWindow);
     },
+    "project:examples": () => listProjectExamples(),
+    "project:open-example": (_event: unknown, id: string) => openProjectExample(id),
     "project:save": (_event: unknown, request: ProjectSaveRequest) => {
       if (editorWindow === null) throw new Error("A janela do editor não está disponível.");
       return saveProjectFile(editorWindow, request);
@@ -128,6 +138,7 @@ function registerIpc(): void {
     // um export não pode morrer porque a janela foi fechada no meio.
     "export:frame": (_event: unknown, request: ExportFrameRequest) => writeExportFrame(request),
     "export:append": (_event: unknown, request: ExportAppendRequest) => appendExportBytes(request),
+    "export:encode": (_event: unknown, request: ExportEncodeRequest) => encodeExportFrames(request),
   } satisfies Record<IpcChannel, unknown>;
 
   for (const channel of IPC_CHANNELS) {

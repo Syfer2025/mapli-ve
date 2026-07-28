@@ -1065,7 +1065,8 @@ Escopo:
 
 ## Fase 8 — Exportação
 
-**Estado: entregue e provado até o arquivo de vídeo. Formatos extras pendentes.**
+**Estado: formatos principais entregues e provados; infraestrutura avançada
+pendente.**
 
 O editor **produz MP4 H.264**. WebCodecs codifica, um muxer próprio
 (`packages/export/src/mp4-muxer.ts`, 25 testes) empacota em MP4 fragmentado, e o
@@ -1077,6 +1078,12 @@ O critério 2 — **exportar o mesmo projeto duas vezes produz arquivos byte a b
 idênticos** — está **provado no Electron real**. É o critério mais importante do
 projeto, e ele não depende de codec: depende de o frame ser função pura de
 (documento, frame) e de o pump esperar a coisa certa.
+
+GIF, ProRes 4444 com alfa e sequência PNG com alfa também estão entregues. O
+verificador `pnpm verify:phase8-formats` passa **5/5**: codifica GIF e ProRes duas
+vezes com hashes iguais, confirma seis frames no GIF, perfil ProRes 4444 e um
+plano alfa decodificado que não foi achatado. O FFmpeg 8.1.2 entra no instalador
+como sidecar com hash fixado; a aplicação empacotada nunca cai para o `PATH`.
 
 O que existe hoje (`pnpm verify:phase8`, **7/7**):
 
@@ -1123,10 +1130,10 @@ Duas armadilhas que a medição encontrou, ambas silenciosas:
    num efeito de dependências vazias, e naquele instante o mapa ainda não existe.
    O export respondia "mapa indisponível" para sempre. Agora vem de uma ref.
 
-**Falta** (e nada disso ameaça o determinismo já provado): GIF, ProRes 4444 com
-alfa, motion blur por sampling temporal, checkpoint e retomada, e resolução acima
-do tamanho da janela — que é quando o ADR-013 manda voltar à janela oculta. O
-painel de fila já existe, com progresso, ETA e relatório de settle.
+**Falta** (e nada disso ameaça o determinismo já provado): motion blur por
+sampling temporal, checkpoint e retomada, e resolução acima do tamanho da janela
+— que é quando o ADR-013 manda voltar à janela oculta. O painel de fila já
+existe, com seletor dos cinco formatos, progresso, ETA e relatório de settle.
 
 **Objetivo original.** Arquivo de vídeo. A fase que prova o determinismo.
 
@@ -1220,6 +1227,21 @@ Escopo:
 ---
 
 ## Fase 11 — Polimento e performance
+
+**Estado: primeiro passe utilizável entregue em 2026-07-28.**
+
+O aplicativo instalado oferece três projetos de exemplo pela barra superior,
+guia de uso separado da arquitetura e instalador assistido com todos os dados
+offline. `pnpm test:perf` trava três orçamentos reais: `evaluate` de 500 nós/5.000
+keyframes abaixo de 2 ms na mediana, layout de 500 nós abaixo de 1 ms e timeline
+com 200 trilhas/3.000 keyframes abaixo de 4 ms no p95. Para atingir o primeiro
+alvo sem afrouxá-lo, a ordem topológica passou a ser cacheada somente em
+composições profundamente congeladas; fixtures mutáveis continuam sempre
+revalidadas. O layout reutiliza a `drawOrder` já validada, evitando uma segunda
+ordenação de todos os nós a cada frame.
+
+Ainda pertencem à fase completa: cache de preview, áudio de referência,
+expressões, atalhos configuráveis e a prova de sessão contínua de quatro horas.
 
 **Objetivo.** Ferramenta que se usa por 8 horas sem irritar.
 

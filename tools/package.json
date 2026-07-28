@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@theatrum/gis": "workspace:*",
+    "@theatrum/project-io": "workspace:*",
     "@theatrum/schema": "workspace:*"
   },
   "//": "Scripts de build e manutenção. Não é importado por nenhum pacote."

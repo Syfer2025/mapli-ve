@@ -360,7 +360,7 @@ usar quando o mapa base estiver invisível (modo alpha), onde o problema não ex
 flowchart LR
     CAP["CapturedFrame"] --> SW{"formato de saída"}
     SW -->|"H.264 / HEVC / VP9 / AV1"| WC["WebCodecs VideoEncoder<br/><i>aceleração de hardware</i>"]
-    SW -->|"ProRes 4444 · alpha"| FF["FFmpeg pipe<br/>rawvideo → stdin"]
+    SW -->|"ProRes 4444 · alpha"| FF["FFmpeg image2<br/>PNG RGBA temporário"]
     SW -->|"PNG sequence"| PNG["gravação direta"]
     SW -->|"GIF"| GIF["FFmpeg 2 passos<br/>palettegen + paletteuse"]
 
@@ -382,7 +382,7 @@ flowchart LR
 | HEVC / H.265 | WebCodecs (HW)  | MP4       | não     | Depende de suporte do driver                |
 | VP9          | WebCodecs       | WebM      | parcial | Alpha em VP9 é irregular                    |
 | AV1          | WebCodecs       | MP4/WebM  | não     | Lento em software                           |
-| ProRes 4444  | FFmpeg pipe     | MOV       | **sim** | Caminho de alpha confiável                  |
+| ProRes 4444  | FFmpeg image2   | MOV       | **sim** | Caminho de alpha confiável                  |
 | PNG sequence | direto          | —         | **sim** | Sem perda; melhor para composição posterior |
 | GIF          | FFmpeg 2 passos | GIF       | binário | Paleta gerada da sequência inteira          |
 
@@ -391,12 +391,15 @@ hardware não suportar, cai para FFmpeg em software com aviso claro — nunca fa
 sem explicar.
 
 FFmpeg é **sidecar empacotado**, invocado por caminho absoluto resolvido em
-runtime. Nunca depende do `PATH` do sistema.
+runtime. Nunca depende do `PATH` do sistema em produção. GIF e ProRes recebem uma
+sequência PNG determinística numa pasta privada do job; a pasta é removida
+somente depois de o arquivo final ser codificado e hasheado. Em falha, os frames
+ficam preservados para diagnóstico e recuperação.
 
 ```
 ffmpeg -y
-  -f rawvideo -pix_fmt rgba -s 3840x2160 -r 60 -i pipe:0
-  -c:v prores_ks -profile:v 4444 -pix_fmt yuva444p10le
+  -framerate 60 -i frame_%04d.png
+  -c:v prores_ks -profile:v 4 -pix_fmt yuva444p10le -alpha_bits 16
   saida.mov
 ```
 
@@ -405,10 +408,13 @@ ffmpeg -y
 Alpha e mapa base são mutuamente exclusivos — um mapa opaco não tem transparência
 para exportar. O modo alpha portanto:
 
-1. Força `map.visible = false`
-2. Compõe apenas os slots de overlay
-3. Restringe os formatos a ProRes 4444 e PNG sequence
-4. Mostra fundo em xadrez no viewport, para o usuário ver o que está fazendo
+1. Exclui estruturalmente o canvas do mapa no compositor de export
+2. Compõe apenas palco visível e overlay
+3. É explícito nos formatos ProRes 4444 e sequência PNG alfa
+4. Preserva RGBA até o PNG ou o perfil 4444 do ProRes
+
+O fundo em xadrez no preview ainda é item de polimento; ele não afeta os pixels
+exportados.
 
 O objetivo é usar o vídeo com alpha sobre outra base no NLE, ou sobre um render de
 mapa separado. É modo explícito na UI, não um checkbox escondido.

@@ -7,6 +7,7 @@
     "layer": 6
   },
   "dependencies": {
+    "@theatrum/export": "workspace:*",
     "@theatrum/project-io": "workspace:*",
     "@theatrum/schema": "workspace:*"
   },

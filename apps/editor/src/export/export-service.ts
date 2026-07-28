@@ -9,7 +9,7 @@
  * de `settle` em teste unitário sem GPU ([run-export.test.ts](./run-export.test.ts)).
  */
 
-import { sanitizeBasename } from "@theatrum/export";
+import { counterDigits, sanitizeBasename, type FfmpegExportFormat } from "@theatrum/export";
 import type { Map as MapLibreMap } from "maplibre-gl";
 import { bridge } from "../bridge/index.js";
 import { editorActions, getEditorSessionSnapshot } from "../document/editor-session.js";
@@ -63,9 +63,11 @@ export interface StartExportResult {
   readonly directory: string;
   readonly report?: ExportReport;
   readonly message?: string;
-  /** Nome do arquivo de vídeo, quando o export foi para MP4. */
+  /** Nome do arquivo único, quando o formato não é uma sequência PNG. */
   readonly videoFile?: string;
   readonly videoBytes?: number;
+  /** Hash do arquivo único produzido por FFmpeg. */
+  readonly fileSha256?: string;
 }
 
 /**
@@ -79,25 +81,80 @@ export interface StartExportResult {
 export async function startPngSequenceExport(
   options: StartExportOptions,
 ): Promise<StartExportResult> {
+  const rendered = await renderPngFrames(options, {
+    alpha: false,
+    staging: false,
+    jobSuffix: "",
+  });
+  return rendered.result;
+}
+
+/** Sequência PNG com o mapa removido e o canal alfa preservado. */
+export async function startAlphaPngSequenceExport(
+  options: StartExportOptions,
+): Promise<StartExportResult> {
+  const rendered = await renderPngFrames(options, {
+    alpha: true,
+    staging: false,
+    jobSuffix: " - alpha",
+  });
+  return rendered.result;
+}
+
+/** GIF em dois passos: render dos PNGs, palettegen e paletteuse. */
+export function startGifExport(options: StartExportOptions): Promise<StartExportResult> {
+  return startFfmpegSequenceExport(options, "gif");
+}
+
+/** ProRes 4444 em MOV, com mapa removido e alfa de 16 bits no codec. */
+export function startProRes4444Export(options: StartExportOptions): Promise<StartExportResult> {
+  return startFfmpegSequenceExport(options, "prores4444");
+}
+
+interface FrameRenderConfig {
+  readonly alpha: boolean;
+  readonly staging: boolean;
+  readonly jobSuffix: string;
+}
+
+interface RenderedPngFrames {
+  readonly result: StartExportResult;
+  readonly framesDirectory?: string;
+  readonly framePrefix?: string;
+  readonly digits?: number;
+  readonly outputFps?: number;
+  readonly compositionName?: string;
+}
+
+async function renderPngFrames(
+  options: StartExportOptions,
+  config: FrameRenderConfig,
+): Promise<RenderedPngFrames> {
   const state = getEditorSessionSnapshot();
   const composition = state.document.compositions.find(
     (candidate) => candidate.id === state.selectedCompositionId,
   );
   if (composition === undefined) {
-    return { ok: false, directory: "", message: "nenhuma composição selecionada" };
+    return {
+      result: { ok: false, directory: "", message: "nenhuma composição selecionada" },
+    };
   }
 
   editorActions.pause();
 
   const begin = await bridge.export.begin({
-    jobName: composition.name,
+    jobName: `${composition.name}${config.jobSuffix}`,
+    ...(config.staging ? { staging: true } : {}),
     ...(options.directory === undefined ? {} : { directory: options.directory }),
   });
   if (!begin.ok) {
-    return { ok: false, directory: "", message: begin.message ?? "pasta não escolhida" };
+    return {
+      result: { ok: false, directory: "", message: begin.message ?? "pasta não escolhida" },
+    };
   }
 
-  const composer = new FrameComposer();
+  const framesDirectory = begin.framesDirectory ?? begin.directory;
+  const composer = new FrameComposer({ includeMap: !config.alpha });
   try {
     const report = await runExport({
       plan: {
@@ -121,7 +178,7 @@ export async function startPngSequenceExport(
         compose: () => composer.compose(),
         writeFrame: async (filename, frame) => {
           const result = await bridge.export.frame({
-            directory: begin.directory,
+            directory: framesDirectory,
             filename,
             width: frame.width,
             height: frame.height,
@@ -137,16 +194,72 @@ export async function startPngSequenceExport(
       ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
       ...(options.shouldAbort === undefined ? {} : { shouldAbort: options.shouldAbort }),
     });
-    return { ok: report.errors.length === 0, directory: begin.directory, report };
+    return {
+      result: { ok: report.errors.length === 0, directory: begin.directory, report },
+      framesDirectory,
+      framePrefix: sanitizeBasename(composition.name),
+      digits: counterDigits(report.plan.frames.length),
+      outputFps: report.plan.outputFps,
+      compositionName: composition.name,
+    };
   } catch (error: unknown) {
     return {
-      ok: false,
-      directory: begin.directory,
-      message: error instanceof Error ? error.message : String(error),
+      result: {
+        ok: false,
+        directory: begin.directory,
+        message: error instanceof Error ? error.message : String(error),
+      },
     };
   } finally {
     composer.dispose();
   }
+}
+
+async function startFfmpegSequenceExport(
+  options: StartExportOptions,
+  format: FfmpegExportFormat,
+): Promise<StartExportResult> {
+  const rendered = await renderPngFrames(options, {
+    alpha: format === "prores4444",
+    staging: true,
+    jobSuffix: format === "gif" ? " - GIF" : " - ProRes 4444",
+  });
+  const result = rendered.result;
+  if (!result.ok || result.report?.aborted === true) return result;
+  if (
+    rendered.framesDirectory === undefined ||
+    rendered.framePrefix === undefined ||
+    rendered.digits === undefined ||
+    rendered.outputFps === undefined ||
+    rendered.compositionName === undefined
+  ) {
+    return { ...result, ok: false, message: "sequência temporária incompleta" };
+  }
+
+  const outputFilename = `${sanitizeBasename(rendered.compositionName)}.${
+    format === "gif" ? "gif" : "mov"
+  }`;
+  const encoded = await bridge.export.encode({
+    directory: result.directory,
+    framesDirectory: rendered.framesDirectory,
+    format,
+    fps: rendered.outputFps,
+    framePrefix: rendered.framePrefix,
+    digits: rendered.digits,
+    outputFilename,
+  });
+  return {
+    ...result,
+    ok: encoded.ok,
+    ...(encoded.ok
+      ? {
+          videoFile: encoded.filename,
+          videoBytes: encoded.bytes,
+          fileSha256: encoded.sha256,
+        }
+      : {}),
+    ...(encoded.message === undefined ? {} : { message: encoded.message }),
+  };
 }
 
 /**

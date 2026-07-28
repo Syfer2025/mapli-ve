@@ -20,6 +20,7 @@ export {
   type IpcRequest,
   type IpcResponse,
   type MenuAction,
+  type ProjectExampleInfo,
   type ProjectFileReference,
   type ProjectOpenResult,
   type ProjectSaveRequest,

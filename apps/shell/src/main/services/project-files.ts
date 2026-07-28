@@ -6,12 +6,13 @@
  * vindo da página. A gravação é temporário + fsync + rename no mesmo diretório.
  */
 
-import { dialog, type BrowserWindow } from "electron";
+import { app, dialog, type BrowserWindow } from "electron";
 import { APP_NAME, PROJECT_EXTENSION } from "@theatrum/schema";
 import { randomUUID } from "node:crypto";
 import { open, mkdir, readFile, rename, unlink } from "node:fs/promises";
 import path from "node:path";
 import type {
+  ProjectExampleInfo,
   ProjectFileReference,
   ProjectOpenResult,
   ProjectSaveRequest,
@@ -19,6 +20,25 @@ import type {
 } from "../../ipc/contracts.js";
 
 const MAX_PROJECT_BYTES = 1024 * 1024 * 1024;
+
+const PROJECT_EXAMPLES: readonly (ProjectExampleInfo & { readonly filename: string })[] =
+  Object.freeze([
+    {
+      id: "hormuz-blockade",
+      label: "Hormuz · bloqueio naval",
+      filename: "01-hormuz-bloqueio-naval.theatrum",
+    },
+    {
+      id: "hormuz-missile",
+      label: "Hormuz · lançamento de míssil",
+      filename: "02-hormuz-lancamento-missil.theatrum",
+    },
+    {
+      id: "iran-frontline",
+      label: "Irã · linha de frente",
+      filename: "03-ira-linha-de-frente.theatrum",
+    },
+  ]);
 
 const authorizedFiles = new Map<string, string>();
 
@@ -45,6 +65,35 @@ export async function openProjectFile(window: BrowserWindow): Promise<ProjectOpe
     file: authorize(selectedPath),
     bytes: new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength),
   };
+}
+
+export function listProjectExamples(): readonly ProjectExampleInfo[] {
+  return PROJECT_EXAMPLES.map(({ id, label }) => ({ id, label }));
+}
+
+/** Abre somente um arquivo do catálogo fixo; o id nunca vira caminho. */
+export async function openProjectExample(id: string): Promise<ProjectOpenResult> {
+  const example = PROJECT_EXAMPLES.find((candidate) => candidate.id === id);
+  if (example === undefined) throw new RangeError(`Exemplo desconhecido: "${id}".`);
+  const filePath = path.join(exampleRoot(), example.filename);
+  const bytes = await readFile(filePath);
+  if (bytes.byteLength > MAX_PROJECT_BYTES) {
+    throw new RangeError("O projeto de exemplo excede o limite de 1 GiB.");
+  }
+  // Não autorizar o handle para escrita: Salvar abre "Salvar como" e nunca
+  // tenta sobrescrever os arquivos que vieram com o aplicativo.
+  const file = { handle: `example:${randomUUID()}`, name: example.filename, path: filePath };
+  return {
+    status: "opened",
+    file,
+    bytes: new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength),
+  };
+}
+
+function exampleRoot(): string {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, "examples")
+    : path.join(app.getAppPath(), "examples");
 }
 
 export async function saveProjectFile(

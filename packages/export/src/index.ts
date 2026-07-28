@@ -17,6 +17,13 @@ export {
   sanitizeBasename,
 } from "./frame-plan.js";
 
+export {
+  type FfmpegExportFormat,
+  type FfmpegPlanInput,
+  type FfmpegPlan,
+  planFfmpegExport,
+} from "./ffmpeg-plan.js";
+
 export { type Bytes, box, concat, fullBox } from "./mp4-boxes.js";
 
 export {

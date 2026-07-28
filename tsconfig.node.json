@@ -6,8 +6,9 @@
     "composite": false,
     "noEmit": true,
     "types": ["node"],
+    "allowImportingTsExtensions": true,
     "allowJs": true,
     "checkJs": false
   },
-  "include": ["vitest.config.ts", "tools/**/*.ts"]
+  "include": ["vitest.config.ts", "vitest.perf.config.ts", "tools/**/*.ts"]
 }

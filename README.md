@@ -15,14 +15,15 @@ _theatrum belli_ — teatro de operações.
 
 ## Estado atual
 
-**Fase 7 de Ações concluída e Fase 8 produzindo vídeo (2026-07-28): o export
-gera MP4 H.264 byte-idêntico entre execuções — o critério mais importante do
-projeto — e cada bloco tem provas automatizadas e no editor real. Única exceção
+**Fase 7 de Ações concluída e formatos principais da Fase 8 entregues
+(2026-07-28): o export gera MP4 H.264, GIF, ProRes 4444 com alfa e sequências
+PNG normal/alfa. Os encoders repetíveis têm provas automatizadas e no editor
+real. Única exceção
 declarada no bloco 7: o 7E.4 (VFX volumétrico), adiado pelo dono e bloqueado por
 ferramenta ausente na máquina. O estado detalhado, com a tabela de verificadores
 e o que ainda falta, está em
-[docs/09-CONTINUIDADE.md](docs/09-CONTINUIDADE.md). Próximo: resolução acima do
-tamanho da janela e os formatos que faltam (GIF, ProRes com alfa).**
+[docs/09-CONTINUIDADE.md](docs/09-CONTINUIDADE.md). O pacote Windows inclui os
+mapas offline, a cobertura regional Irã–Hormuz, satélite e FFmpeg fixado.**
 
 Antes disso, o bloco 7A++ tirou o 3D do chão: a camada Three.js renderiza modelos
 GLB/glTF **com volume** e rotas como tubo volumétrico em altitude. Três defeitos
@@ -99,27 +100,27 @@ As rotas, por sua vez, não eram 3D em nenhum sentido: eram traçadas com
 polilinha 2D continua existindo como **guia de autoria** — tracejada, e só para
 caminho que ainda não tem `route3d` montado.
 
-| Fase | Escopo                                    | Estado       |
-| ---: | ----------------------------------------- | ------------ |
-|    0 | Arquitetura e especificações              | ✅ concluída |
-|    1 | Fundação (monorepo, shell, tooling)       | ✅ concluída |
-|    2 | Mapa + Câmera                             | ✅ concluída |
-|    3 | Documento + Comandos + Undo               | ✅ concluída |
-|    4 | Objetos + Timeline                        | ✅ concluída |
-|    5 | Animação avançada (bezier, graph, paths)  | ✅ concluída |
-|    6 | Efeitos e partículas (congelada)          | ✅ concluída |
-|   7A | Biblioteca de ativos (import)             | ✅ concluída |
-|  7A+ | Preview 3D no viewport (model3d)          | ✅ concluída |
-| 7A++ | 3D com volume + rotas 3D (route3d)        | ✅ concluída |
-|   7B | Camadas geo: contornos, estados, estradas | ✅ concluída |
-|   7C | Rotas e setas de avanço                   | ✅ concluída |
-|   7D | Textos e rótulos no mapa                  | ✅ concluída |
-|   7E | Satélite, rótulo com guia, modo estúdio   | ✅ 3 de 4    |
-|    7 | Ações / simulações                        | ✅ concluída |
-|    8 | Exportação (PNG + MP4 H.264)              | ✅ concluída |
-|    9 | Scene Script (autoria por IA)             | ⬜           |
-|   10 | Plugins + conteúdo empacotado             | ⬜           |
-|   11 | Polimento e performance                   | ⬜           |
+| Fase | Escopo                                    | Estado            |
+| ---: | ----------------------------------------- | ----------------- |
+|    0 | Arquitetura e especificações              | ✅ concluída      |
+|    1 | Fundação (monorepo, shell, tooling)       | ✅ concluída      |
+|    2 | Mapa + Câmera                             | ✅ concluída      |
+|    3 | Documento + Comandos + Undo               | ✅ concluída      |
+|    4 | Objetos + Timeline                        | ✅ concluída      |
+|    5 | Animação avançada (bezier, graph, paths)  | ✅ concluída      |
+|    6 | Efeitos e partículas (congelada)          | ✅ concluída      |
+|   7A | Biblioteca de ativos (import)             | ✅ concluída      |
+|  7A+ | Preview 3D no viewport (model3d)          | ✅ concluída      |
+| 7A++ | 3D com volume + rotas 3D (route3d)        | ✅ concluída      |
+|   7B | Camadas geo: contornos, estados, estradas | ✅ concluída      |
+|   7C | Rotas e setas de avanço                   | ✅ concluída      |
+|   7D | Textos e rótulos no mapa                  | ✅ concluída      |
+|   7E | Satélite, rótulo com guia, modo estúdio   | ✅ 3 de 4         |
+|    7 | Ações / simulações                        | ✅ concluída      |
+|    8 | Exportação (PNG, MP4, GIF, ProRes 4444)   | 🟨 núcleo pronto  |
+|    9 | Scene Script (autoria por IA)             | ⬜                |
+|   10 | Plugins + conteúdo empacotado             | ⬜                |
+|   11 | Polimento e performance                   | 🟨 primeiro passe |
 
 Roteiro detalhado com critérios de saída: [docs/08-ROADMAP.md](docs/08-ROADMAP.md).
 
@@ -140,6 +141,8 @@ Leia nesta ordem.
 | [06-RENDER-PIPELINE.md](docs/06-RENDER-PIPELINE.md) | Ciclo do frame, compositor, determinismo, exportação      |
 | [07-CONVENTIONS.md](docs/07-CONVENTIONS.md)         | Padrões de código, pastas, nomes, testes, performance     |
 | [08-ROADMAP.md](docs/08-ROADMAP.md)                 | Fases de implementação com critérios de saída             |
+| [09-CONTINUIDADE.md](docs/09-CONTINUIDADE.md)       | Estado técnico e passagem de bastão                       |
+| [10-GUIA-DE-USO.md](docs/10-GUIA-DE-USO.md)         | Instalação e operação para o usuário                      |
 | [adr/](docs/adr/)                                   | Decisões de arquitetura registradas (ADRs)                |
 
 ---
@@ -186,6 +189,7 @@ Pré-requisitos:
 - Node.js 22 ou mais recente
 - pnpm 11 ou mais recente
 - Windows 10/11 para o shell Electron atual
+- FFmpeg 8.1.2 fixado, apenas para testar/empacotar GIF e ProRes em desenvolvimento
 
 Instale as dependências e abra o editor:
 
@@ -204,8 +208,23 @@ Execute todas as verificações:
 pnpm check
 ```
 
-O comando valida tipagem, formatação, lint, DAG de dependências e testes. O
-FFmpeg será distribuído como sidecar na Fase 8; não exige instalação global.
+O comando valida tipagem, formatação, lint, DAG de dependências e testes. No
+aplicativo instalado o FFmpeg é um sidecar incluído no pacote e não exige
+instalação global.
+
+## Instalador do Windows
+
+O instalador assistido leva junto todos os dados offline e permite escolher a
+pasta de destino. Para gerá-lo:
+
+```powershell
+pnpm dist:win
+```
+
+O resultado fica em `release/Theatrum-Setup-0.1.0-x64.exe`. O pacote atual tem
+aproximadamente 1,6 GiB porque contém 1,8 GB de cartografia/satélite e um FFmpeg
+com versão e SHA-256 fixados. É uma compilação interna sem certificado de
+assinatura de código; o Windows pode mostrar o aviso do SmartScreen.
 
 Com `pnpm dev` aberto em outro terminal, a prova integrada da Fase 2 é:
 
