@@ -387,6 +387,44 @@ const StudioStagePropsSchema = z
     shadowStrength: UnitNumberPropertySchema,
     /** Gradiente radial ao preto nas bordas: a sensacao de cenario infinito. */
     vignette: UnitNumberPropertySchema,
+    /**
+     * Tempos do roteiro de visitas (ADR-015). Não são animáveis: são parâmetros
+     * de **compilação**, e o que eles produzem — os keyframes das seis props de
+     * câmera acima — é que é a animação. Moram no palco porque é o palco que dona
+     * a câmera que o roteiro dirige, e porque assim viajam no `.theatrum` e
+     * desfazem como qualquer outra propriedade.
+     */
+    tourStartFrame: NonNegativeNumberPropertySchema,
+    tourTravelFrames: PositiveNumberPropertySchema,
+    tourHoldFrames: NonNegativeNumberPropertySchema,
+  })
+  .passthrough();
+
+/**
+ * Ponto de interesse do palco ([ADR-015](../../../docs/adr/ADR-015-studio-points-of-interest.md)).
+ *
+ * Onde a câmera para para o dono falar do míssil, da cabine, do escapamento. O
+ * ponto nasce de um **clique na superfície do modelo** e mora aqui, no documento
+ * — não num nó do arquivo 3D. A premissa contrária foi medida e morreu: o 2S19M1
+ * tem 51 nós irmãos chamados `Object_2`…`Object_50`, agrupados por material, e
+ * 20 das 49 malhas atravessam mais de 60% de um eixo do veículo. Não existe "o
+ * nó da torre" para oferecer numa lista.
+ *
+ * **O enquadramento é absoluto, não relativo ao que a câmera estava fazendo.**
+ * Distância, azimute e elevação aqui são os mesmos números que o `studio.stage`
+ * já anima, então visitar um ponto é copiar seis valores — sem composição, sem
+ * ambiguidade de base. Relativo obrigaria a câmera a depender de onde o roteiro
+ * passou antes, e a câmera precisa continuar função pura de (documento, frame):
+ * é ela que o export byte-idêntico da Fase 8 reproduz.
+ */
+const StudioPoiPropsSchema = z
+  .object({
+    pointX: NumberPropertySchema,
+    pointY: NumberPropertySchema,
+    pointZ: NumberPropertySchema,
+    distanceMeters: PositiveNumberPropertySchema,
+    azimuthDeg: NumberPropertySchema,
+    elevationDeg: NumberPropertySchema,
   })
   .passthrough();
 
@@ -1328,6 +1366,13 @@ export const STUDIO_STAGE_NODE_TYPE = defineNodeType({
     floorTexture: animatable(0.35),
     shadowStrength: animatable(0.75),
     vignette: animatable(0.55),
+    // 30 frames de voo e 60 de pausa a 30 fps: um segundo indo, dois segundos
+    // parado. Dois segundos é pouco para narrar um míssil, e é de propósito — o
+    // padrão existe para o primeiro clique produzir algo que se vê inteiro sem
+    // esperar, e a pausa é o número que o dono ajusta ao texto dele.
+    tourStartFrame: animatable(0),
+    tourTravelFrames: animatable(30),
+    tourHoldFrames: animatable(60),
   },
   propertySchema: StudioStagePropsSchema,
   // Sem COMMON_PROPERTIES de proposito. O palco NAO e um objeto desenhavel: e
@@ -1524,6 +1569,40 @@ export const STUDIO_STAGE_NODE_TYPE = defineNodeType({
       max: 1,
       step: 0.05,
       unit: "percent",
+    }),
+    // Os três do roteiro (ADR-015). `animatable: false` de propósito: são a
+    // entrada do compilador, não a animação. Uma trilha de "duração da pausa"
+    // variando no tempo não teria significado — a pausa que ela descreve já
+    // aconteceu, gravada nos keyframes que a compilação escreveu.
+    property({
+      path: "props.tourStartFrame",
+      label: "Roteiro · início",
+      kind: "number",
+      group: "content",
+      binding: "animatable",
+      animatable: false,
+      min: 0,
+      step: 1,
+    }),
+    property({
+      path: "props.tourTravelFrames",
+      label: "Roteiro · voo entre pontos",
+      kind: "number",
+      group: "content",
+      binding: "animatable",
+      animatable: false,
+      min: 1,
+      step: 1,
+    }),
+    property({
+      path: "props.tourHoldFrames",
+      label: "Roteiro · pausa em cada ponto",
+      kind: "number",
+      group: "content",
+      binding: "animatable",
+      animatable: false,
+      min: 0,
+      step: 1,
     }),
   ],
   supportsChildren: false,
@@ -2050,6 +2129,113 @@ export const ROUTE3D_NODE_TYPE = defineNodeType({
   defaultSizeMode: "screen",
 });
 
+/**
+ * Parada da câmera de apresentação: "aqui é a cabine", "aqui é o míssil".
+ *
+ * Como o palco, **não** herda `COMMON_PROPERTIES`, e aqui o motivo é mais forte
+ * ainda: um POI não desenha nada. Posição em pixels, escala e inclinação não
+ * significam nada nele, e `transform.opacity` seria a mesma armadilha que o
+ * ADR-014 pagou no palco — o avaliador deriva `visible` de `opacity > 0`
+ * (`packages/animation/src/evaluate.ts`), então baixar a opacidade sumiria com o
+ * ponto do palco sem uma palavra de explicação. Controle que só pode causar dano
+ * não entra.
+ *
+ * O que este nó carrega são metros e graus, e é o roteiro que os transforma em
+ * keyframes das props de câmera do `studio.stage`.
+ *
+ * **O nome do ponto é o nome do nó**, não uma prop. Todo nó já tem `name`, o
+ * painel de camadas já o edita por duplo clique e o avaliador já o entrega em
+ * `EvaluatedNode.name`. Uma `props.name` ao lado dele seriam dois campos "nome"
+ * para a mesma coisa, livres para divergir — e seria o Inspector, não a lista de
+ * camadas, o lugar onde o dono batizaria "Cabine".
+ */
+export const STUDIO_POI_NODE_TYPE = defineNodeType({
+  type: "studio.poi",
+  category: "media",
+  label: "Ponto do palco",
+  icon: "map-pin",
+  defaultProps: {
+    pointX: animatable(0),
+    pointY: animatable(0),
+    pointZ: animatable(0),
+    // O padrão de enquadramento é mais perto e mais alto que o do palco (40 m,
+    // 14°): um ponto de interesse existe para ser olhado de perto, e chegar num
+    // ponto sem que a câmera se aproxime não é visita, é continuar parado.
+    distanceMeters: animatable(12),
+    azimuthDeg: animatable(35),
+    elevationDeg: animatable(18),
+  },
+  propertySchema: StudioPoiPropsSchema,
+  properties: [
+    property({
+      path: "props.pointX",
+      label: "Ponto · leste",
+      kind: "number",
+      group: "layout",
+      binding: "animatable",
+      animatable: true,
+      step: 0.1,
+      unit: "meters",
+    }),
+    property({
+      path: "props.pointY",
+      label: "Ponto · altura",
+      kind: "number",
+      group: "layout",
+      binding: "animatable",
+      animatable: true,
+      step: 0.1,
+      unit: "meters",
+    }),
+    property({
+      path: "props.pointZ",
+      label: "Ponto · sul",
+      kind: "number",
+      group: "layout",
+      binding: "animatable",
+      animatable: true,
+      step: 0.1,
+      unit: "meters",
+    }),
+    property({
+      path: "props.distanceMeters",
+      label: "Distância da visita",
+      kind: "number",
+      group: "layout",
+      binding: "animatable",
+      animatable: true,
+      min: 0.01,
+      step: 0.5,
+      unit: "meters",
+    }),
+    property({
+      path: "props.azimuthDeg",
+      label: "Azimute da visita",
+      kind: "number",
+      group: "layout",
+      binding: "animatable",
+      animatable: true,
+      step: 5,
+      unit: "degrees",
+    }),
+    property({
+      path: "props.elevationDeg",
+      label: "Elevação da visita",
+      kind: "number",
+      group: "layout",
+      binding: "animatable",
+      animatable: true,
+      min: -89,
+      max: 89,
+      step: 2,
+      unit: "degrees",
+    }),
+  ],
+  supportsChildren: false,
+  defaultAnchorSpace: "geo",
+  defaultSizeMode: "screen",
+});
+
 export const BUILTIN_NODE_TYPE_IDS = Object.freeze([
   "group",
   "null",
@@ -2073,6 +2259,7 @@ export const BUILTIN_NODE_TYPE_IDS = Object.freeze([
   "studio.stage",
   "route",
   "geo.frontline",
+  "studio.poi",
 ] as const);
 
 export type BuiltinNodeType = (typeof BUILTIN_NODE_TYPE_IDS)[number];
@@ -2100,6 +2287,7 @@ export const BUILTIN_NODE_TYPES: readonly NodeTypeDefinition[] = Object.freeze([
   STUDIO_STAGE_NODE_TYPE,
   ROUTE_NODE_TYPE,
   GEO_FRONTLINE_NODE_TYPE,
+  STUDIO_POI_NODE_TYPE,
 ]);
 
 export function createBuiltinNodeTypeRegistry(): NodeTypeRegistry {

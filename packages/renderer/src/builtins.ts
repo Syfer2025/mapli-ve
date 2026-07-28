@@ -273,6 +273,7 @@ export const BUILTIN_RENDERABLE_TYPES = [
   "studio.stage",
   "route",
   "geo.frontline",
+  "studio.poi",
 ] as const;
 
 const BUILTIN_EVALUATORS: Readonly<
@@ -311,6 +312,13 @@ const BUILTIN_EVALUATORS: Readonly<
   "studio.stage": noVisual,
   route: routeVisual,
   "geo.frontline": routeVisual,
+  // Ponto de interesse também não desenha, e a ausência aqui é de propósito
+  // (ADR-015). O marcador que o dono vê ao marcar pontos é **chrome de autoria**:
+  // vive numa superfície própria do painel do palco, fora da lista que o
+  // `frame-composer` compõe. Se o marcador saísse por esta primitiva ele entraria
+  // no overlay Pixi — que É composto — e um numerozinho apareceria no vídeo
+  // exportado sempre que alguém esquecesse o modo de marcação ligado.
+  "studio.poi": noVisual,
 };
 
 /**

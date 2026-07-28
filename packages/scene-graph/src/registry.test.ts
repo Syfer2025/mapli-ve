@@ -42,9 +42,9 @@ function rootNode(): Node {
 }
 
 describe("builtin node type registry", () => {
-  it("registra exatamente os vinte e dois tipos base em ordem explícita", () => {
+  it("registra exatamente os vinte e três tipos base em ordem explícita", () => {
     const registry = createBuiltinNodeTypeRegistry();
-    expect(registry.size).toBe(22);
+    expect(registry.size).toBe(23);
     expect(registry.list().map((item) => item.type)).toEqual(BUILTIN_NODE_TYPE_IDS);
     expect(BUILTIN_NODE_TYPES.map((item) => item.type)).toEqual(BUILTIN_NODE_TYPE_IDS);
   });
@@ -170,6 +170,59 @@ describe("builtin node type registry", () => {
     expect(
       definition?.properties.find((descriptor) => descriptor.path === "props.pathId")?.animatable,
     ).toBe(false);
+  });
+
+  /**
+   * O ponto de interesse do palco (ADR-015) carrega metros e graus, e o roteiro
+   * os copia para as props de câmera do `studio.stage`. Os nomes são contrato
+   * entre os dois: renomear aqui e esquecer lá não quebra tipagem — a visita
+   * simplesmente enquadra o lugar errado, que é o defeito silencioso que este
+   * teste existe para transformar em vermelho.
+   */
+  it("expõe studio.poi com ponto em metros e enquadramento absoluto", () => {
+    const registry = createBuiltinNodeTypeRegistry();
+    const definition = registry.get("studio.poi");
+    expect(definition?.label).toBe("Ponto do palco");
+    expect(definition?.properties.map((descriptor) => descriptor.path)).toEqual([
+      "props.pointX",
+      "props.pointY",
+      "props.pointZ",
+      "props.distanceMeters",
+      "props.azimuthDeg",
+      "props.elevationDeg",
+    ]);
+    // O nome do ponto é o nome do NÓ. Uma `props.name` aqui seria um segundo
+    // campo "nome" para a mesma coisa, e os dois divergiriam no primeiro rename.
+    expect(definition?.properties.some((descriptor) => descriptor.path === "props.name")).toBe(
+      false,
+    );
+    expect(registry.createDefaultProps("studio.poi")).toEqual({
+      pointX: { value: 0, keyframes: [], expression: null },
+      pointY: { value: 0, keyframes: [], expression: null },
+      pointZ: { value: 0, keyframes: [], expression: null },
+      distanceMeters: { value: 12, keyframes: [], expression: null },
+      azimuthDeg: { value: 35, keyframes: [], expression: null },
+      elevationDeg: { value: 18, keyframes: [], expression: null },
+    });
+  });
+
+  /**
+   * A armadilha que o ADR-014 pagou no palco, travada agora para os dois nós de
+   * estúdio: o avaliador deriva `visible` de `opacity > 0`, então oferecer
+   * opacidade num nó que não desenha dá ao usuário um controle cujo único efeito
+   * possível é fazer a coisa sumir sem explicação. O dono encontrou isso no
+   * Inspector, com o mapa reacendendo por baixo do palco.
+   */
+  it("nem palco nem ponto de interesse oferecem transform no Inspector", () => {
+    const registry = createBuiltinNodeTypeRegistry();
+    for (const type of ["studio.stage", "studio.poi"]) {
+      const paths = registry.get(type)?.properties.map((descriptor) => descriptor.path) ?? [];
+      expect(paths, type).not.toHaveLength(0);
+      expect(
+        paths.every((path) => path.startsWith("props.")),
+        type,
+      ).toBe(true);
+    }
   });
 
   it("lista por categoria sem expor o array interno", () => {
