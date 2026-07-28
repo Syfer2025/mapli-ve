@@ -27,6 +27,7 @@ export {
   type LinePrimitive,
   type PolygonPrimitive,
   type GeoShapePrimitive,
+  type CalloutPrimitive,
   type CirclePrimitive,
   type SymbolPrimitive,
   type VisualPrimitive,

@@ -42,9 +42,9 @@ function rootNode(): Node {
 }
 
 describe("builtin node type registry", () => {
-  it("registra exatamente os dezoito tipos base em ordem explícita", () => {
+  it("registra exatamente os dezenove tipos base em ordem explícita", () => {
     const registry = createBuiltinNodeTypeRegistry();
-    expect(registry.size).toBe(18);
+    expect(registry.size).toBe(19);
     expect(registry.list().map((item) => item.type)).toEqual(BUILTIN_NODE_TYPE_IDS);
     expect(BUILTIN_NODE_TYPES.map((item) => item.type)).toEqual(BUILTIN_NODE_TYPE_IDS);
   });
@@ -175,7 +175,11 @@ describe("builtin node type registry", () => {
   it("lista por categoria sem expor o array interno", () => {
     const registry = createBuiltinNodeTypeRegistry();
     expect(registry.list("unit").map((item) => item.type)).toEqual(["unit.armor", "unit.infantry"]);
-    expect(registry.list("text").map((item) => item.type)).toEqual(["text.title", "text.label"]);
+    expect(registry.list("text").map((item) => item.type)).toEqual([
+      "text.title",
+      "text.label",
+      "label.callout",
+    ]);
     expect(Object.isFrozen(registry.list())).toBe(true);
   });
 

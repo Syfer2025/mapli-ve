@@ -386,6 +386,15 @@ function ensureVisual(module: PixiModule, node: PixiNode, visual: VisualPrimitiv
     case "text":
       node.visual = new module.Text();
       break;
+    case "callout": {
+      // Caixa e texto num contêiner: o filho 0 é sempre a caixa, o 1 é o texto.
+      // A ordem é contrato com `updateVisual`, que os lê por índice.
+      const group = new module.Container();
+      group.addChild(new module.Graphics());
+      group.addChild(new module.Text());
+      node.visual = group;
+      break;
+    }
     case "image":
       node.visual = new module.Sprite(module.Texture.EMPTY);
       break;
@@ -426,6 +435,61 @@ function updateVisual(
       text.style.align = visual.align;
       text.anchor.set(placement.anchor[0], placement.anchor[1]);
       text.position.set(placement.position[0], placement.position[1]);
+      return;
+    }
+
+    case "callout": {
+      /**
+       * Caixa e texto num contêiner só, e a **ordem importa**: o texto é medido
+       * primeiro, a caixa dimensiona pelo que ele mediu. Fixar a caixa antes
+       * cortaria rótulo longo, que é justamente o caso de uso — anotação de mapa
+       * é texto de tamanho imprevisível.
+       */
+      const group = node.visual as Container;
+      const box = group.getChildAt(0) as Graphics;
+      const text = group.getChildAt(1) as Text;
+
+      text.text = visual.text;
+      text.style.fontFamily = visual.fontFamily;
+      text.style.fontSize = visual.fontSize;
+      text.style.fontWeight = visual.fontWeight;
+      text.style.fill = visual.color;
+
+      const width = text.width + visual.paddingX * 2;
+      const height = text.height + visual.paddingY * 2;
+      text.position.set(visual.paddingX, visual.paddingY);
+
+      box.clear();
+      // A linha-guia sai da **borda** da caixa, não do centro: ligada ao centro
+      // ela atravessaria o texto por baixo e apareceria nas pontas.
+      if (visual.leader !== null && visual.leaderWidth > 0) {
+        const [tx, ty] = visual.leader;
+        const cx = width / 2;
+        const cy = height / 2;
+        const dx = tx - cx;
+        const dy = ty - cy;
+        const scale =
+          dx === 0 && dy === 0
+            ? 0
+            : Math.min(
+                Math.abs(dx) < 1e-6 ? Infinity : width / 2 / Math.abs(dx),
+                Math.abs(dy) < 1e-6 ? Infinity : height / 2 / Math.abs(dy),
+              );
+        const edgeX = cx + dx * Math.min(1, scale);
+        const edgeY = cy + dy * Math.min(1, scale);
+        box.moveTo(edgeX, edgeY);
+        box.lineTo(tx, ty);
+        box.stroke({ color: visual.leaderColor, width: visual.leaderWidth });
+      }
+      if (visual.cornerRadius > 0) box.roundRect(0, 0, width, height, visual.cornerRadius);
+      else box.rect(0, 0, width, height);
+      if (visual.backgroundAlpha > 0) {
+        box.fill({ color: visual.background, alpha: visual.backgroundAlpha });
+      }
+      if (visual.borderWidth > 0) {
+        box.stroke({ color: visual.borderColor, width: visual.borderWidth });
+      }
+      group.position.set(placement.position[0], placement.position[1]);
       return;
     }
 

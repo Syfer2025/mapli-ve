@@ -325,6 +325,28 @@ const GeoShapePropsSchema = z
   })
   .passthrough();
 
+const CalloutPropsSchema = z
+  .object({
+    text: StringPropertySchema,
+    /** Nó que o rótulo acompanha. Vazio deixa o rótulo parado na âncora. */
+    targetId: StringPropertySchema,
+    /** Alternativa ao nó: ponto de um caminho, em [0,1]. */
+    pathId: StringPropertySchema,
+    progress: UnitNumberPropertySchema,
+    offsetX: NumberPropertySchema,
+    offsetY: NumberPropertySchema,
+    color: ColorPropertySchema,
+    fontSize: PositiveNumberPropertySchema,
+    background: ColorPropertySchema,
+    backgroundAlpha: UnitNumberPropertySchema,
+    borderColor: ColorPropertySchema,
+    borderWidth: NonNegativeNumberPropertySchema,
+    cornerRadius: NonNegativeNumberPropertySchema,
+    leaderWidth: NonNegativeNumberPropertySchema,
+    leaderColor: ColorPropertySchema,
+  })
+  .passthrough();
+
 const Route3dPropsSchema = z
   .object({
     /** Caminho compartilhado do projeto (`document.paths`) que a rota traça. */
@@ -1011,6 +1033,195 @@ export const GEO_ROADS_NODE_TYPE = defineNodeType({
   defaultSizeMode: "screen",
 });
 
+/**
+ * Rótulo com caixa que acompanha um objeto ou um ponto de rota.
+ *
+ * Duas formas de prender, e a distinção é o que o instrumento precisa:
+ *
+ * - **`targetId`** gruda em outro nó. O rótulo segue o objeto quadro a quadro,
+ *   qualquer que seja o motivo do movimento — keyframe, comportamento, caminho.
+ * - **`pathId` + `progress`** gruda num ponto do caminho. É a anotação que corre
+ *   sobre o tracejado da rota, e `progress` é animável: o texto viaja com a
+ *   revelação.
+ *
+ * `offsetX`/`offsetY` afastam a caixa do ponto, em pixels de tela, para o rótulo
+ * não cobrir o que ele aponta. A linha-guia liga os dois.
+ */
+export const LABEL_CALLOUT_NODE_TYPE = defineNodeType({
+  type: "label.callout",
+  category: "text",
+  label: "Rótulo com guia",
+  icon: "message-square",
+  defaultProps: {
+    text: animatable("Rótulo"),
+    targetId: animatable(""),
+    pathId: animatable(""),
+    progress: animatable(0.5),
+    offsetX: animatable(72),
+    offsetY: animatable(-56),
+    color: animatable("#f4f7fbff"),
+    fontSize: animatable(16),
+    background: animatable("#0b1118e0"),
+    backgroundAlpha: animatable(0.88),
+    borderColor: animatable("#7dd3fcff"),
+    borderWidth: animatable(1),
+    cornerRadius: animatable(4),
+    leaderWidth: animatable(1.5),
+    leaderColor: animatable("#7dd3fcff"),
+  },
+  propertySchema: CalloutPropsSchema,
+  properties: [
+    ...COMMON_PROPERTIES,
+    property({
+      path: "props.text",
+      label: "Texto",
+      kind: "multiline-text",
+      group: "content",
+      binding: "animatable",
+      animatable: true,
+    }),
+    property({
+      path: "props.targetId",
+      label: "Objeto alvo",
+      kind: "text",
+      group: "content",
+      binding: "animatable",
+      animatable: false,
+    }),
+    property({
+      path: "props.pathId",
+      label: "Caminho",
+      kind: "text",
+      group: "content",
+      binding: "animatable",
+      animatable: false,
+    }),
+    property({
+      path: "props.progress",
+      label: "Posição no caminho",
+      kind: "number",
+      group: "content",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      unit: "ratio",
+    }),
+    property({
+      path: "props.offsetX",
+      label: "Afastamento X",
+      kind: "number",
+      group: "layout",
+      binding: "animatable",
+      animatable: true,
+      step: 1,
+      unit: "px",
+    }),
+    property({
+      path: "props.offsetY",
+      label: "Afastamento Y",
+      kind: "number",
+      group: "layout",
+      binding: "animatable",
+      animatable: true,
+      step: 1,
+      unit: "px",
+    }),
+    property({
+      path: "props.fontSize",
+      label: "Tamanho da fonte",
+      kind: "number",
+      group: "content",
+      binding: "animatable",
+      animatable: true,
+      min: 1,
+      step: 1,
+      unit: "px",
+    }),
+    property({
+      path: "props.color",
+      label: "Cor do texto",
+      kind: "color",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+    }),
+    property({
+      path: "props.background",
+      label: "Fundo",
+      kind: "color",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+    }),
+    property({
+      path: "props.backgroundAlpha",
+      label: "Opacidade do fundo",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      unit: "percent",
+    }),
+    property({
+      path: "props.borderColor",
+      label: "Cor da borda",
+      kind: "color",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+    }),
+    property({
+      path: "props.borderWidth",
+      label: "Espessura da borda",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      step: 0.5,
+      unit: "px",
+    }),
+    property({
+      path: "props.cornerRadius",
+      label: "Raio do canto",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      step: 1,
+      unit: "px",
+    }),
+    property({
+      path: "props.leaderWidth",
+      label: "Espessura da guia",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      step: 0.5,
+      unit: "px",
+    }),
+    property({
+      path: "props.leaderColor",
+      label: "Cor da guia",
+      kind: "color",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+    }),
+  ],
+  supportsChildren: false,
+  defaultAnchorSpace: "geo",
+  defaultSizeMode: "screen",
+});
+
 export const ROUTE3D_NODE_TYPE = defineNodeType({
   type: "route3d",
   category: "geo",
@@ -1132,6 +1343,7 @@ export const BUILTIN_NODE_TYPE_IDS = Object.freeze([
   "shape.circle",
   "geo.region",
   "geo.rivers",
+  "label.callout",
   "geo.roads",
   "symbol.icon",
   "unit.armor",
@@ -1155,6 +1367,7 @@ export const BUILTIN_NODE_TYPES: readonly NodeTypeDefinition[] = Object.freeze([
   SHAPE_CIRCLE_NODE_TYPE,
   GEO_REGION_NODE_TYPE,
   GEO_RIVERS_NODE_TYPE,
+  LABEL_CALLOUT_NODE_TYPE,
   GEO_ROADS_NODE_TYPE,
   SYMBOL_ICON_NODE_TYPE,
   UNIT_ARMOR_NODE_TYPE,

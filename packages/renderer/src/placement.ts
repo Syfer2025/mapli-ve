@@ -33,11 +33,14 @@ export function visualPlacement(visual: VisualPrimitive, size: Vec2): VisualPlac
         position: [size[0] / 2, size[1] / 2],
         anchor: [0, 0],
       };
-    // Linha, polígono e partículas carregam deslocamento local próprio, medido a
-    // partir da origem do nó; centralizar deslocaria a geometria inteira.
+    // Linha, polígono, geometria geográfica, rótulo com guia e partículas carregam
+    // deslocamento local próprio, medido a partir da origem do nó; centralizar
+    // deslocaria a geometria inteira. O rótulo ancora no canto da caixa porque é
+    // dali que a caixa cresce com o texto.
     case "none":
     case "line":
     case "polygon":
+    case "callout":
     case "geo-shape":
     case "particles":
       return {

@@ -112,6 +112,31 @@ const geoShapeVisual: VisualEvaluator<Props> = (node) => {
   };
 };
 
+const calloutVisual: VisualEvaluator<Props> = (node) => {
+  const background = splitHexAlpha(stringProp(node.props, "background", "#0b1118e0"));
+  const leaderRaw = rawProp(node.props, "leader");
+  const leader = pointsProp({ p: [leaderRaw] } as unknown as Props, "p", []);
+  return {
+    kind: "callout",
+    text: stringProp(node.props, "text", node.name ?? "Rótulo"),
+    color: stringProp(node.props, "color", "#f4f7fb"),
+    fontFamily: stringProp(node.props, "fontFamily", "Open Sans"),
+    fontSize: positiveProp(node.props, "fontSize", 16),
+    fontWeight: fontWeightProp(node.props, "bold"),
+    background: background.color,
+    backgroundAlpha: unitProp(node.props, "backgroundAlpha", background.alpha),
+    borderColor: stringProp(node.props, "borderColor", "#7dd3fcff"),
+    borderWidth: nonNegativeProp(node.props, "borderWidth", 1),
+    cornerRadius: nonNegativeProp(node.props, "cornerRadius", 4),
+    paddingX: nonNegativeProp(node.props, "paddingX", 10),
+    paddingY: nonNegativeProp(node.props, "paddingY", 5),
+    // O aplicativo põe o vetor aqui; ausência esconde a linha.
+    leader: leader[0] ?? null,
+    leaderColor: stringProp(node.props, "leaderColor", "#7dd3fcff"),
+    leaderWidth: nonNegativeProp(node.props, "leaderWidth", 1.5),
+  };
+};
+
 const iconVisual: VisualEvaluator<Props> = (node) => ({
   kind: "symbol",
   shape: enumProp(node.props, "shape", ["square", "diamond", "triangle", "circle"], "diamond"),
@@ -208,6 +233,7 @@ export const BUILTIN_RENDERABLE_TYPES = [
   "shape.circle",
   "geo.region",
   "geo.rivers",
+  "label.callout",
   "geo.roads",
   "symbol.icon",
   "unit.armor",
@@ -235,6 +261,7 @@ const BUILTIN_EVALUATORS: Readonly<
   // Região, rio e estradas compartilham a primitiva: o que muda é `closed` nas props.
   "geo.region": geoShapeVisual,
   "geo.rivers": geoShapeVisual,
+  "label.callout": calloutVisual,
   "geo.roads": geoShapeVisual,
   "symbol.icon": iconVisual,
   "unit.armor": armorVisual,

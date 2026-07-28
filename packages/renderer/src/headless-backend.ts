@@ -260,6 +260,8 @@ function cloneVisual(visual: VisualPrimitive): VisualPrimitive {
       return { ...visual, points: clonePoints(visual.points) };
     case "geo-shape":
       return { ...visual, rings: visual.rings.map(clonePoints) };
+    case "callout":
+      return { ...visual, leader: visual.leader === null ? null : cloneVec2(visual.leader) };
     case "circle":
       return { ...visual };
     case "symbol":

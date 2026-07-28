@@ -30,6 +30,7 @@ import { Button } from "../../ui/index.js";
 import { createMapLibreProjectorPort } from "./maplibre-adapters.js";
 import { collectModel3dNodes, collectRoute3dNodes, syncScene3dLayer } from "./scene3d-layer.js";
 import { expandGeoNodes, type GeoExpansion, type GeoViewport } from "./geo-nodes.js";
+import { expandCalloutNodes, type CalloutExpansion } from "./callout-nodes.js";
 import { onGeoLayerLoaded } from "../../geo/geo-data.js";
 import { expandParticleEffects, type ParticleExpansion } from "./particle-nodes.js";
 import {
@@ -150,6 +151,7 @@ interface OverlayFrame {
   readonly filters: number;
   readonly mattes: number;
   readonly geo: Omit<GeoExpansion, "scene">;
+  readonly callouts: Omit<CalloutExpansion, "scene">;
   readonly paths: readonly ProjectedPath[];
   readonly metrics: RenderMetrics;
 }
@@ -418,8 +420,18 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
         const geo = expandGeoNodes(composed, evaluated, layout, geoViewportOf(map), (lngLat) =>
           projector.project([lngLat[0], lngLat[1]]),
         );
-        const particles = expandParticleEffects(
+        // Rótulos depois da geografia e antes dos efeitos: eles podem apontar
+        // para um território, e o alvo precisa já ter layout resolvido.
+        const callouts = expandCalloutNodes(
           geo.scene,
+          evaluated,
+          layout,
+          session.document.paths,
+          compToScreen,
+          (lngLat) => projector.project([lngLat[0], lngLat[1]]),
+        );
+        const particles = expandParticleEffects(
+          callouts.scene,
           evaluated,
           layout,
           composition,
@@ -455,6 +467,11 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
             vertices: geo.vertices,
             level: geo.level,
             bounds: geo.bounds,
+          },
+          callouts: {
+            diagnostics: callouts.diagnostics,
+            anchored: callouts.anchored,
+            loose: callouts.loose,
           },
           paths: projectPaths(
             session.document.paths,
@@ -1072,6 +1089,8 @@ interface SerializedDebugFrame {
   readonly mattes?: number;
   /** Territórios desenhados, vértices projetados e nível de simplificação. */
   readonly geo?: Omit<GeoExpansion, "scene">;
+  /** Rótulos ancorados e soltos neste frame. */
+  readonly callouts?: Omit<CalloutExpansion, "scene">;
   /** Caminhos projetados neste frame, resumidos. */
   readonly paths?: readonly {
     readonly id: string;
@@ -1124,6 +1143,7 @@ function serializeDebugFrame(
     filters: frame.filters,
     mattes: frame.mattes,
     geo: frame.geo,
+    callouts: frame.callouts,
     paths: frame.paths.map((path) => ({
       id: path.id,
       name: path.name,

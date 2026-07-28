@@ -160,6 +160,39 @@ export interface GeoShapePrimitive {
   readonly strokeAlpha: number;
 }
 
+/**
+ * Rótulo com caixa e linha-guia — a legenda que aponta para um objeto.
+ *
+ * É uma primitiva só, em vez de compor caixa, texto e linha como três nós, porque
+ * os três têm de ficar **coerentes**: a caixa dimensiona pelo texto medido, e a
+ * linha sai da borda da caixa, não do centro. Separados, cada mudança de fonte
+ * exigiria recalcular à mão em dois lugares.
+ *
+ * O `leader` é o vetor da caixa até o alvo, já em pixels relativos à origem do
+ * nó. Quem resolve a posição do alvo é o aplicativo — o renderer não conhece nem
+ * cena nem geografia.
+ */
+export interface CalloutPrimitive {
+  readonly kind: "callout";
+  readonly text: string;
+  readonly color: string;
+  readonly fontFamily: string;
+  readonly fontSize: number;
+  readonly fontWeight: "normal" | "bold";
+  /** Cor de fundo da caixa; alfa 0 dá texto sem caixa. */
+  readonly background: string;
+  readonly backgroundAlpha: number;
+  readonly borderColor: string;
+  readonly borderWidth: number;
+  readonly cornerRadius: number;
+  readonly paddingX: number;
+  readonly paddingY: number;
+  /** `null` esconde a linha-guia. Vetor da caixa até o alvo, em pixels. */
+  readonly leader: Vec2 | null;
+  readonly leaderColor: string;
+  readonly leaderWidth: number;
+}
+
 export interface CirclePrimitive {
   readonly kind: "circle";
   readonly radius: number;
@@ -226,6 +259,7 @@ export type VisualPrimitive =
   | LinePrimitive
   | PolygonPrimitive
   | GeoShapePrimitive
+  | CalloutPrimitive
   | CirclePrimitive
   | SymbolPrimitive
   | ParticlesPrimitive;
