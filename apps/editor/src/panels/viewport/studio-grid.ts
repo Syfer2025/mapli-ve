@@ -15,18 +15,21 @@
  * linha é medida **em pixels** a partir da derivada da coordenada de mundo
  * (fwidth), então uma linha a 5 m e uma a 5 km têm a mesma nitidez.
  *
- * Este arquivo também desenha a **sombra de contato**. Isso é escolha de projeto,
- * não conveniência: o chão é um RawShaderMaterial de tela cheia, e um plano
- * assim não recebe shadow map — não há superfície onde o three projete a sombra.
- * Sombra analítica no próprio shader resolve sem geometria extra, sai sem
- * serrilhado por construção, e a pegada vem da caixa envolvente de cada modelo,
- * então funciona para qualquer objeto importado, não só para o que veio primeiro.
+ * Este arquivo também **recebe a sombra**. Isso é escolha de projeto, não
+ * conveniência: um plano de tela cheia em RawShaderMaterial não recebe shadow map
+ * — não há superfície onde o three projete. A silhueta vem pronta de
+ * `studio-shadow.ts` como textura vista de cima, e aqui cada ponto do piso é
+ * levado para o espaço dela e amostrado.
+ *
+ * A primeira tentativa foi elipse analítica a partir da caixa envolvente, e o
+ * dono recusou com a palavra certa: "como se fosse uma sombra flutuando". Elipse
+ * não é silhueta. Um caça tem asa, deriva e tanque externo, e uma oval centrada
+ * no objeto lê como borrão embaixo dele. A silhueta projetada tem a forma de
+ * verdade, e vale para qualquer objeto importado.
  */
 
 import * as THREE from "three";
-
-/** Sombras simultâneas no chão. Palco de apresentação não tem multidão. */
-const MAX_SHADOWS = 4;
+import type { ShadowProjection } from "./studio-shadow.js";
 
 const VERTEX = /* glsl */ `
 precision highp float;
@@ -62,14 +65,15 @@ uniform float uOpacity;
 uniform float uFade;
 uniform float uTexture;
 
-uniform int uShadowCount;
-uniform vec2 uShadowCenter[${MAX_SHADOWS}];
-uniform vec2 uShadowRadius[${MAX_SHADOWS}];
-/** (cos, sen) do rumo do objeto: a elipse acompanha a silhueta, não o eixo do mundo. */
-uniform vec2 uShadowAxis[${MAX_SHADOWS}];
-uniform float uShadowStrength[${MAX_SHADOWS}];
-/** Cresce com a altura do objeto sobre o chão: penumbra de luz de área. */
-uniform float uShadowSoftness[${MAX_SHADOWS}];
+uniform sampler2D uShadowMap;
+/* projection * view da camera de cima: leva mundo direto em UV da silhueta. */
+uniform mat4 uShadowMatrix;
+uniform float uShadowStrength;
+/* Raio do desfoque em texels. Cresce com a altura do objeto. */
+uniform float uShadowSoftness;
+uniform float uShadowValid;
+/* Gradiente radial que fecha a cena em preto: e ele que da o infinito. */
+uniform float uVignette;
 
 /**
  * Linear → sRGB, na saída.
@@ -168,31 +172,41 @@ float octave(vec2 world, float sizeMeters, float amplitude) {
 }
 
 /**
- * Sombra de contato, somando os objetos do palco.
+ * Sombra por silhueta projetada.
  *
- * Duas parcelas, porque uma só não lê como sombra: um **núcleo** denso sob o
- * objeto, que é o contato, e um **halo** largo e fraco em volta, que é a
- * penumbra. É o halo que dá a moldura de sombra pedida — sem ele o objeto ganha
- * uma mancha de bordas duras, que parece adesivo, não sombra.
+ * A textura vem do modelo renderizado visto de cima, branco sobre preto
+ * (studio-shadow.ts). Aqui cada ponto do piso é levado para o espaço dessa
+ * câmera e amostrado: onde caiu dentro da silhueta, escurece. A forma é a do
+ * objeto — asa, deriva, tanque externo — e não uma aproximação.
  *
- * A elipse gira com o rumo do objeto: um caça de 18 m por 12 m deitado no eixo
- * do mundo teria sombra redonda e errada quando o modelo estivesse a 45°.
+ * O desfoque é um disco de treze amostras em espiral, não uma cruz. Cruz deixa
+ * rastro em X visível em silhueta fina como asa; espiral distribui o erro sem
+ * direção preferida. O raio vem em texels e cresce com a altura do objeto: é o
+ * que dá a penumbra que o dono descreveu como brilho preto em volta, e é o que
+ * impede a sombra de terminar numa borda dura e reta.
  */
-float contactShadow(vec2 world) {
-  float shade = 0.0;
-  for (int i = 0; i < ${MAX_SHADOWS}; i++) {
-    if (i >= uShadowCount) break;
-    vec2 delta = world - uShadowCenter[i];
-    // Rotação inversa: leva o mundo para o eixo do objeto.
-    vec2 axis = uShadowAxis[i];
-    vec2 local = vec2(delta.x * axis.x + delta.y * axis.y, -delta.x * axis.y + delta.y * axis.x);
-    float r = length(local / max(uShadowRadius[i], vec2(1e-3)));
-    float soft = uShadowSoftness[i];
-    float core = 1.0 - smoothstep(0.45 * (1.0 - soft * 0.5), 1.0 + soft, r);
-    float halo = 1.0 - smoothstep(0.0, 2.1 + soft * 2.0, r);
-    shade = max(shade, (core * 0.78 + halo * 0.42) * uShadowStrength[i]);
+float silhouetteShadow(vec3 world) {
+  if (uShadowValid < 0.5) return 0.0;
+  vec4 projected = uShadowMatrix * vec4(world, 1.0);
+  vec2 uv = projected.xy / projected.w * 0.5 + 0.5;
+  // Fora da textura não há objeto: nada de repetir a borda pelo chão inteiro.
+  if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 0.0;
+
+  float radius = uShadowSoftness / 1024.0;
+  float sum = texture(uShadowMap, uv).r;
+  float weight = 1.0;
+  for (int i = 0; i < 12; i++) {
+    float angle = float(i) * 2.399963;
+    float step = sqrt((float(i) + 0.5) / 12.0);
+    vec2 offset = vec2(cos(angle), sin(angle)) * radius * step;
+    float falloff = 1.0 - step * 0.55;
+    sum += texture(uShadowMap, uv + offset).r * falloff;
+    weight += falloff;
   }
-  return clamp(shade, 0.0, 1.0);
+  float mask = sum / weight;
+  // Curva no resultado: o núcleo fecha e a franja abre, que é como uma penumbra
+  // se comporta. Sem ela a máscara desfocada parece um adesivo translúcido.
+  return clamp(pow(mask, 0.72), 0.0, 1.0) * uShadowStrength;
 }
 
 void main() {
@@ -203,9 +217,14 @@ void main() {
 
   // Onde o raio cruza y = 0. Raio subindo ou paralelo ao chão nunca cruza:
   // esse é o céu, e é o que dá o horizonte de graça.
+  // Gradiente radial em espaço de tela. É ele que fecha a cena em preto nos
+  // cantos e dá a sensação de infinito: sem borda, sem horizonte marcado, o
+  // olho não encontra onde o cenário termina.
+  float vignette = 1.0 - uVignette * clamp(dot(vClip, vClip) * 0.62, 0.0, 1.0);
+
   float t = -near.y / direction.y;
   if (direction.y >= 0.0 || t < 0.0 || t > 1.0) {
-    finalColor = vec4(uHorizonColor, 1.0);
+    finalColor = vec4(linearToSrgb(uHorizonColor * vignette), 1.0);
     return;
   }
 
@@ -234,28 +253,15 @@ void main() {
   float coarse = gridCoverage(hit.xz, uSpacing * 10.0) * sqrt(fade);
   float coverage = max(fine * 0.55, coarse) * uOpacity;
 
-  float shade = contactShadow(hit.xz);
+  float shade = silhouetteShadow(hit);
   vec3 floorTone = uFloorColor * (1.0 + grain);
   // A sombra escurece o piso e as linhas juntos: sombra que apaga o chão e deixa
   // a grade acesa por baixo denuncia o truque na hora.
-  vec3 color = mix(floorTone * (1.0 - shade * 0.82), uGridColor * (1.0 - shade * 0.68), coverage);
+  vec3 color = mix(floorTone * (1.0 - shade * 0.86), uGridColor * (1.0 - shade * 0.74), coverage);
   color = mix(uHorizonColor, color, clamp(fade * 1.6 + 0.08, 0.0, 1.0));
-  finalColor = vec4(linearToSrgb(color), 1.0);
+  finalColor = vec4(linearToSrgb(color * vignette), 1.0);
 }
 `;
-
-/** Pegada de um objeto no chão, em metros do palco. */
-export interface StudioShadow {
-  /** Centro em (x leste, z sul). */
-  readonly center: readonly [number, number];
-  /** Semi-eixos da elipse, no referencial do objeto. */
-  readonly radius: readonly [number, number];
-  /** Rumo do objeto em graus, para girar a elipse. */
-  readonly headingDeg: number;
-  readonly strength: number;
-  /** 0 = encostado no chão; cresce com a altura, alargando a penumbra. */
-  readonly softness: number;
-}
 
 export interface StudioGridAppearance {
   readonly floor: THREE.ColorRepresentation;
@@ -265,7 +271,12 @@ export interface StudioGridAppearance {
   readonly opacity: number;
   /** 0 desliga a textura procedural e devolve o piso liso. */
   readonly texture: number;
-  readonly shadows: readonly StudioShadow[];
+  /** Silhueta projetada vinda do `StudioShadowProjector`; `null` some a sombra. */
+  readonly shadow: ShadowProjection | null;
+  /** Força da sombra, 0..1. */
+  readonly shadowStrength: number;
+  /** Gradiente radial que fecha a cena em preto. */
+  readonly vignette: number;
 }
 
 export interface StudioGrid {
@@ -286,14 +297,12 @@ export function createStudioGrid(): StudioGrid {
     uOpacity: { value: 0.55 },
     uFade: { value: 120 },
     uTexture: { value: 0.35 },
-    uShadowCount: { value: 0 },
-    // Arrays de uniform precisam existir com o tamanho final desde a primeira
-    // compilação: o three dimensiona pelo comprimento do array que recebe aqui.
-    uShadowCenter: { value: Array.from({ length: MAX_SHADOWS }, () => new THREE.Vector2()) },
-    uShadowRadius: { value: Array.from({ length: MAX_SHADOWS }, () => new THREE.Vector2(1, 1)) },
-    uShadowAxis: { value: Array.from({ length: MAX_SHADOWS }, () => new THREE.Vector2(1, 0)) },
-    uShadowStrength: { value: new Array<number>(MAX_SHADOWS).fill(0) },
-    uShadowSoftness: { value: new Array<number>(MAX_SHADOWS).fill(0) },
+    uShadowMap: { value: null as THREE.Texture | null },
+    uShadowMatrix: { value: new THREE.Matrix4() },
+    uShadowStrength: { value: 0 },
+    uShadowSoftness: { value: 8 },
+    uShadowValid: { value: 0 },
+    uVignette: { value: 0.55 },
   };
   const material = new THREE.RawShaderMaterial({
     vertexShader: VERTEX,
@@ -327,26 +336,19 @@ export function createStudioGrid(): StudioGrid {
       // para ver um detalhe não deve encher a tela de linhas, e recuar para ver
       // o conjunto não deve apagar a grade toda.
       uniforms.uFade.value = Math.max(10, camera.position.length() * 2.5);
+      uniforms.uVignette.value = Math.max(0, Math.min(1, appearance.vignette));
 
-      const count = Math.min(appearance.shadows.length, MAX_SHADOWS);
-      uniforms.uShadowCount.value = count;
-      for (let index = 0; index < count; index += 1) {
-        const shadow = appearance.shadows[index] as StudioShadow;
-        const radians = (shadow.headingDeg * Math.PI) / 180;
-        (uniforms.uShadowCenter.value[index] as THREE.Vector2).set(
-          shadow.center[0],
-          shadow.center[1],
-        );
-        (uniforms.uShadowRadius.value[index] as THREE.Vector2).set(
-          Math.max(1e-3, shadow.radius[0]),
-          Math.max(1e-3, shadow.radius[1]),
-        );
-        (uniforms.uShadowAxis.value[index] as THREE.Vector2).set(
-          Math.cos(radians),
-          Math.sin(radians),
-        );
-        uniforms.uShadowStrength.value[index] = Math.max(0, Math.min(1, shadow.strength));
-        uniforms.uShadowSoftness.value[index] = Math.max(0, Math.min(1, shadow.softness));
+      const shadow = appearance.shadow;
+      if (shadow === null) {
+        uniforms.uShadowValid.value = 0;
+        uniforms.uShadowStrength.value = 0;
+      } else {
+        uniforms.uShadowValid.value = 1;
+        uniforms.uShadowMap.value = shadow.texture;
+        uniforms.uShadowMatrix.value.copy(shadow.matrix);
+        uniforms.uShadowSoftness.value = shadow.softnessTexels;
+        uniforms.uShadowStrength.value =
+          Math.max(0, Math.min(1, appearance.shadowStrength)) * shadow.coverage;
       }
     },
     dispose: () => {

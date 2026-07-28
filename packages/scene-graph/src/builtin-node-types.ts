@@ -385,6 +385,8 @@ const StudioStagePropsSchema = z
     floorTexture: UnitNumberPropertySchema,
     /** Sombra de contato sob cada objeto do palco. 0 desliga. */
     shadowStrength: UnitNumberPropertySchema,
+    /** Gradiente radial ao preto nas bordas: a sensacao de cenario infinito. */
+    vignette: UnitNumberPropertySchema,
   })
   .passthrough();
 
@@ -1325,10 +1327,16 @@ export const STUDIO_STAGE_NODE_TYPE = defineNodeType({
     environmentIntensity: animatable(0.75),
     floorTexture: animatable(0.35),
     shadowStrength: animatable(0.75),
+    vignette: animatable(0.55),
   },
   propertySchema: StudioStagePropsSchema,
+  // Sem COMMON_PROPERTIES de proposito. O palco NAO e um objeto desenhavel: e
+  // camera mais ambiente. Posicao, escala, ancora e inclinacao nao significam
+  // nada nele, e `transform.opacity` era uma armadilha de verdade — o avaliador
+  // deriva `visible` de `opacity > 0` (evaluate.ts), entao baixar a opacidade
+  // do palco desligava o modo e trazia o MAPA de volta ao fundo. O dono achou
+  // isso mexendo no Inspector. Controle que so pode causar dano nao entra.
   properties: [
-    ...COMMON_PROPERTIES,
     property({
       path: "props.targetX",
       label: "Alvo · leste",
@@ -1496,6 +1504,18 @@ export const STUDIO_STAGE_NODE_TYPE = defineNodeType({
     property({
       path: "props.shadowStrength",
       label: "Sombra de contato",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      max: 1,
+      step: 0.05,
+      unit: "percent",
+    }),
+    property({
+      path: "props.vignette",
+      label: "Fechamento ao preto",
       kind: "number",
       group: "appearance",
       binding: "animatable",

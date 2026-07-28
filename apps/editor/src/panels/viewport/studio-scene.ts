@@ -27,7 +27,12 @@ import {
   type LightRig,
   type ModelTemplate,
 } from "./three-assets.js";
-import { createStudioGrid, type StudioGrid, type StudioShadow } from "./studio-grid.js";
+import { createStudioGrid, type StudioGrid } from "./studio-grid.js";
+import {
+  createStudioShadowProjector,
+  type ShadowSubject,
+  type StudioShadowProjector,
+} from "./studio-shadow.js";
 
 /** Estado do palco num frame, já avaliado. Tudo em metros e graus. */
 export interface StudioStageState {
@@ -49,6 +54,8 @@ export interface StudioStageState {
   readonly floorTexture: number;
   /** Sombra de contato sob cada objeto. 0 desliga. */
   readonly shadowStrength: number;
+  /** Gradiente radial ao preto nas bordas: a sensacao de infinito. */
+  readonly vignette: number;
 }
 
 /** Um `model3d` posicionado no palco em vez de no globo. */
@@ -97,6 +104,7 @@ export function collectStudioStage(evaluated: EvaluatedScene): StudioStageState 
       environmentIntensity: Math.max(0, num(props, "environmentIntensity", 0.75)),
       floorTexture: clamp01(num(props, "floorTexture", 0.35)),
       shadowStrength: clamp01(num(props, "shadowStrength", 0.75)),
+      vignette: clamp01(num(props, "vignette", 0.55)),
     };
   }
   return null;
@@ -188,6 +196,7 @@ export class StudioSceneRuntime {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly loader = new GLTFLoader();
   private readonly grid: StudioGrid;
+  private readonly shadowProjector: StudioShadowProjector;
   private readonly rig: LightRig;
   private readonly templates = new Map<string, Promise<ModelTemplate | null>>();
   private readonly instances = new Map<string, StudioInstance>();
@@ -224,6 +233,7 @@ export class StudioSceneRuntime {
     this.rig = createLightRig("y", { key: 2.6, fill: 0.7, rim: 1.8, ambient: 0.3 });
     addLightRig(this.scene, this.rig);
     this.grid = createStudioGrid();
+    this.shadowProjector = createStudioShadowProjector();
     this.scene.add(this.grid.mesh);
   }
 
@@ -238,6 +248,7 @@ export class StudioSceneRuntime {
     this.instances.clear();
     this.templates.clear();
     this.grid.dispose();
+    this.shadowProjector.dispose();
     this.environment?.dispose();
     this.environment = null;
     // Só `dispose`. **Não** chamar `WEBGL_lose_context.loseContext()` aqui.
@@ -289,9 +300,20 @@ export class StudioSceneRuntime {
     for (const model of scene.models) {
       const instance = this.instances.get(model.id);
       if (instance === undefined) continue;
-      applyModelTransform(instance.root, model);
+      applyModelTransform(instance.root, model, instance.footprint.bottom);
       instance.root.visible = model.opacity > 0;
     }
+    // A silhueta é pintada ANTES do frame: ela usa o mesmo renderer, e trocar de
+    // render target no meio do desenho da cena deixaria o palco pela metade.
+    const shadow =
+      scene.stage.shadowStrength > 0
+        ? this.shadowProjector.update(
+            this.renderer,
+            this.scene,
+            [this.grid.mesh],
+            this.shadowSubjects(scene.models),
+          )
+        : null;
     this.grid.update(this.camera, {
       floor: stripAlpha(scene.stage.floor),
       grid: stripAlpha(scene.stage.gridColor),
@@ -299,7 +321,9 @@ export class StudioSceneRuntime {
       spacingMeters: scene.stage.gridSpacingMeters,
       opacity: scene.stage.gridOpacity,
       texture: scene.stage.floorTexture,
-      shadows: this.collectShadows(scene.models, scene.stage.shadowStrength),
+      shadow,
+      shadowStrength: scene.stage.shadowStrength,
+      vignette: scene.stage.vignette,
     });
     this.renderer.setSize(width, height, false);
     this.renderer.render(this.scene, this.camera);
@@ -339,48 +363,30 @@ export class StudioSceneRuntime {
   }
 
   /**
-   * Pegada de cada objeto para a sombra de contato do chão.
-   *
-   * A elipse sai da caixa do modelo, não do raio: um caça é comprido e fino, e
-   * sombra redonda em objeto comprido é o tipo de erro que ninguém sabe nomear
-   * mas todo mundo percebe. Objeto suspenso — aeronave em voo no palco — recebe
-   * sombra mais larga, mais fraca e mais difusa, que é o que a penumbra de uma
-   * luz de área acima faz de verdade.
+   * O que o projetor de sombra precisa saber de cada objeto: onde está, que
+   * pegada tem e a que altura do chão. A **forma** ele extrai renderizando o
+   * próprio modelo visto de cima, então aqui não há aproximação de silhueta —
+   * só o enquadramento da câmera de cima.
    */
-  private collectShadows(
-    models: readonly StudioModelState[],
-    strength: number,
-  ): readonly StudioShadow[] {
-    if (strength <= 0) return [];
-    const shadows: StudioShadow[] = [];
+  private shadowSubjects(models: readonly StudioModelState[]): readonly ShadowSubject[] {
+    const subjects: ShadowSubject[] = [];
     for (const model of models) {
       const instance = this.instances.get(model.id);
-      if (instance === undefined || model.opacity <= 0) continue;
+      if (instance === undefined) continue;
       const scale = model.sizeMeters;
-      // Altura da base sobre o chão, em metros. Negativa (objeto enterrado) conta
-      // como encostado.
-      const height = Math.max(0, model.position[1] + instance.footprint.bottom * scale);
-      const span = Math.max(
-        0.1,
-        Math.max(instance.footprint.halfX, instance.footprint.halfZ) * scale,
-      );
-      // A penumbra abre proporcional à altura relativa ao próprio tamanho: um
-      // caça a 2 m do chão e um míssil a 2 m não estão igualmente soltos.
-      const lift = Math.min(1, height / (span * 2));
-      const spread = 1 + lift * 1.4;
-      shadows.push({
+      subjects.push({
+        root: instance.root,
         center: [model.position[0], model.position[2]],
-        radius: [
-          instance.footprint.halfX * scale * spread,
-          instance.footprint.halfZ * scale * spread,
-        ],
-        headingDeg: model.headingDeg,
-        // Sombra desbota junto com o objeto: opacidade 0 não pode deixar mancha.
-        strength: strength * model.opacity * (1 - lift * 0.55),
-        softness: lift,
+        halfX: Math.max(0.05, instance.footprint.halfX * scale),
+        halfZ: Math.max(0.05, instance.footprint.halfZ * scale),
+        // `altitudeMeters` já É a altura da base (ver `applyModelTransform`), então
+        // aqui não há offset a refazer. Negativo conta como encostado, não como
+        // suspenso ao contrário.
+        heightMeters: Math.max(0, model.position[1]),
+        opacity: model.opacity,
       });
     }
-    return shadows;
+    return subjects;
   }
 
   /** Raio em metros do modelo carregado, para o enquadramento automático. */
@@ -484,10 +490,23 @@ export class StudioSceneRuntime {
  * rotação de 180° − b, a mesma convenção do mapa: um caça apontado para o norte
  * na cena geográfica continua apontado para o norte no palco.
  */
-function applyModelTransform(root: THREE.Object3D, model: StudioModelState): void {
+/**
+ * `altitudeMeters` no palco é a altura da **base**, não do centro.
+ *
+ * O GLB é normalizado com o centro na origem, então translação crua com altitude
+ * 0 enterra metade do objeto no piso — e enterrado ele esconde a própria sombra,
+ * que foi como o defeito apareceu. Somar `-bottom * escala` faz altitude 0 querer
+ * dizer "apoiado no chão", que é o que qualquer um espera de uma vitrine, e
+ * mantém altitude 5 querendo dizer "cinco metros de vão livre".
+ */
+function applyModelTransform(root: THREE.Object3D, model: StudioModelState, bottom: number): void {
   const heading = ((180 - model.headingDeg) * Math.PI) / 180;
   root.matrix
-    .makeTranslation(model.position[0], model.position[1], model.position[2])
+    .makeTranslation(
+      model.position[0],
+      model.position[1] - bottom * model.sizeMeters,
+      model.position[2],
+    )
     .multiply(new THREE.Matrix4().makeScale(model.sizeMeters, model.sizeMeters, model.sizeMeters))
     .multiply(new THREE.Matrix4().makeRotationY(heading));
   root.matrixWorldNeedsUpdate = true;
