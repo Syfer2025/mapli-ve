@@ -12,14 +12,29 @@ morde, e como não repetir erro já cometido.
 
 ## 1. Onde parou
 
-Último commit: `8ea54a9`. Cadeia do `pnpm check` verde — 870 testes em 91
-arquivos, 294 módulos, 773 dependências, sem violação de camada; build
-electron-vite ok; `data:verify` (13 assets) e `geo:verify` (4 camadas) íntegros.
+Último commit: `ad290d3`. Cadeia do `pnpm check` verde — 935 testes em 95
+arquivos, 304 módulos, 803 dependências, sem violação de camada; build
+electron-vite ok.
 
-Fases 0–6 concluídas. Blocos 7A e 7A+ concluídos. **Bloco 7B concluído** — os
-quatro critérios verificados no Electron real por `tools/verify-phase7b.mjs`
-(`pnpm verify:phase7b`), duas rodadas consecutivas idênticas. **Bloco 7E pela
-metade** — ver seção 2.
+Fases 0–6 concluídas. **O bloco 7 inteiro está fechado**, com a única exceção
+declarada do 7E.4 (VFX), que o dono mandou adiar. Cada bloco tem verificador
+próprio dirigindo o Electron real por CDP:
+
+| Bloco                    | Verificador       | Resultado |
+| ------------------------ | ----------------- | --------- |
+| 7A · biblioteca e assets | `verify:phase7a`  | verde     |
+| 7B · camadas geográficas | `verify:phase7b`  | 4/4       |
+| 7C · rotas e setas       | `verify:phase7c`  | verde     |
+| 7D · textos no mapa      | `verify:phase7d`  | 4/4       |
+| 7E.3 · modo estúdio      | `verify:phase7e3` | 5/5       |
+
+Entregue nesta sessão, em três commits:
+
+| Commit    | O quê                                                        |
+| --------- | ------------------------------------------------------------ |
+| `0b4c9ca` | 7E.3 — palco 3D em canvas próprio, câmera orbital (ADR-012)  |
+| `fb470f2` | 7C — rotas, tracejado, ponta e seta de avanço com revelação  |
+| `ad290d3` | 7D — halo, quebra de linha e rótulo por duplo clique no mapa |
 
 Entregue no 7B, em cinco commits:
 
@@ -49,10 +64,10 @@ E o fechamento do 7B, em dois commits:
 | `535c0ac` | Interpolação de cor hex em OkLab no avaliador de keyframes (`core-math/color.ts`)  |
 | `6415855` | `tools/verify-phase7b.mjs` — os quatro critérios provados, com guarda de documento |
 
-## 2. Bloco 7E — o que está feito e o que falta
+## 2. Bloco 7E — os quatro pedidos do dono
 
-O dono pediu quatro coisas a partir de capturas do canal AiTelly. Duas entregues
-nesta sessão, duas não. Detalhe completo em
+O dono pediu quatro coisas a partir de capturas do canal AiTelly. **Três
+entregues; a quarta ele mesmo mandou adiar.** Detalhe completo em
 [08-ROADMAP § 7E](08-ROADMAP.md#7e--apresentação-e-contexto-visual).
 
 | Commit    | O quê                                                             |
@@ -60,6 +75,7 @@ nesta sessão, duas não. Detalhe completo em
 | `5d2e989` | Fecha o 7B: script do verificador, roteiro e continuidade         |
 | `6315d3b` | 7E.1 — camada de satélite por raiz nomeada, sem quebrar o offline |
 | `8ea54a9` | 7E.2 — rótulo com caixa e guia que acompanha objeto ou rota       |
+| `0b4c9ca` | 7E.3 — palco 3D infinito com câmera orbital animável              |
 
 **7E.3, cenário de estúdio: entregue e provado (5/5 em `verify-phase7e3.mjs`).**
 A decisão que travava o começo foi medida e virou o
@@ -79,10 +95,25 @@ que nenhum existe nesta máquina**: sem `blender`, `ffmpeg`, `magick` nem Python
 real no PATH. Instalar um deles destrava; a alternativa de custo zero é usar o
 vídeo de preview como textura, com qualidade menor.
 
-## 3. Depois do 7B e do 7E
+## 3. O que vem agora
 
-A ordem do roteiro é **7C** (rotas e setas 2D) → **7D** (textos no mapa) →
-**Fase 7** (ações) → **Fase 8** (exportação).
+Com o bloco 7 fechado, a ordem do roteiro é **Fase 7** (ações) → **Fase 8**
+(exportação) → 9 → 10 → 11.
+
+A Fase 8 é a decisiva, e não por ser grande: o critério dela é **byte-idêntico**.
+Duas coisas entregues agora entram nesse caminho e precisam de atenção lá:
+
+1. **O palco 3D desenha em canvas próprio**, fora do Pixi, e o `captureExport()`
+   de hoje captura só o overlay Pixi. Um estúdio que não pode ser capturado não
+   serve para apresentar equipamento em vídeo. O canvas do palco já nasce com
+   `preserveDrawingBuffer: true` justamente para poder ser lido; falta compor as
+   duas superfícies no export.
+2. **A câmera orbital é função pura em L0** (`orbitCameraPosition`), então o
+   determinismo do [ADR-003](adr/ADR-003-determinism.md) se mantém por
+   construção. Mas isso pede prova no export, não confiança.
+
+O 7C já deixou uma prova de determinismo utilizável como modelo: o hash do frame
+30 é idêntico na visita direta, depois de varrer 0→60 e depois de varrer 60→0.
 
 Uma observação em aberto, que a Fase 8 vai cobrar se for real: numa rodada do
 verificador com **dois nós geo na cena** (região + estradas, ambas pintando),
@@ -195,7 +226,21 @@ Duas mordidas da prova do `geo.roads`, na mesma sessão:
    `geo-nodes.ts`; a prova geométrica com vários vértices é o que pega essa
    classe de defeito — um vértice só pode casar com a estrada vizinha errada.
 
-### 4.11 `RawShaderMaterial` não injeta nada
+### 4.11 Desvio constante sob mudança de câmera é pivot, não projeção
+
+Ao verificar o 7D, o rótulo aparecia a **122,78 px** do ponto projetado — e o
+mesmo valor em três enquadramentos diferentes (plano, inclinado 42°, girado
+−70°). Erro de projeção varia com a câmera; um número que não se mexe é
+deslocamento local. Era o pivot `anchorPoint × tamanho` deslocando a caixa do nó,
+o mesmo da armadilha 4.10.
+
+A regra que sai daí: **compare pixel com pixel**. A translação da matriz do nó
+responde "onde está a caixa"; a pergunta do critério é "onde está o glifo", e
+quem responde é o centro dos pixels desenhados. Trocado para essa medida, o
+desvio caiu para 1,00 / 0,76 / 1,15 px — a folga de antialias do glifo, e nada
+mais.
+
+### 4.12 `RawShaderMaterial` não injeta nada
 
 O `ShaderMaterial` normal do three declara `position`, `normal`, `uv`,
 `modelViewMatrix` e a precisão por você. O **Raw** não declara nenhum. Um vertex
@@ -204,7 +249,7 @@ engole a falha: o objeto simplesmente não aparece, sem erro no console e sem
 `gl.getError()` diferente de zero. Se um material próprio não desenha, comece
 declarando os atributos à mão.
 
-### 4.12 Cor em raw shader sai escura: falta o encode sRGB
+### 4.13 Cor em raw shader sai escura: falta o encode sRGB
 
 `THREE.Color.set('#141a22')` **converte de sRGB para linear** ao ler o hex — é o
 padrão desde o r152. Um `ShaderMaterial` normal recebe a conversão de volta
@@ -215,7 +260,7 @@ Faça o encode no fim do fragmento — a mistura antes, em linear, que é onde e
 está correta. Referência: `linearToSrgb` em
 `apps/editor/src/panels/viewport/studio-grid.ts`.
 
-### 4.13 `loseContext()` mata o canvas para sempre
+### 4.14 `loseContext()` mata o canvas para sempre
 
 Parece a forma educada de devolver um contexto WebGL, e é uma armadilha quando o
 elemento canvas é reaproveitado: `WEBGL_lose_context.loseContext()` é definitivo,
@@ -238,11 +283,21 @@ Superfícies de depuração disponíveis apenas em desenvolvimento:
 | `__theatrumPhase2.map`       | Instância MapLibre; `.settle(ms)` espera o mapa parar |
 | `__theatrumPhase3`           | `getSnapshot()`, `actions`, `commandBus`              |
 | `__theatrumPhase4`           | `getSnapshot()` do frame, `captureExport()`           |
-| `__theatrumScene3d.status()` | Estado da camada Three.js                             |
+| `__theatrumScene3d.status()` | Estado da camada Three.js sobre o mapa                |
+| `__theatrumStudio.status()`  | Estado do palco 3D: câmera, modelos, contexto         |
 | `__theatrumPhase4Timeline`   | Métricas de redraw da timeline                        |
+
+Cada nó do `getSnapshot()` traz `screenPx` — a translação da matriz na cena de
+**tela**, depois dos passes que reposicionam (rótulo com guia, palco 3D). Mas
+leia a armadilha 4.11 antes de comparar esse número com um ponto projetado.
 
 Desfazer usa `commandBus.history.undo()` e `history.canUndo()` — **não** existe
 `commandBus.undo()`.
+
+Um nó criado por ação nasce com **âncora padrão**, e ela raramente é onde você
+quer: `route` e `text.label` nascem em (0°, 20°), no golfo da Guiné. Se o
+verificador não enquadrar o mapa nem mover a âncora, o nó existe, o passe relata
+que desenhou, e a captura vem vazia.
 
 Pausar antes de amostrar: `actions.pause()`. Um demo deixa a composição tocando em
 loop, e sem pausar cada amostra lê um frame ao acaso. Isso já produziu uma tabela
