@@ -311,11 +311,33 @@ const ensureModelAsset = async () => {
   const index = await fetch('theatrum-data://local/models-index.json').then((r) =>
     r.ok ? r.json() : null,
   );
-  if (index === null || !Array.isArray(index.models) || index.models.length === 0) return null;
-  const smallest = [...index.models].sort((a, b) => a.bytes - b.bytes)[0];
-  const response = await fetch('theatrum-data://local/models/' + encodeURIComponent(smallest.file));
-  if (!response.ok) return null;
-  const bytes = await response.arrayBuffer();
+  let nome = null;
+  let bytes = null;
+  if (index !== null && Array.isArray(index.models) && index.models.length > 0) {
+    const smallest = [...index.models].sort((a, b) => a.bytes - b.bytes)[0];
+    const response = await fetch(
+      'theatrum-data://local/models/' + encodeURIComponent(smallest.file),
+    );
+    if (response.ok) {
+      nome = smallest.file;
+      bytes = await response.arrayBuffer();
+    }
+  }
+  if (bytes === null) {
+    // Recuo para o GLB do repositório.
+    //
+    // A biblioteca 3D local depende de data/library-roots.json, que é configuração
+    // DE MÁQUINA. Um critério de fase que se pula porque a máquina não foi
+    // configurada não prova nada e ainda passa a impressão de que provou — o
+    // relatório dizia "pulado" e o placar contava como falha sem explicar a causa.
+    // O caça em apps/editor/public/models/fa-18f.glb está no repositório, então
+    // este caminho existe em qualquer clone.
+    const response = await fetch('/models/fa-18f.glb');
+    if (!response.ok) return null;
+    nome = 'fa-18f.glb';
+    bytes = await response.arrayBuffer();
+  }
+  const smallest = { file: nome };
   await session().actions.importAssetFiles([
     new File([bytes], smallest.file, { type: 'model/gltf-binary' }),
   ]);
@@ -349,6 +371,13 @@ function record(name, ok, detail) {
  * está aqui para ninguém perder a segunda.
  */
 async function activateStudioTab(client) {
+  // Já montado significa que a aba já está na frente: não há o que ativar, e
+  // tentar clicar de novo só arriscaria trocar para outra coisa.
+  const alreadyMounted = await client.evaluate(
+    `Boolean(document.querySelector('.studio-viewport__stage'))`,
+  );
+  if (alreadyMounted === true) return;
+
   const box = await client.evaluate(`(() => {
     const tab = [...document.querySelectorAll('.dv-tab')].find((t) => t.textContent.includes('Palco'));
     if (tab === undefined) return null;
@@ -365,7 +394,7 @@ async function activateStudioTab(client) {
   for (const type of ["mousePressed", "mouseReleased"]) {
     await client.request("Input.dispatchMouseEvent", { type, x, y, button: "left", clickCount: 1 });
   }
-  const deadline = Date.now() + 8000;
+  const deadline = Date.now() + 6000;
   for (;;) {
     const ready = await client.evaluate(
       `Boolean(document.querySelector('.studio-viewport__stage'))`,
