@@ -462,6 +462,75 @@ export const editorActions = Object.freeze({
     return nodeId;
   },
 
+  /**
+   * Cria um ponto de interesse do palco onde o dono clicou ([ADR-015](../../../../docs/adr/ADR-015-studio-points-of-interest.md)).
+   *
+   * Mesma forma do `addGeoFeature`: um gesto do usuário, vários comandos, cada um
+   * no histórico separado. O ponto chega em metros de mundo do palco, já resolvido
+   * pelo raycast — esta camada não sabe raycast, e não deve saber.
+   *
+   * O enquadramento também chega pronto, e é de propósito: quem sabe de que
+   * ângulo a câmera estava olhando e qual o tamanho do modelo é o painel do palco.
+   * Um padrão fixo aqui daria a mesma visita para um caça de 18 m e um obuseiro
+   * de 11 m, e nenhuma das duas seria a que o dono estava vendo ao marcar.
+   */
+  addStudioPoi(
+    point: readonly [number, number, number],
+    name: string,
+    framing: {
+      readonly distanceMeters: number;
+      readonly azimuthDeg: number;
+      readonly elevationDeg: number;
+    },
+  ): string | null {
+    const nodeId = this.addNodeOfType("studio.poi");
+    if (nodeId === null) return null;
+    this.renameNode(nodeId, name);
+    // `keyframeWhenAnimated = false`: marcar um ponto não é animar. Sem isso, um
+    // POI cujo `pointX` já tenha keyframe ganharia mais um no playhead atual, e o
+    // ponto marcado passaria a existir só naquele frame.
+    const written =
+      this.setPropertyValue(nodeId, "props.pointX", point[0], false) &&
+      this.setPropertyValue(nodeId, "props.pointY", point[1], false) &&
+      this.setPropertyValue(nodeId, "props.pointZ", point[2], false) &&
+      this.setPropertyValue(nodeId, "props.distanceMeters", framing.distanceMeters, false) &&
+      this.setPropertyValue(nodeId, "props.azimuthDeg", framing.azimuthDeg, false) &&
+      this.setPropertyValue(nodeId, "props.elevationDeg", framing.elevationDeg, false);
+    return written ? nodeId : null;
+  },
+
+  /**
+   * Grava o roteiro do palco compilado nas props de câmera do `studio.stage`.
+   *
+   * `keyframe.replace-all` por prop, e não `keyframe.set` por keyframe: o roteiro
+   * **substitui** a animação de câmera, e é assim que a consequência declarada no
+   * ADR-015 fica visível em vez de virar surpresa — recompilar apaga a curva que
+   * alguém tenha ajustado à mão. Acrescentar keyframes em cima dos antigos daria
+   * o pior dos dois mundos: uma trilha com paradas de dois roteiros diferentes,
+   * que ninguém consegue ler nem desfazer com sentido.
+   *
+   * Cada prop é um comando, então `Ctrl+Z` volta uma prop por vez. Agrupar num
+   * comando composto é o mesmo assunto pendente do `addGeoFeature`.
+   */
+  writeStudioTour(
+    stageNodeId: string,
+    writes: readonly { readonly path: string; readonly keyframes: readonly unknown[] }[],
+  ): boolean {
+    let ok = true;
+    for (const write of writes) {
+      ok =
+        this.dispatch({
+          type: "keyframe.replace-all",
+          payload: {
+            ...propertyLocation(stageNodeId, write.path),
+            keyframes: [...write.keyframes],
+          },
+          source: "user",
+        }) && ok;
+    }
+    return ok;
+  },
+
   renameNode(nodeId: string, name: string): void {
     this.dispatch({
       type: "node.rename",

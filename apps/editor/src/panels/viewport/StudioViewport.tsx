@@ -34,13 +34,22 @@ import {
 } from "@theatrum/renderer";
 import { layoutScene } from "@theatrum/scene-graph";
 import type { Composition } from "@theatrum/schema";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { editorActions } from "../../document/editor-session.js";
 import { useEditorSession } from "../../document/useEditorSession.js";
-import { Panel } from "../../ui/index.js";
+import { Button, Panel } from "../../ui/index.js";
 import { expandCalloutNodes } from "./callout-nodes.js";
+import {
+  drawStudioMarkers,
+  layoutStudioMarkers,
+  markerAt,
+  type StudioMarker,
+} from "./studio-markers.js";
 import { createStudioProjectorPort, withStudioProjection } from "./studio-projector.js";
+import { compileStudioTour, documentStudioPois, documentStudioTourTiming } from "./studio-tour.js";
 import {
   collectStudioModels,
+  collectStudioPois,
   collectStudioStage,
   setActiveStudioRuntime,
   StudioSceneRuntime,
@@ -60,6 +69,59 @@ function compositionToViewport(composition: Composition, viewport: Vec2): Mat2D 
   return mat2d.scaling(scale, scale);
 }
 
+/**
+ * Dimensiona e pinta a superfície dos marcadores.
+ *
+ * O backing store acompanha o `devicePixelRatio` pelo mesmo motivo do palco: um
+ * número de 11 px desenhado em resolução de CSS fica borrado em tela HiDPI, e
+ * marcador ilegível não cumpre a função de dizer qual ponto é qual.
+ */
+function paintMarkers(
+  canvas: HTMLCanvasElement | null,
+  markers: readonly StudioMarker[],
+  size: readonly [number, number],
+  selectedId: string | null,
+): void {
+  if (canvas === null || size[0] <= 0 || size[1] <= 0) return;
+  const pixelRatio = Math.max(1, Math.min(window.devicePixelRatio, 2));
+  const width = Math.round(size[0] * pixelRatio);
+  const height = Math.round(size[1] * pixelRatio);
+  if (canvas.width !== width) canvas.width = width;
+  if (canvas.height !== height) canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (context === null) return;
+  drawStudioMarkers(context, markers, {
+    width: size[0],
+    height: size[1],
+    pixelRatio,
+    selectedId,
+  });
+}
+
+/**
+ * Enquadramento com que um ponto nasce.
+ *
+ * Os ângulos são os que a câmera tinha no instante da marcação: o dono girou o
+ * palco até ver a cabine, clicou nela, e a visita deve reproduzir aquela vista —
+ * não um ângulo padrão que mostraria o outro lado do veículo.
+ *
+ * A distância é derivada do **tamanho do modelo**, não fixa. Um ponto de
+ * interesse existe para ser olhado de perto, e "perto" num caça de 18 m não é
+ * "perto" num porta-aviões de 330. Sem o raio (modelo ainda em parse, que o
+ * chamador já barra) sobra o padrão do tipo de nó.
+ */
+function poiFraming(
+  stage: { readonly azimuthDeg: number; readonly elevationDeg: number },
+  modelRadiusMeters: number | null,
+): { distanceMeters: number; azimuthDeg: number; elevationDeg: number } {
+  return {
+    distanceMeters:
+      modelRadiusMeters === null ? 12 : Math.max(0.5, Math.min(500, modelRadiusMeters * 0.9)),
+    azimuthDeg: stage.azimuthDeg,
+    elevationDeg: stage.elevationDeg,
+  };
+}
+
 interface StudioDebugWindow extends Window {
   __theatrumStudio?: {
     readonly status: () => ReturnType<StudioSceneRuntime["status"]>;
@@ -75,6 +137,21 @@ interface StudioDebugWindow extends Window {
     readonly project: (
       point: readonly [number, number, number],
     ) => readonly [number, number] | null;
+    /**
+     * O inverso: que ponto do palco está sob um pixel (ADR-015).
+     *
+     * Existe para o verificador poder provar a **ida e volta** — projetar o ponto
+     * que o raycast devolveu tem de cair no mesmo pixel de onde o raio partiu. É
+     * uma afirmação em pixel sobre duas transformações independentes, e é o tipo
+     * de prova que pega matriz desatualizada de um frame, que nenhum teste de
+     * unidade veria.
+     */
+    readonly pick: (
+      x: number,
+      y: number,
+    ) => { point: readonly [number, number, number]; modelId: string } | null;
+    /** Marcadores desenhados no último frame, para o critério do modo de marcação. */
+    readonly markers: () => readonly { id: string; ordinal: number; screen: readonly number[] }[];
   };
 }
 
@@ -83,8 +160,25 @@ export function StudioViewport(): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pixiCanvasRef = useRef<HTMLCanvasElement>(null);
+  /**
+   * Superfície dos marcadores de ponto de interesse (ADR-015). Canvas próprio,
+   * **fora** da lista do `frame-composer`: marcador é chrome de autoria, e o
+   * critério 8 da Fase 8 exige que nenhum elemento de UI entre em frame algum
+   * por construção. Ver o cabeçalho de `studio-markers.ts`.
+   */
+  const markerCanvasRef = useRef<HTMLCanvasElement>(null);
   const runtimeRef = useRef<StudioSceneRuntime | null>(null);
   const rendererRef = useRef<Renderer | null>(null);
+  /**
+   * Os marcadores desenhados no último frame, para o clique poder acertá-los.
+   * Vai por ref, não por estado: quem escreve é o passe de render e quem lê é o
+   * manipulador de clique, e um `setState` aqui repintaria a cada frame.
+   */
+  const markersRef = useRef<readonly StudioMarker[]>([]);
+  /** O palco do último frame, para o clique saber de que ângulo a câmera olhava. */
+  const stageRef = useRef<ReturnType<typeof collectStudioStage>>(null);
+  /** Ligado, o clique marca ponto em vez de não fazer nada. */
+  const [marking, setMarking] = useState(false);
   /** Sobe quando o Pixi termina de inicializar: o primeiro frame precisa dele. */
   const [rendererRevision, setRendererRevision] = useState(0);
   const [size, setSize] = useState<readonly [number, number]>([0, 0]);
@@ -117,6 +211,16 @@ export function StudioViewport(): ReactNode {
       (window as StudioDebugWindow).__theatrumStudio = {
         status: () => runtime.status(),
         project: (point) => runtime.project(point, sizeRef.current[0], sizeRef.current[1]),
+        pick: (x, y) => {
+          const hit = runtime.pick(x, y, sizeRef.current[0], sizeRef.current[1]);
+          return hit === null ? null : { point: hit.point, modelId: hit.modelId };
+        },
+        markers: () =>
+          markersRef.current.map((marker) => ({
+            id: marker.id,
+            ordinal: marker.ordinal,
+            screen: marker.screen,
+          })),
       };
     }
     return () => {
@@ -205,9 +309,18 @@ export function StudioViewport(): ReactNode {
     );
     const stage = collectStudioStage(pass.scene);
     const models = stage === null ? [] : collectStudioModels(pass.scene);
+    stageRef.current = stage;
     // O palco desenha ANTES do layout, porque é ele quem diz onde, em pixels,
     // está cada modelo: a projeção sai da câmera orbital DESTE frame.
     runtime.render({ stage, models }, size[0], size[1]);
+
+    // Marcadores depois do render do palco, pela mesma razão: a projeção deles
+    // sai da câmera deste frame. Fora do modo de marcação a lista é vazia — e o
+    // desenho ainda roda, porque é ele que apaga o que estava lá.
+    const pois = stage === null || !marking ? [] : collectStudioPois(pass.scene);
+    const markers = layoutStudioMarkers(pois, (point) => runtime.project(point, size[0], size[1]));
+    markersRef.current = markers;
+    paintMarkers(markerCanvasRef.current, markers, size, session.selectedNodeId);
 
     const renderer = rendererRef.current;
     if (renderer !== null) {
@@ -245,22 +358,148 @@ export function StudioViewport(): ReactNode {
           ? `falha ao carregar modelo · ${report.lastError}`
           : report.pending > 0
             ? `carregando ${report.pending} modelo(s)…`
-            : `${report.loaded} modelo(s) · ${size[0]}×${size[1]}`,
+            : marking
+              ? `marcando · ${markers.length} ponto(s) · clique na superfície do modelo`
+              : `${report.loaded} modelo(s) · ${size[0]}×${size[1]}`,
     );
   }, [
     session.document,
     session.playheadFrame,
     session.selectedCompositionId,
+    session.selectedNodeId,
     size,
     assetRevision,
     rendererRevision,
+    marking,
   ]);
+
+  /**
+   * Clique no palco em modo de marcação.
+   *
+   * Três respostas possíveis, e nenhuma delas é silenciosa: acertou um marcador
+   * existente, seleciona aquele ponto; acertou a superfície de um modelo, cria um
+   * ponto ali; errou tudo, diz que errou. A terceira é a que importa — o chão do
+   * palco é infinito, então um raycast que aceitasse o piso sempre acertaria
+   * alguma coisa e criaria um ponto plausível no lugar errado.
+   */
+  const handleStageClick = (event: MouseEvent<HTMLDivElement>): void => {
+    if (!marking) return;
+    const runtime = runtimeRef.current;
+    const stage = stageRef.current;
+    const container = containerRef.current;
+    if (runtime === null || stage === null || container === null) return;
+    const rect = container.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+
+    const existing = markerAt(markersRef.current, x, y);
+    if (existing !== null) {
+      editorActions.selectNode(session.selectedCompositionId, existing.id);
+      setStatus(`ponto ${existing.ordinal} selecionado · ${existing.name}`);
+      return;
+    }
+
+    // Modelo em parse não tem geometria: o raio passa direto e devolve `null`,
+    // que é indistinguível de "clicou no vazio". A diferença importa, e quem a
+    // conhece é o mesmo contador que o `settle` do export usa.
+    if (runtime.status().pending > 0) {
+      setStatus("aguarde o modelo carregar para marcar pontos");
+      return;
+    }
+
+    const hit = runtime.pick(x, y, rect.width, rect.height);
+    if (hit === null) {
+      setStatus("clique na superfície do modelo · o chão não recebe ponto");
+      return;
+    }
+    const nodeId = editorActions.addStudioPoi(
+      hit.point,
+      `Ponto ${markersRef.current.length + 1}`,
+      poiFraming(stage, runtime.modelRadius(hit.modelId)),
+    );
+    setStatus(
+      nodeId === null
+        ? "não foi possível criar o ponto"
+        : `ponto criado a ${hit.distanceMeters.toFixed(1)} m da câmera`,
+    );
+  };
+
+  /**
+   * Compila o roteiro nas props de câmera do palco.
+   *
+   * Pede confirmação quando já há keyframe de câmera, e não por educação: é a
+   * consequência declarada do ADR-015 — a compilação **substitui** a animação de
+   * câmera, então quem ajustou a curva à mão perde o ajuste. Um aviso silencioso
+   * aqui seria trabalho de alguém desaparecendo sem aviso.
+   */
+  const handleCompileTour = (): void => {
+    const composition = session.document.compositions.find(
+      (candidate) => candidate.id === session.selectedCompositionId,
+    );
+    const stage = stageRef.current;
+    if (composition === undefined || stage === null) {
+      setStatus("sem palco na composição · nada a compilar");
+      return;
+    }
+    const stops = documentStudioPois(composition);
+    if (stops.length === 0) {
+      setStatus("nenhum ponto de interesse · marque pontos antes de compilar");
+      return;
+    }
+    const tour = compileStudioTour(stops, documentStudioTourTiming(composition, stage.nodeId));
+    const existing = tour.writes.some(
+      (write) =>
+        ((
+          composition.nodes[stage.nodeId]?.props[write.path.slice("props.".length)] as
+            { keyframes?: readonly unknown[] } | undefined
+        )?.keyframes?.length ?? 0) > 0,
+    );
+    if (
+      existing &&
+      !window.confirm(
+        "O roteiro substitui a animação de câmera do palco.\n\n" +
+          "Os keyframes atuais de alvo, distância, azimute e elevação serão descartados. Continuar?",
+      )
+    ) {
+      setStatus("compilação cancelada · a câmera atual foi mantida");
+      return;
+    }
+    const ok = editorActions.writeStudioTour(stage.nodeId, tour.writes);
+    setStatus(
+      ok
+        ? `roteiro compilado · ${String(tour.stops)} parada(s) até o frame ${String(tour.endFrame)}`
+        : "falha ao gravar o roteiro",
+    );
+  };
 
   return (
     <Panel scroll={false}>
-      <div ref={containerRef} className="studio-viewport">
+      <div
+        ref={containerRef}
+        className={marking ? "studio-viewport studio-viewport--marking" : "studio-viewport"}
+        onClick={handleStageClick}
+      >
         <canvas ref={canvasRef} className="studio-viewport__stage" aria-hidden="true" />
         <canvas ref={pixiCanvasRef} className="studio-viewport__pixi" aria-hidden="true" />
+        <canvas ref={markerCanvasRef} className="studio-viewport__markers" aria-hidden="true" />
+        <div className="studio-viewport__tools" role="toolbar" aria-label="Palco 3D">
+          <Button
+            size="sm"
+            variant={marking ? "primary" : "default"}
+            aria-pressed={marking}
+            title="Marcar pontos · clique na superfície do modelo cria um ponto de interesse; clique num marcador o seleciona"
+            onClick={() => setMarking((value) => !value)}
+          >
+            Marcar pontos
+          </Button>
+          <Button
+            size="sm"
+            title="Compilar roteiro · transforma os pontos em keyframes de câmera, na ordem das camadas"
+            onClick={handleCompileTour}
+          >
+            Compilar roteiro
+          </Button>
+        </div>
         <p className="studio-viewport__status">{status}</p>
       </div>
     </Panel>
