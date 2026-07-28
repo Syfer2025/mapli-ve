@@ -161,6 +161,31 @@ export interface GeoShapePrimitive {
 }
 
 /**
+ * Rota desenhada: a seta de avanço do mapa de guerra.
+ *
+ * Chega **já resolvida em pixels de tela**, pelo mesmo motivo do `geo-shape`: a
+ * projeção de um caminho geográfico é do aplicativo, e o renderer não conhece
+ * latitude. Recorte de revelação, tracejado e geometria de seta acontecem antes,
+ * nas funções puras de `@theatrum/core-math`.
+ *
+ * Três listas em vez de uma, porque são três operações de desenho distintas e
+ * uni-las obrigaria o backend a adivinhar qual é qual: `strokes` são traçadas
+ * (uma entrada quando a linha é sólida, várias quando é tracejada), `fills` são
+ * preenchidas (a seta gorda, o triângulo da ponta). Uma lista só com um sinal de
+ * "preencha esta" seria a mesma coisa com mais chance de erro.
+ */
+export interface RoutePrimitive {
+  readonly kind: "route";
+  readonly strokes: readonly (readonly Vec2[])[];
+  readonly fills: readonly (readonly Vec2[])[];
+  readonly color: string;
+  readonly colorAlpha: number;
+  readonly width: number;
+  readonly fill: string;
+  readonly fillAlpha: number;
+}
+
+/**
  * Rótulo com caixa e linha-guia — a legenda que aponta para um objeto.
  *
  * É uma primitiva só, em vez de compor caixa, texto e linha como três nós, porque
@@ -259,6 +284,7 @@ export type VisualPrimitive =
   | LinePrimitive
   | PolygonPrimitive
   | GeoShapePrimitive
+  | RoutePrimitive
   | CalloutPrimitive
   | CirclePrimitive
   | SymbolPrimitive

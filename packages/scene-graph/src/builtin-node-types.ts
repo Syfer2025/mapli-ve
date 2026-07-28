@@ -363,6 +363,45 @@ const GeoShapePropsSchema = z
   })
   .passthrough();
 
+/**
+ * Rota 2D: o instrumento clássico do mapa de guerra.
+ *
+ * `trimStart`/`trimEnd` são a revelação animada — a seta crescendo em direção ao
+ * objetivo — e medem **comprimento de arco**, não índice de vértice: um caminho
+ * com vértices amontoados numa curva revelaria aos trancos se medisse por
+ * vértice.
+ *
+ * Estilo e cabeça são independentes de propósito. Uma linha tracejada com ponta
+ * de seta é um eixo de ataque previsto; a mesma rota preenchida é um avanço
+ * consumado; sem ponta, é uma linha de suprimento. O mesmo nó cobre os três, e a
+ * escolha é do autor — não há modo canônico.
+ */
+const RoutePropsSchema = z
+  .object({
+    /** Caminho do projeto que esta rota desenha. */
+    pathId: StringPropertySchema,
+    color: ColorPropertySchema,
+    width: NonNegativeNumberPropertySchema,
+    /** 0 desliga o tracejado e a rota vira linha contínua. */
+    dashPx: NonNegativeNumberPropertySchema,
+    gapPx: NonNegativeNumberPropertySchema,
+    /** Anda com o padrão sem mover a rota: a "formiguinha" de marcha. */
+    dashOffset: NumberPropertySchema,
+    trimStart: UnitNumberPropertySchema,
+    trimEnd: UnitNumberPropertySchema,
+    /** 0 não desenha ponta. */
+    arrowSize: NonNegativeNumberPropertySchema,
+    arrowSpread: NonNegativeNumberPropertySchema,
+    /** Liga a seta de avanço preenchida no lugar da linha. */
+    filled: animatablePropertySchema(z.boolean()),
+    fill: ColorPropertySchema,
+    fillAlpha: UnitNumberPropertySchema,
+    bodyWidth: NonNegativeNumberPropertySchema,
+    headWidth: NonNegativeNumberPropertySchema,
+    headLength: NonNegativeNumberPropertySchema,
+  })
+  .passthrough();
+
 const CalloutPropsSchema = z
   .object({
     text: StringPropertySchema,
@@ -958,6 +997,214 @@ export const MODEL3D_NODE_TYPE = defineNodeType({
  * seguem o nó alvo pela posição de tela, e no estúdio essa posição vem da
  * projeção 3D em vez do mapa. Nada de código novo do lado do rótulo.
  */
+/**
+ * Rota e seta de avanço (7C). Referencia um caminho do projeto — o mesmo que o
+ * `motion-path` percorre e que o `route3d` transforma em tubo — então a rota
+ * desenhada é a trajetória de verdade, não uma cópia parecida.
+ *
+ * A geometria (recorte, tracejado, ponta, seta gorda) sai das funções puras de
+ * `@theatrum/core-math`, e a projeção do caminho geográfico é feita pelo passe
+ * do viewport. Este tipo só carrega as propriedades animáveis.
+ */
+export const ROUTE_NODE_TYPE = defineNodeType({
+  type: "route",
+  category: "shape",
+  label: "Rota",
+  icon: "move-right",
+  defaultProps: {
+    pathId: animatable(""),
+    color: animatable("#f2a13cff"),
+    width: animatable(4),
+    dashPx: animatable(0),
+    gapPx: animatable(0),
+    dashOffset: animatable(0),
+    trimStart: animatable(0),
+    trimEnd: animatable(1),
+    arrowSize: animatable(22),
+    arrowSpread: animatable(26),
+    filled: animatable(false),
+    fill: animatable("#f2a13cff"),
+    fillAlpha: animatable(0.85),
+    bodyWidth: animatable(18),
+    headWidth: animatable(52),
+    headLength: animatable(46),
+  },
+  propertySchema: RoutePropsSchema,
+  properties: [
+    ...COMMON_PROPERTIES,
+    property({
+      path: "props.pathId",
+      label: "Caminho",
+      kind: "text",
+      group: "content",
+      binding: "animatable",
+      animatable: false,
+    }),
+    property({
+      path: "props.filled",
+      label: "Seta de avanço",
+      kind: "boolean",
+      group: "content",
+      binding: "animatable",
+      animatable: true,
+    }),
+    property({
+      path: "props.trimStart",
+      label: "Revelar de",
+      kind: "number",
+      group: "content",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      unit: "percent",
+    }),
+    property({
+      path: "props.trimEnd",
+      label: "Revelar até",
+      kind: "number",
+      group: "content",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      unit: "percent",
+    }),
+    property({
+      path: "props.color",
+      label: "Cor",
+      kind: "color",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+    }),
+    property({
+      path: "props.width",
+      label: "Espessura",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      step: 1,
+      unit: "px",
+    }),
+    property({
+      path: "props.dashPx",
+      label: "Traço",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      step: 1,
+      unit: "px",
+    }),
+    property({
+      path: "props.gapPx",
+      label: "Intervalo",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      step: 1,
+      unit: "px",
+    }),
+    property({
+      path: "props.dashOffset",
+      label: "Deslocamento do traço",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      step: 2,
+      unit: "px",
+    }),
+    property({
+      path: "props.arrowSize",
+      label: "Ponta",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      step: 2,
+      unit: "px",
+    }),
+    property({
+      path: "props.arrowSpread",
+      label: "Abertura da ponta",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 1,
+      max: 89,
+      step: 2,
+      unit: "degrees",
+    }),
+    property({
+      path: "props.fill",
+      label: "Preenchimento",
+      kind: "color",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+    }),
+    property({
+      path: "props.fillAlpha",
+      label: "Opacidade do preenchimento",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      max: 1,
+      step: 0.05,
+      unit: "percent",
+    }),
+    property({
+      path: "props.bodyWidth",
+      label: "Largura do corpo",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      step: 2,
+      unit: "px",
+    }),
+    property({
+      path: "props.headWidth",
+      label: "Largura da cabeça",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      step: 2,
+      unit: "px",
+    }),
+    property({
+      path: "props.headLength",
+      label: "Comprimento da cabeça",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      step: 2,
+      unit: "px",
+    }),
+  ],
+  supportsChildren: false,
+  defaultAnchorSpace: "geo",
+  defaultSizeMode: "screen",
+});
+
 export const STUDIO_STAGE_NODE_TYPE = defineNodeType({
   type: "studio.stage",
   category: "media",
@@ -1613,6 +1860,7 @@ export const BUILTIN_NODE_TYPE_IDS = Object.freeze([
   "model3d",
   "route3d",
   "studio.stage",
+  "route",
 ] as const);
 
 export type BuiltinNodeType = (typeof BUILTIN_NODE_TYPE_IDS)[number];
@@ -1638,6 +1886,7 @@ export const BUILTIN_NODE_TYPES: readonly NodeTypeDefinition[] = Object.freeze([
   MODEL3D_NODE_TYPE,
   ROUTE3D_NODE_TYPE,
   STUDIO_STAGE_NODE_TYPE,
+  ROUTE_NODE_TYPE,
 ]);
 
 export function createBuiltinNodeTypeRegistry(): NodeTypeRegistry {

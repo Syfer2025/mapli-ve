@@ -42,6 +42,7 @@ export function visualPlacement(visual: VisualPrimitive, size: Vec2): VisualPlac
     case "polygon":
     case "callout":
     case "geo-shape":
+    case "route":
     case "particles":
       return {
         position: [0, 0],

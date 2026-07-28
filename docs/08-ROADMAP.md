@@ -370,9 +370,46 @@ ser determinístico.
 4. Uma explosão sobre o mapa e outra no estúdio, com o quadro certo em cada frame,
    scrub para trás idêntico, e custo dentro do orçamento de 8 ms do overlay.
 
-### 7C — Rotas e setas
+### 7C — Rotas e setas ✅
 
-**Objetivo.** O instrumento clássico de mapa de guerra: a seta de avanço.
+**Entregue.** O tipo `route` referencia um caminho do projeto — o mesmo que o
+`motion-path` percorre e que o `route3d` vira tubo — e o desenha no overlay:
+linha sólida ou tracejada com deslocamento animável, ponta de seta, seta de
+avanço preenchida, e revelação por `trimStart`/`trimEnd`.
+
+A geometria toda é função pura em L0 (`packages/core-math/src/polyline.ts`),
+testável sem GPU: recorte por **comprimento de arco** (medir por índice de
+vértice faria a revelação andar aos trancos num caminho de vértices desiguais),
+tracejado, triângulo de ponta e o polígono da seta gorda. O passe do viewport
+(`route-nodes.ts`) só projeta, ordena as operações e decide o que desenhar.
+
+Três decisões que a medição impôs:
+
+- **A ponta nasce no fim do trecho revelado, não no fim do caminho.** Recortar
+  primeiro e medir depois; a ordem inversa deixa a seta parada no destino
+  enquanto a linha cresce por baixo.
+- **Amostragem adaptativa, não 128 fixos.** A primeira versão amostrava 128
+  pontos sempre e gastava 8,9 ms de um teto de 8 só projetando. Um vértice a
+  cada 12 px, medido por um passe grosseiro de oito amostras.
+- **Um `stroke()` por rota, não por traço.** Um `moveTo` abre sub-caminho e o
+  traçado cobre todos: 50 rotas tracejadas caíram de 16,4 ms para 7,9. E um memo
+  do caminho projetado por frame — várias rotas sobre o mesmo caminho é o caso
+  normal — levou a 3300 chamadas de `map.project()` para 66.
+
+Uma armadilha que só a medição em pixel pega: a rota relatava `drawn: 1` sobre
+uma imagem **vazia**. O layout genérico decide visibilidade pela caixa padrão do
+nó (64 px na âncora), e a âncora de uma rota não diz nada sobre onde ela passa —
+nasce em (0°, 20°), no golfo da Guiné, e desenha Kursk→Belgorod. O passe agora
+marca o nó como visível e devolve a caixa real, como o passe geográfico faz.
+
+Verificado no Electron real: seta de avanço pintando 11 550 px sobre
+Kursk→Belgorod, revelação crescendo monotonicamente (320 → 3466 → 5617 → 8841 →
+11 550 px nos frames 0/15/30/45/60), e o hash do frame 30 **idêntico** na visita
+direta, depois de varrer 0→60 e depois de varrer 60→0. Cinquenta rotas: mediana
+**6,1 ms** no orçamento de 8 (pior frame 9,8 ms — o benchmark empilha 50 rotas
+sobre o mesmo caminho, que é o pior caso de contenção, não o uso típico).
+
+**Objetivo original.** O instrumento clássico de mapa de guerra: a seta de avanço.
 
 Escopo:
 

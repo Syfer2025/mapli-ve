@@ -37,6 +37,7 @@ import {
 } from "./studio-scene.js";
 import { expandGeoNodes, type GeoExpansion, type GeoViewport } from "./geo-nodes.js";
 import { expandCalloutNodes, type CalloutExpansion } from "./callout-nodes.js";
+import { expandRouteNodes, type RouteExpansion } from "./route-nodes.js";
 import { onGeoLayerLoaded } from "../../geo/geo-data.js";
 import { expandParticleEffects, type ParticleExpansion } from "./particle-nodes.js";
 import {
@@ -196,6 +197,7 @@ interface OverlayFrame {
   readonly mattes: number;
   readonly geo: Omit<GeoExpansion, "scene">;
   readonly callouts: Omit<CalloutExpansion, "scene">;
+  readonly routes: Omit<RouteExpansion, "scene" | "pathIds" | "bounds">;
   readonly paths: readonly ProjectedPath[];
   readonly metrics: RenderMetrics;
 }
@@ -509,10 +511,19 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
         const geo = expandGeoNodes(composed, evaluated, layout, geoViewportOf(map), (lngLat) =>
           projector.project([lngLat[0], lngLat[1]]),
         );
+        // Rotas depois da geografia e antes dos rótulos: uma rota é desenhada
+        // sobre o território, e um rótulo pode apontar para ela.
+        const routes2d = expandRouteNodes(
+          geo.scene,
+          evaluated,
+          layout,
+          session.document.paths,
+          (lngLat) => projector.project([lngLat[0], lngLat[1]]),
+        );
         // Rótulos depois da geografia e antes dos efeitos: eles podem apontar
         // para um território, e o alvo precisa já ter layout resolvido.
         const callouts = expandCalloutNodes(
-          geo.scene,
+          routes2d.scene,
           evaluated,
           layout,
           session.document.paths,
@@ -548,7 +559,7 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
           evaluated,
           // Clique e gizmo consultam este layout. Sem as caixas reais eles apontariam
           // para um quadrado de 64 px na âncora em vez do território inteiro.
-          layout: withGeoBounds(layout, geo.bounds, evaluated),
+          layout: withGeoBounds(layout, new Map([...geo.bounds, ...routes2d.bounds]), evaluated),
           screen,
           behaviors: pass.diagnostics,
           effects: particles.diagnostics,
@@ -569,11 +580,15 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
             anchored: callouts.anchored,
             loose: callouts.loose,
           },
+          routes: { diagnostics: routes2d.diagnostics, drawn: routes2d.drawn },
           paths: projectPaths(
             session.document.paths,
             projector,
             compToScreen,
-            new Set(routes.map((route) => route.pathId)),
+            // Caminho já traçado por uma rota — 2D ou 3D — sai do desenho cru de
+            // caminhos: senão a mesma trajetória aparece duas vezes, uma delas
+            // como a linha de referência da caneta.
+            new Set([...routes.map((route) => route.pathId), ...routes2d.pathIds]),
           ),
           metrics: {
             evaluateMs: evaluatedAt - startedAt,
@@ -1191,6 +1206,8 @@ interface SerializedDebugFrame {
   readonly geo?: Omit<GeoExpansion, "scene">;
   /** Rótulos ancorados e soltos neste frame. */
   readonly callouts?: Omit<CalloutExpansion, "scene">;
+  /** Rotas 2D que desenharam, e as que não acharam caminho. */
+  readonly routes?: Omit<RouteExpansion, "scene" | "pathIds" | "bounds">;
   /** Caminhos projetados neste frame, resumidos. */
   readonly paths?: readonly {
     readonly id: string;
@@ -1244,6 +1261,7 @@ function serializeDebugFrame(
     mattes: frame.mattes,
     geo: frame.geo,
     callouts: frame.callouts,
+    routes: frame.routes,
     paths: frame.paths.map((path) => ({
       id: path.id,
       name: path.name,

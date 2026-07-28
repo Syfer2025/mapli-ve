@@ -401,6 +401,7 @@ function ensureVisual(module: PixiModule, node: PixiNode, visual: VisualPrimitiv
     case "line":
     case "polygon":
     case "geo-shape":
+    case "route":
     case "circle":
     case "symbol":
       node.visual = new module.Graphics();
@@ -545,6 +546,63 @@ function updateVisual(
             color: visual.stroke,
             width: visual.strokeWidth,
             alpha: visual.strokeAlpha,
+          });
+        }
+      }
+      return;
+    }
+
+    case "route": {
+      const graphics = node.visual as Graphics;
+      graphics.clear();
+      graphics.position.set(placement.position[0], placement.position[1]);
+      // Preenchimentos primeiro: a seta gorda é o corpo do desenho, e o traço
+      // (contorno ou tracejado) tem de ficar por cima dela, não por baixo.
+      // Igual ao `geo-shape`, cada polígono fecha e preenche sozinho — no Pixi 8
+      // o `fill` consome os caminhos pendentes, e acumular fundiria a ponta da
+      // seta com o corpo num contorno só.
+      if (visual.fillAlpha > 0) {
+        for (const polygon of visual.fills) {
+          if (polygon.length < 3) continue;
+          graphics.poly(flattenPoints(polygon), true);
+          graphics.fill({ color: visual.fill, alpha: visual.fillAlpha });
+        }
+      }
+      if (visual.width > 0 && visual.colorAlpha > 0) {
+        // **Um** traçado para todos os traços, não um por traço.
+        //
+        // Um `moveTo` inicia um sub-caminho novo, e `stroke()` percorre todos os
+        // pendentes de uma vez — que é exatamente o que uma linha tracejada é.
+        // A versão anterior chamava `stroke()` por traço, e o custo medido de
+        // 50 rotas tracejadas foi 16,4 ms num orçamento de 8: com ~23 traços por
+        // rota, eram 1150 lotes de geometria por frame. O laço é o mesmo; o que
+        // muda é onde o `stroke` fica.
+        //
+        // (Ao contrário de `fill`, agrupar aqui é seguro: preenchimento funde
+        // sub-caminhos num polígono só, traçado não.)
+        let pending = false;
+        for (const stroke of visual.strokes) {
+          if (stroke.length < 2) continue;
+          const first = stroke[0];
+          if (first === undefined) continue;
+          graphics.moveTo(first[0], first[1]);
+          for (let index = 1; index < stroke.length; index += 1) {
+            const point = stroke[index];
+            if (point !== undefined) graphics.lineTo(point[0], point[1]);
+          }
+          pending = true;
+        }
+        if (pending) {
+          graphics.stroke({
+            color: visual.color,
+            width: visual.width,
+            alpha: visual.colorAlpha,
+            // Junta arredondada evita a bicheira nas quinas de uma rota
+            // desenhada à mão. A ponta é reta de propósito: arredondada, cada
+            // traço cresce meia largura em cada extremidade, e o padrão medido
+            // em `dashPolyline` deixa de bater com o desenhado.
+            cap: "butt",
+            join: "round",
           });
         }
       }

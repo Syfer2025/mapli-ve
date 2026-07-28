@@ -32,6 +32,18 @@ export {
 export { type Vec2, type Vec3, type Rect, VEC2_ZERO, VEC2_ONE, vec2, vec3, rect } from "./vec.js";
 
 export {
+  type PolylineMeasure,
+  type FatArrowOptions,
+  measurePolyline,
+  pointAtDistance,
+  trimPolyline,
+  endDirection,
+  arrowHead,
+  fatArrow,
+  dashPolyline,
+} from "./polyline.js";
+
+export {
   type OrbitState,
   MAX_ELEVATION_DEG,
   MIN_ORBIT_DISTANCE_METERS,

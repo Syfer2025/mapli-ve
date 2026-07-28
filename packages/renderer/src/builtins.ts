@@ -112,6 +112,30 @@ const geoShapeVisual: VisualEvaluator<Props> = (node) => {
   };
 };
 
+/**
+ * Rota. Toda a geometria — recorte de revelação, tracejado, ponta e seta gorda —
+ * chega pronta em `props.strokes` e `props.fills`, em pixels de tela relativos à
+ * origem do nó. Quem calcula é o passe do viewport, com as funções puras de
+ * `@theatrum/core-math`, pela mesma razão do `geo-shape`: projetar um caminho
+ * geográfico é trabalho do aplicativo, e o renderer não conhece latitude.
+ */
+const routeVisual: VisualEvaluator<Props> = (node) => {
+  const color = splitHexAlpha(stringProp(node.props, "color", "#f2a13cff"));
+  const fill = splitHexAlpha(stringProp(node.props, "fill", "#f2a13cff"));
+  return {
+    kind: "route",
+    strokes: ringsProp(node.props, "strokes"),
+    // Uma seta tem no mínimo três vértices; `ringsProp` aceita dois, que é o
+    // certo para um traço e nada para um preenchimento.
+    fills: ringsProp(node.props, "fills").filter((polygon) => polygon.length >= 3),
+    color: color.color,
+    colorAlpha: unitProp(node.props, "colorAlpha", color.alpha),
+    width: nonNegativeProp(node.props, "width", 4),
+    fill: fill.color,
+    fillAlpha: unitProp(node.props, "fillAlpha", fill.alpha),
+  };
+};
+
 const calloutVisual: VisualEvaluator<Props> = (node) => {
   const background = splitHexAlpha(stringProp(node.props, "background", "#0b1118e0"));
   const leaderRaw = rawProp(node.props, "leader");
@@ -241,6 +265,7 @@ export const BUILTIN_RENDERABLE_TYPES = [
   "model3d",
   "route3d",
   "studio.stage",
+  "route",
 ] as const;
 
 const BUILTIN_EVALUATORS: Readonly<
@@ -277,6 +302,7 @@ const BUILTIN_EVALUATORS: Readonly<
   // visível o viewport troca o mapa pelo canvas do estúdio, e este nó só carrega
   // câmera, luz e chão. Ver ADR-012.
   "studio.stage": noVisual,
+  route: routeVisual,
 };
 
 /**
