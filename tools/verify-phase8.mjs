@@ -300,6 +300,62 @@ async function main() {
         `settleFailed=${primeira.settleFailed}, p99=${primeira.settleP99Ms.toFixed(0)} ms, ` +
           `erros=${primeira.errors.length}; saída em ${primeira.directory}`,
       );
+
+      // ── 5. A cena suspeita: dois nós geo com filtro ──────────────────────
+      //
+      // O 09-CONTINUIDADE carregava uma suspeita herdada: com região **e**
+      // estradas pintando ao mesmo tempo, aplicar outline+glow derrubou a área
+      // da captura de 1,25 M para 539 mil pixels, uma vez, sem reproduzir. Ou o
+      // caminho de captura com filtros é instável — e aí o export não presta —
+      // ou o episódio foi outra coisa. Montar a cena e exportar duas vezes é o
+      // que resolve a dúvida em vez de carregá-la para a próxima fase.
+      const comFiltros = await client.evaluate(
+        `(async () => {
+          const S = session();
+          const est = S.actions.addGeoFeature(
+            { id: 'c:UKR', name: 'Estradas', kind: 'road' },
+            [31.2, 48.4],
+          );
+          const alvo = ${JSON.stringify(cena.ucr)};
+          const outline = S.actions.addEffect(alvo, 'outline', { thickness: 2, tint: '#ffffffff' });
+          const glow = S.actions.addEffect(alvo, 'glow', { radius: 18, strength: 1.2, tint: '#7ec8ffff' });
+          S.actions.clearSelection();
+          await window.__theatrumPhase2.settle(3000);
+          await wait(900);
+          const a = await overlay().exportPngSequence({
+            range: { first: 0, last: 8 },
+            directory: ${JSON.stringify(SAIDA)},
+          });
+          const b = await overlay().exportPngSequence({
+            range: { first: 0, last: 8 },
+            directory: ${JSON.stringify(SAIDA)},
+          });
+          return {
+            estradas: est !== null,
+            outline: outline !== null,
+            glow: glow !== null,
+            erro: S.getSnapshot().error ?? null,
+            a: a.report ? a.report.hashes : [],
+            b: b.report ? b.report.hashes : [],
+            bytesA: a.report ? a.report.written : 0,
+          };
+        })()`,
+      );
+      const filtrosIguais =
+        comFiltros.a.length > 0 &&
+        comFiltros.a.length === comFiltros.b.length &&
+        comFiltros.a.every((h, i) => h.sha256 === comFiltros.b[i].sha256);
+      // E os frames continuam diferentes entre si: com filtro instável o
+      // esperado seria variação onde não deveria haver, ou nenhuma onde deveria.
+      const filtrosDistintos = new Set(comFiltros.a.map((h) => h.sha256)).size;
+      record(
+        "5 · export estável com dois nós geo e filtros aplicados",
+        filtrosIguais && filtrosDistintos > 1,
+        `estradas=${comFiltros.estradas} outline=${comFiltros.outline} glow=${comFiltros.glow}; ` +
+          `${comFiltros.bytesA} frames, hashes entre execuções ${filtrosIguais ? "idênticos" : "DIVERGEM"}, ` +
+          `${filtrosDistintos} distintos entre frames` +
+          `${comFiltros.erro === null ? "" : `; erro na sessão: ${comFiltros.erro}`}`,
+      );
     }
   } finally {
     const restored = await client.evaluate(

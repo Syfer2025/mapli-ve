@@ -12,12 +12,13 @@ morde, e como não repetir erro já cometido.
 
 ## 1. Onde parou
 
-Último commit: `ad290d3`. Cadeia do `pnpm check` verde — 935 testes em 95
-arquivos, 304 módulos, 803 dependências, sem violação de camada; build
+Último commit: `6f7b895`. Cadeia do `pnpm check` verde — 972 testes em 97
+arquivos, 315 módulos, 827 dependências, sem violação de camada; build
 electron-vite ok.
 
-Fases 0–6 concluídas. **O bloco 7 inteiro está fechado**, com a única exceção
-declarada do 7E.4 (VFX), que o dono mandou adiar. Cada bloco tem verificador
+Fases 0–6 concluídas. **O bloco 7 inteiro está fechado** (única exceção declarada:
+7E.4, VFX, que o dono mandou adiar) e o **núcleo da Fase 8 está provado** — o
+critério byte-idêntico, o mais importante do projeto. Cada bloco tem verificador
 próprio dirigindo o Electron real por CDP:
 
 | Bloco                    | Verificador       | Resultado |
@@ -27,14 +28,17 @@ próprio dirigindo o Electron real por CDP:
 | 7C · rotas e setas       | `verify:phase7c`  | verde     |
 | 7D · textos no mapa      | `verify:phase7d`  | 4/4       |
 | 7E.3 · modo estúdio      | `verify:phase7e3` | 5/5       |
+| 8 · export byte-idêntico | `verify:phase8`   | 6/6       |
 
-Entregue nesta sessão, em três commits:
+Entregue nesta sessão, em cinco commits:
 
-| Commit    | O quê                                                        |
-| --------- | ------------------------------------------------------------ |
-| `0b4c9ca` | 7E.3 — palco 3D em canvas próprio, câmera orbital (ADR-012)  |
-| `fb470f2` | 7C — rotas, tracejado, ponta e seta de avanço com revelação  |
-| `ad290d3` | 7D — halo, quebra de linha e rótulo por duplo clique no mapa |
+| Commit    | O quê                                                         |
+| --------- | ------------------------------------------------------------- |
+| `0b4c9ca` | 7E.3 — palco 3D em canvas próprio, câmera orbital (ADR-012)   |
+| `fb470f2` | 7C — rotas, tracejado, ponta e seta de avanço com revelação   |
+| `ad290d3` | 7D — halo, quebra de linha e rótulo por duplo clique no mapa  |
+| `b12765d` | Fase 8 — export de sequência PNG byte-idêntico (ADR-013)      |
+| `6f7b895` | Painel de fila de render, com progresso e relatório de settle |
 
 Entregue no 7B, em cinco commits:
 
@@ -97,32 +101,48 @@ vídeo de preview como textura, com qualidade menor.
 
 ## 3. O que vem agora
 
-Com o bloco 7 fechado, a ordem do roteiro é **Fase 7** (ações) → **Fase 8**
-(exportação) → 9 → 10 → 11.
+O bloco 7 está fechado e o **núcleo da Fase 8 também**: o critério byte-idêntico
+está provado (`pnpm verify:phase8`, 6/6). Sobra:
 
-A Fase 8 é a decisiva, e não por ser grande: o critério dela é **byte-idêntico**.
-Duas coisas entregues agora entram nesse caminho e precisam de atenção lá:
+1. **Codecs.** `WebCodecsEncoder`, `FFmpegPipeEncoder` com sidecar, GIF, ProRes
+   4444 com alfa. A sequência PNG já sai byte-idêntica, então o caminho até o
+   arquivo de vídeo é encanamento sobre uma base provada — não é onde o risco
+   está.
+2. **Resolução acima do tamanho da janela.** Hoje o frame sai no tamanho do
+   viewport. É o gatilho declarado no
+   [ADR-013](adr/ADR-013-export-frame-composition.md) para voltar à janela de
+   render oculta.
+3. **Fase 7 (ações).** Os templates de impacto. Nada dela ameaça o que já está
+   provado.
+4. **Motion blur, checkpoint e retomada.**
 
-1. **O palco 3D desenha em canvas próprio**, fora do Pixi, e o `captureExport()`
-   de hoje captura só o overlay Pixi. Um estúdio que não pode ser capturado não
-   serve para apresentar equipamento em vídeo. O canvas do palco já nasce com
-   `preserveDrawingBuffer: true` justamente para poder ser lido; falta compor as
-   duas superfícies no export.
-2. **A câmera orbital é função pura em L0** (`orbitCameraPosition`), então o
-   determinismo do [ADR-003](adr/ADR-003-determinism.md) se mantém por
-   construção. Mas isso pede prova no export, não confiança.
+### O que não confiar sem medir de novo
 
-O 7C já deixou uma prova de determinismo utilizável como modelo: o hash do frame
-30 é idêntico na visita direta, depois de varrer 0→60 e depois de varrer 60→0.
+- **A composição do export lê três canvases.** Se alguém trocar a criação do mapa
+  ou do Pixi e perder `preserveDrawingBuffer`, o export continua rodando e produz
+  frames com a superfície faltando. `verify:phase8` pega isso no critério 1.
+- **O `settle` é o que separa determinístico de plausível.** Ele espera quietude
+  do overlay **e** `areTilesLoaded()` do mapa. Afrouxar qualquer um dos dois faz o
+  export passar mais rápido e gravar frame incompleto em máquina lenta.
+- **`packages/engine` continua um esqueleto**, e `apps/editor` importa L2/L3
+  direto. O export foi construído sem ele de propósito — introduzir a indireção
+  agora seria refatorar o caminho que acabou de ser provado.
 
-Uma observação em aberto, que a Fase 8 vai cobrar se for real: numa rodada do
-verificador com **dois nós geo na cena** (região + estradas, ambas pintando),
-aplicar outline+glow na região derrubou a área pintada da captura de 1,25 M
-para 539 mil pixels. Não reproduzi de forma determinística — nas rodadas
-seguintes o halo abriu normal — e a suspeita é o caminho de `captureExport()`
-com filtros, não o render ao vivo. O verificador do 7B roda o critério de
-filtros sem estradas na cena exatamente para não misturar as duas coisas.
-Vale uma investigação focada antes da Fase 8, que exporta por esse caminho.
+### A suspeita herdada dos filtros: resolvida no que importava
+
+Havia uma observação em aberto: numa rodada do verificador com **dois nós geo**
+pintando (região + estradas), aplicar outline+glow derrubou a área da captura de
+1,25 M para 539 mil pixels — uma vez, sem reproduzir. A dúvida era se o caminho de
+captura **com filtros** é instável, o que arruinaria o export.
+
+Montei exatamente essa cena no `verify:phase8` (critério 5) e exportei duas vezes:
+**hashes idênticos arquivo por arquivo**, e nove hashes distintos entre os nove
+frames. O caminho de captura com filtros é determinístico.
+
+O que isso **não** prova: que a área pintada naquele episódio estava certa. Um
+export pode ser reproduzível e ainda estar visualmente errado. Mas a pergunta que
+travava a Fase 8 era a do determinismo, e essa está respondida — o critério 5
+falha se alguém a quebrar de novo.
 
 ## 4. Armadilhas desta base de código
 
@@ -226,7 +246,33 @@ Duas mordidas da prova do `geo.roads`, na mesma sessão:
    `geo-nodes.ts`; a prova geométrica com vários vértices é o que pega essa
    classe de defeito — um vértice só pode casar com a estrada vizinha errada.
 
-### 4.11 Desvio constante sob mudança de câmera é pivot, não projeção
+### 4.11 Canvas WebGL ocioso não é legível — e a flag mudou de lugar
+
+`drawImage` de um canvas WebGL devolve **zero em todos os canais** quando ele não
+repintou há alguns frames. É a condição exata do export: o pump avança o frame e
+nada repinta. O sintoma engana porque um canvas simples recém-desenhado lê bem —
+o problema só aparece quando fica ocioso.
+
+A correção é `preserveDrawingBuffer: true`, e no MapLibre 5 ela **não está mais
+onde a documentação antiga diz**: saiu de `MapOptions.preserveDrawingBuffer` para
+`canvasContextAttributes`, e a chave antiga é ignorada **em silêncio**. O mapa
+sobe normal, o contexto continua sem preservar, e só
+`getContextAttributes().preserveDrawingBuffer` conta a verdade. Perdi uma rodada
+inteira nisso: editei, recarreguei, sem erro nenhum, e a leitura continuou zero.
+
+Hoje as três superfícies têm a flag: mapa (`MapViewport.tsx`), Pixi
+(`pixi-backend.ts`) e palco (`studio-scene.ts`). Tirar de qualquer uma quebra o
+export **sem quebrar o preview**.
+
+### 4.12 Closure de efeito com dependências vazias captura o que ainda não existe
+
+A superfície de depuração do overlay é montada num `useEffect(..., [])`, e naquele
+instante `map` ainda é `null`. Capturá-lo ali deixou o export respondendo "mapa
+indisponível" para sempre — e a mensagem era honesta, o que atrasou o diagnóstico.
+Qualquer coisa que um efeito de deps vazias precise ler depois vai por **ref**,
+não por closure.
+
+### 4.13 Desvio constante sob mudança de câmera é pivot, não projeção
 
 Ao verificar o 7D, o rótulo aparecia a **122,78 px** do ponto projetado — e o
 mesmo valor em três enquadramentos diferentes (plano, inclinado 42°, girado
@@ -240,7 +286,7 @@ quem responde é o centro dos pixels desenhados. Trocado para essa medida, o
 desvio caiu para 1,00 / 0,76 / 1,15 px — a folga de antialias do glifo, e nada
 mais.
 
-### 4.12 `RawShaderMaterial` não injeta nada
+### 4.14 `RawShaderMaterial` não injeta nada
 
 O `ShaderMaterial` normal do three declara `position`, `normal`, `uv`,
 `modelViewMatrix` e a precisão por você. O **Raw** não declara nenhum. Um vertex
@@ -249,7 +295,7 @@ engole a falha: o objeto simplesmente não aparece, sem erro no console e sem
 `gl.getError()` diferente de zero. Se um material próprio não desenha, comece
 declarando os atributos à mão.
 
-### 4.13 Cor em raw shader sai escura: falta o encode sRGB
+### 4.15 Cor em raw shader sai escura: falta o encode sRGB
 
 `THREE.Color.set('#141a22')` **converte de sRGB para linear** ao ler o hex — é o
 padrão desde o r152. Um `ShaderMaterial` normal recebe a conversão de volta
@@ -260,7 +306,7 @@ Faça o encode no fim do fragmento — a mistura antes, em linear, que é onde e
 está correta. Referência: `linearToSrgb` em
 `apps/editor/src/panels/viewport/studio-grid.ts`.
 
-### 4.14 `loseContext()` mata o canvas para sempre
+### 4.16 `loseContext()` mata o canvas para sempre
 
 Parece a forma educada de devolver um contexto WebGL, e é uma armadilha quando o
 elemento canvas é reaproveitado: `WEBGL_lose_context.loseContext()` é definitivo,

@@ -956,7 +956,7 @@ idênticos** — está **provado no Electron real**. É o critério mais importa
 projeto, e ele não depende de codec: depende de o frame ser função pura de
 (documento, frame) e de o pump esperar a coisa certa.
 
-O que existe hoje (`pnpm verify:phase8`, **5/5**):
+O que existe hoje (`pnpm verify:phase8`, **6/6**):
 
 | Critério                             | Medido                                              |
 | ------------------------------------ | --------------------------------------------------- |
