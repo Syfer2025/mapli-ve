@@ -1,6 +1,14 @@
 # ADR-012 — Modo estúdio em canvas próprio
 
-**Status:** aceito · **Data:** 2026-07-28 · **Revisar em:** Fase 8
+**Status:** aceito, **parcialmente emendado** pelo
+[ADR-014](ADR-014-studio-own-panel.md) · **Data:** 2026-07-28 · **Revisar em:** Fase 8
+
+> A decisão central deste ADR — canvas e contexto WebGL próprios para o palco —
+> **continua valendo**. O que o ADR-014 mudou foi o lugar: o palco deixou de ser
+> uma superfície empilhada dentro do painel Viewport e passou a ter painel
+> próprio. Em consequência, a vantagem "o overlay Pixi continua por cima, então
+> rótulos e filtros funcionam sem código novo", registrada aqui, deixou de ser
+> de graça: o painel do palco precisa do seu próprio overlay.
 
 ## Contexto
 

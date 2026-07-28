@@ -1,6 +1,13 @@
 # ADR-013 — Composição do frame de export
 
-**Status:** aceito · **Data:** 2026-07-28 · **Revisar em:** Fase 8, ao entrar codec
+**Status:** aceito, com a **tabela de superfícies substituída** pelo
+[ADR-014](ADR-014-studio-own-panel.md) · **Data:** 2026-07-28 · **Revisar em:** Fase 8, ao entrar codec
+
+> A decisão deste ADR — compor as superfícies do viewport ao vivo, em vez de abrir
+> uma janela de render oculta — **continua valendo**, e a medição que a sustenta
+> também. O que o ADR-014 substituiu foi a lista fixa de três superfícies: com o
+> palco em painel próprio, a ordem de composição passou a ser **função do modo
+> ativo**, e são dois contratos em vez de um.
 
 ## Contexto
 
