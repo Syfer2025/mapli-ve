@@ -52,6 +52,9 @@ function text(): VisualPrimitive {
     color: "#ffffff",
     fontFamily: "Open Sans",
     fontSize: 24,
+    haloColor: "#0b1118e6",
+    haloWidth: 0,
+    maxWidth: 0,
     fontWeight: "normal",
     align: "center",
   };

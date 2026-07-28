@@ -811,15 +811,50 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
       );
     };
 
+    /**
+     * Duplo clique no vazio do mapa cria um rótulo ancorado ali (7D).
+     *
+     * Duas guardas antes de criar. A caneta tem prioridade — em modo de desenho
+     * um duplo clique fecha o caminho, não nasce texto. E um duplo clique
+     * **sobre um objeto** é edição do que já existe, não criação de mais um:
+     * criar por cima seria a forma mais rápida de empilhar rótulos invisíveis um
+     * sobre o outro.
+     *
+     * `stopImmediatePropagation` porque o MapLibre trata duplo clique como zoom,
+     * e o rótulo nasceria junto com um salto de câmera.
+     */
+    const onDoubleClick = (event: MouseEvent): void => {
+      if (event.button !== 0 || penRef.current !== null) return;
+      const frame = frameRef.current;
+      if (frame === null) return;
+      const point = eventPoint(event, container);
+      const hit = hitTestLayouts(frame.layout.layouts, frame.layout.drawOrder, point, (nodeId) =>
+        frame.evaluated.nodes.get(nodeId)?.type === "group" ? false : true,
+      );
+      if (hit !== null) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const lngLat = map.unproject([point[0], point[1]]);
+      const nodeId = editorActions.addNodeOfType("text.label");
+      if (nodeId === null) return;
+      editorActions.setNodeAnchor(nodeId, { space: "geo", lngLat: [lngLat.lng, lngLat.lat] });
+      // Selecionar já deixa o Inspector com o campo de texto à mão. Resolver o
+      // nome pelo gazetteer exigiria busca **reversa** — por coordenada — e o
+      // índice atual só busca por nome; fica para quando ela existir.
+      editorActions.selectNode(frame.composition.id, nodeId);
+    };
+
     container.addEventListener("pointerdown", onPointerDown, true);
     container.addEventListener("pointermove", onPointerMove, true);
     container.addEventListener("pointerup", finishInteraction, true);
     container.addEventListener("pointercancel", finishInteraction, true);
+    container.addEventListener("dblclick", onDoubleClick, true);
     return () => {
       container.removeEventListener("pointerdown", onPointerDown, true);
       container.removeEventListener("pointermove", onPointerMove, true);
       container.removeEventListener("pointerup", finishInteraction, true);
       container.removeEventListener("pointercancel", finishInteraction, true);
+      container.removeEventListener("dblclick", onDoubleClick, true);
     };
   }, [map]);
 
@@ -962,7 +997,8 @@ function capturePointer(container: HTMLElement, pointerId: number): void {
   }
 }
 
-function eventPoint(event: PointerEvent, container: HTMLElement): Vec2 {
+/** Só precisa das coordenadas de cliente, então serve a ponteiro e a mouse. */
+function eventPoint(event: MouseEvent, container: HTMLElement): Vec2 {
   const bounds = container.getBoundingClientRect();
   return [event.clientX - bounds.left, event.clientY - bounds.top];
 }

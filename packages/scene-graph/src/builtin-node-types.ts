@@ -145,6 +145,14 @@ const TextPropsSchema = z
     align: animatablePropertySchema(z.enum(["left", "center", "right"])),
     lineHeight: PositiveNumberPropertySchema,
     tracking: NumberPropertySchema,
+    /**
+     * Halo de legibilidade e quebra de linha (7D). Opcionais porque chegaram
+     * depois: um projeto salvo antes tem texto sem elas, e exigi-las
+     * transformaria toda cena antiga em erro de validação.
+     */
+    halo: ColorPropertySchema.optional(),
+    haloWidth: NonNegativeNumberPropertySchema.optional(),
+    maxWidth: NonNegativeNumberPropertySchema.optional(),
   })
   .passthrough();
 
@@ -227,6 +235,36 @@ const TEXT_PROPERTIES: readonly PropertyDescriptor[] = Object.freeze([
     binding: "animatable",
     animatable: true,
     step: 0.1,
+    unit: "px",
+  }),
+  property({
+    path: "props.halo",
+    label: "Halo",
+    kind: "color",
+    group: "appearance",
+    binding: "animatable",
+    animatable: true,
+  }),
+  property({
+    path: "props.haloWidth",
+    label: "Espessura do halo",
+    kind: "number",
+    group: "appearance",
+    binding: "animatable",
+    animatable: true,
+    min: 0,
+    step: 0.5,
+    unit: "px",
+  }),
+  property({
+    path: "props.maxWidth",
+    label: "Largura máxima",
+    kind: "number",
+    group: "content",
+    binding: "animatable",
+    animatable: true,
+    min: 0,
+    step: 10,
     unit: "px",
   }),
 ]);
@@ -580,6 +618,11 @@ export const TEXT_TITLE_NODE_TYPE = defineNodeType({
     align: animatable("center" as const),
     lineHeight: animatable(1.1),
     tracking: animatable(0),
+    // Halo nasce ligado no texto de mapa: um topônimo sem contorno sobre imagem
+    // de satélite é ilegível na primeira sombra de nuvem que cruzar.
+    halo: animatable("#0b1118e6"),
+    haloWidth: animatable(3),
+    maxWidth: animatable(0),
   },
   propertySchema: TextPropsSchema,
   properties: [...COMMON_PROPERTIES, ...TEXT_PROPERTIES],
@@ -602,6 +645,9 @@ export const TEXT_LABEL_NODE_TYPE = defineNodeType({
     align: animatable("center" as const),
     lineHeight: animatable(1.2),
     tracking: animatable(0),
+    halo: animatable("#0b1118e6"),
+    haloWidth: animatable(2),
+    maxWidth: animatable(0),
   },
   propertySchema: TextPropsSchema,
   properties: [...COMMON_PROPERTIES, ...TEXT_PROPERTIES],

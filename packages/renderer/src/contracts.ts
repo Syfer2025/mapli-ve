@@ -112,6 +112,17 @@ export interface TextPrimitive {
   readonly fontSize: number;
   readonly fontWeight: "normal" | "bold";
   readonly align: "left" | "center" | "right";
+  /**
+   * Contorno de legibilidade. Um topônimo sobre imagem de satélite não tem
+   * fundo previsível — a mesma palavra cruza campo claro e floresta escura — e
+   * nenhuma escolha de cor funciona nos dois. O halo resolve porque separa o
+   * texto do que estiver atrás, seja o que for.
+   */
+  readonly haloColor: string;
+  /** Zero desliga o halo. Medido em pixels de contorno, não de raio. */
+  readonly haloWidth: number;
+  /** Largura máxima em pixels antes de quebrar linha. Zero não quebra. */
+  readonly maxWidth: number;
 }
 
 export interface ImagePrimitive {

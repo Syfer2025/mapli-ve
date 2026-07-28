@@ -431,9 +431,40 @@ Escopo:
 3. Editar um vértice do path atualiza a seta sem recriar o nó.
 4. 50 rotas simultâneas dentro do orçamento de frame do overlay.
 
-### 7D — Textos e rótulos no mapa
+### 7D — Textos e rótulos no mapa ✅ (com uma pendência declarada)
 
-**Objetivo.** Topônimos, datas e anotações ancorados no terreno.
+**Entregue.** Duplo clique no vazio do mapa cria um `text.label` ancorado no
+ponto geográfico e já o seleciona, com o campo de texto à mão no Inspector. O
+texto ganhou **halo** e **quebra de linha** por `maxWidth`, ambos animáveis.
+
+- O halo nasce ligado nos dois tipos de texto. Um topônimo sobre imagem de
+  satélite não tem fundo previsível — a mesma palavra cruza campo claro e
+  floresta escura — e nenhuma escolha de cor funciona nos dois casos. A largura
+  pedida é dobrada ao aplicar: o Pixi centra o traço na borda do glifo, e metade
+  dele comeria o interior da letra; o que o autor pede é a espessura **visível**.
+- O duplo clique tem duas guardas: a caneta tem prioridade (em modo de desenho o
+  duplo clique fecha o caminho), e um duplo clique sobre um objeto é edição do
+  que existe, não criação de mais um. E ele para a propagação, senão o MapLibre
+  daria zoom junto.
+
+Verificado no Electron real (`pnpm verify:phase7d`), **4/4**: a âncora criada
+bate exatamente com o ponto clicado, e o centro dos **pixels desenhados** fica a
+1,00 / 0,76 / 1,15 px do ponto projetado em três enquadramentos (zoom 6 plano,
+zoom 7,4 com 42° de inclinação e 33° de giro, zoom 5,2 girado −70°); o halo sai
+de 0 para 3483 pixels da cor pedida; `maxWidth` de 260 px leva a caixa de
+844×44 para 240×193.
+
+Um detalhe de método que vale guardar: a primeira medição comparava a translação
+da **matriz do nó** com o ponto projetado e acusava 122,78 px de desvio — o mesmo
+valor nos três enquadramentos. Desvio constante sob mudança de câmera não é erro
+de projeção, é o pivot `anchorPoint × tamanho` deslocando a caixa do nó. Quem
+responde "o texto ficou no lugar do terreno?" é o pixel, não a matriz.
+
+**Pendente:** rótulo nomeado pelo gazetteer ao clicar. Exige busca **reversa**
+(por coordenada) e o índice atual só busca por nome. A busca por nome já
+funciona na caixa do viewport, que é o outro caminho do mesmo critério.
+
+**Objetivo original.** Topônimos, datas e anotações ancorados no terreno.
 
 Escopo:
 

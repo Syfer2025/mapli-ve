@@ -434,6 +434,18 @@ function updateVisual(
       text.style.fontWeight = visual.fontWeight;
       text.style.fill = visual.color;
       text.style.align = visual.align;
+      // O halo é um contorno, e o Pixi centra o traço na borda do glifo: metade
+      // dele come o interior da letra. Por isso a largura pedida é dobrada aqui
+      // — o que o autor pede é a espessura VISÍVEL do lado de fora.
+      // Largura zero em vez de `null` para desligar: o tipo de `stroke` no Pixi 8
+      // não aceita nulo, e um traço de espessura zero não é rasterizado.
+      text.style.stroke = {
+        color: visual.haloColor,
+        width: visual.haloWidth > 0 ? visual.haloWidth * 2 : 0,
+        join: "round",
+      };
+      text.style.wordWrap = visual.maxWidth > 0;
+      text.style.wordWrapWidth = visual.maxWidth > 0 ? visual.maxWidth : 0;
       text.anchor.set(placement.anchor[0], placement.anchor[1]);
       text.position.set(placement.position[0], placement.position[1]);
       return;

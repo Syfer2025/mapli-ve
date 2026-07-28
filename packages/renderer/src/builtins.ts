@@ -26,6 +26,9 @@ const titleVisual: VisualEvaluator<Props> = (node) => ({
   fontSize: positiveProp(node.props, "fontSize", 48),
   fontWeight: fontWeightProp(node.props, "bold"),
   align: enumProp(node.props, "align", ["left", "center", "right"], "center"),
+  haloColor: stringProp(node.props, "halo", "#0b111800"),
+  haloWidth: nonNegativeProp(node.props, "haloWidth", 0),
+  maxWidth: nonNegativeProp(node.props, "maxWidth", 0),
 });
 
 const labelVisual: VisualEvaluator<Props> = (node) => ({
@@ -36,6 +39,9 @@ const labelVisual: VisualEvaluator<Props> = (node) => ({
   fontSize: positiveProp(node.props, "fontSize", 18),
   fontWeight: fontWeightProp(node.props, "normal"),
   align: enumProp(node.props, "align", ["left", "center", "right"], "center"),
+  haloColor: stringProp(node.props, "halo", "#0b111800"),
+  haloWidth: nonNegativeProp(node.props, "haloWidth", 0),
+  maxWidth: nonNegativeProp(node.props, "maxWidth", 0),
 });
 
 const imageVisual: VisualEvaluator<Props> = (node) => ({
