@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { EffectsPanel } from "../panels/effects/EffectsPanel.js";
 import { GraphPanel } from "../panels/graph/GraphPanel.js";
 import { HistoryPanel } from "../panels/history/HistoryPanel.js";
+import { RenderQueuePanel } from "../panels/render/RenderQueuePanel.js";
 import { InspectorPanel } from "../panels/inspector/InspectorPanel.js";
 import { LibraryPanel } from "../panels/library/LibraryPanel.js";
 import { ProjectPanel } from "../panels/project/ProjectPanel.js";
@@ -123,6 +124,9 @@ export const PANEL_COMPONENTS: Record<string, (props: IDockviewPanelProps) => Re
   },
   library: function AssetLibraryPanel(_props: IDockviewPanelProps): ReactNode {
     return <LibraryPanel />;
+  },
+  "render-queue": function ExportQueuePanel(_props: IDockviewPanelProps): ReactNode {
+    return <RenderQueuePanel />;
   },
 };
 

@@ -39,6 +39,7 @@ import { expandGeoNodes, type GeoExpansion, type GeoViewport } from "./geo-nodes
 import { expandCalloutNodes, type CalloutExpansion } from "./callout-nodes.js";
 import { expandRouteNodes, type RouteExpansion } from "./route-nodes.js";
 import { startPngSequenceExport, type StartExportResult } from "../../export/export-service.js";
+import { bindExportViewport } from "../../export/export-controller.js";
 import { onGeoLayerLoaded } from "../../geo/geo-data.js";
 import { expandParticleEffects, type ParticleExpansion } from "./particle-nodes.js";
 import {
@@ -331,6 +332,25 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
   sessionRef.current = session;
   gizmoModeRef.current = gizmoMode;
   mapRef.current = map;
+
+  /**
+   * Anuncia mapa e sonda ao controlador de export.
+   *
+   * A sonda é lida por **função**, não por valor: o painel de fila e o motor
+   * consultam a cada volta do laço, e um valor congelado no momento do bind
+   * faria o `settle` esperar para sempre uma repintura que já aconteceu.
+   */
+  useEffect(() => {
+    if (map === null) return;
+    bindExportViewport({
+      map,
+      probe: () => ({
+        frame: frameRef.current?.screen.frame ?? -1,
+        renders: renderCountRef.current,
+      }),
+    });
+    return () => bindExportViewport(null);
+  }, [map]);
 
   const updatePen = useCallback((next: PenState | null): void => {
     penRef.current = next;
