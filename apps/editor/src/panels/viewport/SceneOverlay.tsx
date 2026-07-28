@@ -36,12 +36,7 @@ import {
   scene3dLayerPending,
   syncScene3dLayer,
 } from "./scene3d-layer.js";
-import {
-  collectStudioModels,
-  collectStudioStage,
-  StudioSceneRuntime,
-  type StudioModelState,
-} from "./studio-scene.js";
+import { activeStudioPendingModels } from "./studio-scene.js";
 import { expandGeoNodes, type GeoExpansion, type GeoViewport } from "./geo-nodes.js";
 import { expandCalloutNodes, type CalloutExpansion } from "./callout-nodes.js";
 import { expandRouteNodes, type RouteExpansion } from "./route-nodes.js";
@@ -118,44 +113,6 @@ function geoViewportOf(map: MapLibreMap): GeoViewport {
       north: north + padY,
     },
   };
-}
-
-/**
- * Põe os `model3d` do palco no layout de tela, projetando a posição 3D deles.
- *
- * É o que faz um `label.callout` encontrar a asa do caça sem uma linha de código
- * nova do lado do rótulo: ele já procura o alvo em `layout.layouts`, e no modo
- * estúdio quem preenche essa entrada é a câmera orbital em vez do MapLibre.
- *
- * Modelo atrás da câmera vira `culled`, não uma posição inventada: projeção com
- * w negativo devolve coordenada espelhada, e um rótulo apontando para o canto
- * oposto da tela é pior do que rótulo nenhum.
- */
-function withStudioLayout(
-  layout: LayoutScreenScene,
-  models: readonly StudioModelState[],
-  studio: StudioSceneRuntime,
-  size: Vec2,
-): LayoutScreenScene {
-  if (models.length === 0) return layout;
-  const layouts = new Map(layout.layouts);
-  for (const model of models) {
-    const current = layouts.get(model.id);
-    if (current === undefined) continue;
-    const screen = studio.project(model.position, size[0], size[1]);
-    if (screen === null) {
-      layouts.set(model.id, { ...current, culled: true });
-      continue;
-    }
-    layouts.set(model.id, {
-      ...current,
-      matrix: mat2d.translate(screen[0], screen[1]),
-      anchorPx: screen,
-      bounds: { x: screen[0], y: screen[1], width: 0, height: 0 },
-      culled: false,
-    });
-  }
-  return { ...layout, layouts };
 }
 
 /**
@@ -317,8 +274,6 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
   const session = useEditorSession();
   const pixiCanvasRef = useRef<HTMLCanvasElement>(null);
   const uiCanvasRef = useRef<HTMLCanvasElement>(null);
-  const studioCanvasRef = useRef<HTMLCanvasElement>(null);
-  const studioRef = useRef<StudioSceneRuntime | null>(null);
   /**
    * O mapa por referência, não por closure.
    *
@@ -341,8 +296,6 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
   const [rendererStatus, setRendererStatus] = useState("preparando GPU…");
   /** Incrementa quando uma camada geográfica chega, para refazer o frame. */
   const [geoRevision, setGeoRevision] = useState(0);
-  /** Verdadeiro enquanto a composição tem um `studio.stage` visível (ADR-012). */
-  const [studioActive, setStudioActive] = useState(false);
 
   sessionRef.current = session;
   gizmoModeRef.current = gizmoMode;
@@ -365,7 +318,7 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
         // GLB em parse é trabalho pendente que o settle precisa ver: a camada
         // 3D do mapa e o palco do estúdio. Erro de carga conta como resolvido
         // lá dentro — senão um modelo quebrado travaria o export no timeout.
-        pendingAssets: scene3dLayerPending(map) + (studioRef.current?.pendingModels() ?? 0),
+        pendingAssets: scene3dLayerPending(map) + activeStudioPendingModels(),
       }),
     });
     return () => bindExportViewport(null);
@@ -441,31 +394,6 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
       active = false;
       if (leaseRef.current === lease) leaseRef.current = null;
       lease.release();
-    };
-  }, []);
-
-  /**
-   * O contexto WebGL do estúdio nasce com o painel e morre com ele.
-   *
-   * Não criar sob demanda ao entrar no modo, apesar do custo medido de 3,6 ms:
-   * criar dentro do passe de render significaria o primeiro frame do modo sair
-   * vazio, e o ciclo criar/descartar a cada troca de composição é justamente
-   * como se esgota o orçamento de dezesseis contextos do
-   * [ADR-012](../../../../../docs/adr/ADR-012-studio-own-canvas.md). Um contexto
-   * ocioso não custa GPU: sem palco na cena, `render` sai na primeira linha.
-   */
-  useEffect(() => {
-    const canvas = studioCanvasRef.current;
-    if (canvas === null) return;
-    const runtime = new StudioSceneRuntime(canvas);
-    runtime.onNeedsRepaint(() => setGeoRevision((value) => value + 1));
-    studioRef.current = runtime;
-    if (import.meta.env.DEV) {
-      (window as StudioDebugWindow).__theatrumStudio = { status: () => runtime.status() };
-    }
-    return () => {
-      studioRef.current = null;
-      runtime.dispose();
     };
   }, []);
 
@@ -547,22 +475,11 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
             height: surfaceSize[1],
           },
         });
-        // O palco desenha ANTES do layout dos rótulos porque é ele quem diz onde,
-        // em pixels, está cada modelo: a projeção sai da câmera orbital deste
-        // frame, e um `label.callout` que aponte para um modelo lê essa posição
-        // em `layout.layouts` sem saber que o mapa saiu de cena.
-        const stage = collectStudioStage(evaluated);
-        const studioModels = stage === null ? [] : collectStudioModels(evaluated);
-        const studio = studioRef.current;
-        // Chamado SEMPRE, inclusive sem palco: é a chamada que zera o estado
-        // interno quando o modo termina. Só sair fora quando `stage` é nulo
-        // deixava o runtime achando que ainda estava no palco depois de o nó ser
-        // apagado, e o relato dele passava a mentir.
-        studio?.render({ stage, models: studioModels }, surfaceSize[0], surfaceSize[1]);
-        const layout =
-          stage !== null && studio !== null
-            ? withStudioLayout(baseLayout, studioModels, studio, surfaceSize)
-            : baseLayout;
+        // O palco saiu deste painel (ADR-014): ele tem o seu, com o seu contexto e
+        // o seu passe de avaliação. Aqui o layout é o do mapa, sempre — sem o
+        // pós-processamento que trocava a entrada dos `model3d` pela câmera
+        // orbital, que só existia porque os dois modos dividiam um painel.
+        const layout = baseLayout;
         const laidOutAt = performance.now();
         const composed = createScreenScene(evaluated, layout, {
           size: surfaceSize,
@@ -607,15 +524,15 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
         // rumo já resolvidos pelos comportamentos) e repinta sob demanda. As
         // rotas precisam também dos caminhos do projeto — a geometria delas mora
         // em `document.paths`, não na cena avaliada.
-        // No palco os modelos já foram desenhados pelo estúdio; mandá-los também
-        // para a camada do mapa pintaria a mesma aeronave duas vezes, uma delas
-        // num canvas que ninguém está vendo.
-        const routes = stage === null ? collectRoute3dNodes(evaluated, session.document.paths) : [];
-        syncScene3dLayer(map, {
-          models: stage === null ? collectModel3dNodes(evaluated) : [],
-          routes,
-        });
-        setStudioActive(stage !== null);
+        // Sem porta condicionada ao palco. Antes o mapa suprimia os próprios
+        // modelos quando havia `studio.stage` na cena, porque os dois modos
+        // dividiam um canvas e a mesma aeronave sairia pintada duas vezes. Com
+        // painéis separados (ADR-014) cada um é uma VISTA do mesmo documento: o
+        // Viewport mostra o modelo na âncora geográfica, o Palco mostra o mesmo
+        // modelo em `stageX`/`stageZ`. Suprimir aqui esvaziaria o mapa por causa
+        // de um nó que hoje mora em outra aba.
+        const routes3d = collectRoute3dNodes(evaluated, session.document.paths);
+        syncScene3dLayer(map, { models: collectModel3dNodes(evaluated), routes: routes3d });
         const renderedAt = performance.now();
         renderCountRef.current += 1;
         frameRef.current = {
@@ -655,7 +572,7 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
             // Caminho já traçado por uma rota — 2D ou 3D — sai do desenho cru de
             // caminhos: senão a mesma trajetória aparece duas vezes, uma delas
             // como a linha de referência da caneta.
-            new Set([...routes.map((route) => route.pathId), ...routes2d.pathIds]),
+            new Set([...routes3d.map((route) => route.pathId), ...routes2d.pathIds]),
           ),
           metrics: {
             evaluateMs: evaluatedAt - startedAt,
@@ -993,7 +910,7 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
             frame: frameRef.current?.screen.frame ?? -1,
             renders: renderCountRef.current,
             // Mesma guarda do bind acima: GLB pendente segura o settle.
-            pendingAssets: scene3dLayerPending(liveMap) + (studioRef.current?.pendingModels() ?? 0),
+            pendingAssets: scene3dLayerPending(liveMap) + activeStudioPendingModels(),
           }),
           ...(options?.range === undefined ? {} : { range: options.range }),
           ...(options?.outputFps === undefined ? {} : { outputFps: options.outputFps }),
@@ -1013,11 +930,7 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
   }, []);
 
   return (
-    <div
-      className={`scene-overlay${studioActive ? " scene-overlay--studio" : ""}`}
-      aria-label="Objetos animados da cena"
-    >
-      <canvas ref={studioCanvasRef} className="scene-overlay__studio" aria-hidden="true" />
+    <div className="scene-overlay" aria-label="Objetos animados da cena">
       <canvas ref={pixiCanvasRef} className="scene-overlay__pixi" aria-hidden="true" />
       <canvas ref={uiCanvasRef} className="scene-overlay__ui" aria-hidden="true" />
       <div className="scene-overlay__gizmos" role="toolbar" aria-label="Transformação">
@@ -1450,10 +1363,6 @@ function serializeDebugFrame(
 }
 
 /** Superfície DEV do palco: é o que o verificador do bloco 7E lê. */
-interface StudioDebugWindow extends Window {
-  __theatrumStudio?: { readonly status: () => ReturnType<StudioSceneRuntime["status"]> };
-}
-
 interface Phase4DebugSurface {
   readonly getSnapshot: () => SerializedDebugFrame;
   readonly captureExport: () => Promise<CapturedFrame>;

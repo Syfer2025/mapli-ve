@@ -26,8 +26,7 @@
 
 .scene-overlay,
 .scene-overlay__pixi,
-.scene-overlay__ui,
-.scene-overlay__studio {
+.scene-overlay__ui {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -40,34 +39,20 @@
 }
 
 .scene-overlay__pixi,
-.scene-overlay__ui,
-.scene-overlay__studio {
+.scene-overlay__ui {
   display: block;
 }
 
 /*
- * O palco fica ENTRE o mapa e o overlay Pixi: ele substitui o mapa como fundo,
- * e rótulos, efeitos e filtros da Fase 6 continuam desenhando por cima sem saber
- * que o fundo mudou (ADR-012).
+ * O palco saiu deste painel (ADR-014). Aqui havia três regras: o canvas do palco
+ * escondido por padrão, visível com a classe do modo, e — a que causou o defeito —
+ * `:has(.scene-overlay--studio) .map-viewport__map { visibility: hidden }`.
  *
- * `visibility` em vez de `display: none` porque um canvas WebGL sem caixa de
- * layout tem tamanho zero, e o contexto teria de ser redimensionado a cada
- * entrada no modo. Invisível ele mantém o tamanho e o primeiro frame do modo
- * sai correto.
+ * Essa última fazia o modo depender de um estado que o documento controla: o
+ * avaliador deriva `visible` de `opacity > 0`, então baixar a opacidade do nó do
+ * palco reacendia o mapa por baixo. O palco agora tem painel próprio, e nenhuma
+ * regra de CSS deste arquivo esconde nada de outro painel.
  */
-.scene-overlay__studio {
-  z-index: 0;
-  visibility: hidden;
-}
-
-.scene-overlay--studio .scene-overlay__studio {
-  visibility: visible;
-}
-
-/* Sem mapa no palco: ele continua vivo (e projetando) mas não pinta pixel. */
-.map-viewport__stage:has(.scene-overlay--studio) .map-viewport__map {
-  visibility: hidden;
-}
 
 .scene-overlay__ui {
   z-index: 2;

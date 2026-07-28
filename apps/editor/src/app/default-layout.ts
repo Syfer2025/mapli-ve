@@ -28,6 +28,20 @@ export function applyDefaultLayout(api: DockviewApi): void {
     title: "Viewport",
   });
 
+  // 1b. Palco 3D como ABA IRMÃ do viewport, no mesmo grupo. `within` é o que faz
+  //     dele uma aba em vez de um painel dividindo espaço: são dois ambientes que
+  //     ocupam o mesmo lugar na tela e nunca são olhados ao mesmo tempo
+  //     ([ADR-014](../../../../docs/adr/ADR-014-studio-own-panel.md)). Entra
+  //     ANTES da timeline para não herdar a faixa inferior.
+  api.addPanel({
+    id: "studio",
+    component: "studio",
+    title: "Palco 3D",
+    position: { referencePanel: viewport, direction: "within" },
+  });
+  // O viewport volta a ser a aba ativa: quem abre o editor quer o mapa.
+  viewport.api.setActive();
+
   // 2. Timeline divide horizontalmente o grid inteiro → faixa full-width.
   const timeline = api.addPanel({
     id: "timeline",

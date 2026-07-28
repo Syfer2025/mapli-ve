@@ -3,6 +3,7 @@ import type { DockviewApi, DockviewReadyEvent } from "dockview-react";
 import { bridge } from "../bridge/index.js";
 import { WORKSPACE_VERSION, type WorkspaceState } from "@theatrum/shell";
 import { applyDefaultLayout } from "./default-layout.js";
+import { PANEL_DEFINITIONS } from "./panels.js";
 
 const SAVE_DEBOUNCE_MS = 400;
 const MAX_LAYOUT_WAIT_FRAMES = 120;
@@ -31,6 +32,37 @@ function waitForContainerSize(api: DockviewApi): Promise<boolean> {
     };
     tick();
   });
+}
+
+/**
+ * Painel registrado que não existe no layout restaurado entra como aba.
+ *
+ * Sem isto, **todo painel novo é invisível para quem já usou o aplicativo**: o
+ * layout salvo do usuário não conhece o painel, `fromJSON` restaura só o que está
+ * lá, e o recurso recém-entregue simplesmente não aparece. Não é layout inválido
+ * — o `catch` acima não pega —, é layout velho, e ele é restaurado com sucesso.
+ * Aconteceu com o Palco 3D ([ADR-014](../../../../docs/adr/ADR-014-studio-own-panel.md)):
+ * a aba não apareceu e o motivo não tinha nada a ver com o painel.
+ *
+ * A aba entra ao lado do primeiro grupo existente, sem tentar adivinhar a posição
+ * "certa": layout é do usuário, e mover painéis dele por conta própria seria pior
+ * que colocar o novo num lugar previsível. Quem quiser o arranjo padrão tem
+ * "Restaurar layout".
+ */
+function adoptMissingPanels(api: DockviewApi): void {
+  const reference = api.panels[0];
+  if (reference === undefined) return;
+  for (const definition of PANEL_DEFINITIONS) {
+    if (api.getPanel(definition.id) !== undefined) continue;
+    api.addPanel({
+      id: definition.id,
+      component: definition.id,
+      title: definition.title,
+      position: { referencePanel: reference, direction: "within" },
+    });
+  }
+  // A aba nova não rouba o foco de quem já estava trabalhando.
+  reference.api.setActive();
 }
 
 function snapshotWorkspace(api: DockviewApi): WorkspaceState {
@@ -142,7 +174,8 @@ export function useWorkspaceLayout(): WorkspaceLayout {
             }
           }
 
-          if (!usedSaved) applyDefaultLayout(event.api);
+          if (usedSaved) adoptMissingPanels(event.api);
+          else applyDefaultLayout(event.api);
         } catch (error: unknown) {
           // Última linha de defesa: nunca deixar a janela sem painel algum.
           if (isStale()) return;

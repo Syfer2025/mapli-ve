@@ -10,6 +10,7 @@ import { LibraryPanel } from "../panels/library/LibraryPanel.js";
 import { ProjectPanel } from "../panels/project/ProjectPanel.js";
 import { TimelinePanel } from "../panels/timeline/TimelinePanel.js";
 import { MapViewport } from "../panels/viewport/MapViewport.js";
+import { StudioViewport } from "../panels/viewport/StudioViewport.js";
 import { Panel, PanelPlaceholder } from "../ui/index.js";
 
 /**
@@ -50,6 +51,12 @@ export const PANEL_DEFINITIONS = [
     title: "Viewport",
     phase: "Fase 2",
     hint: "MapLibre com PMTiles offline, mais o overlay Pixi. O primeiro painel real.",
+  },
+  {
+    id: "studio",
+    title: "Palco 3D",
+    phase: "Bloco 7E",
+    hint: "Ambiente de apresentação de equipamento: chão infinito, câmera orbital e sombra por silhueta. Aba à parte do mapa (ADR-014).",
   },
   {
     id: "inspector",
@@ -110,6 +117,9 @@ export const PANEL_COMPONENTS: Record<string, (props: IDockviewPanelProps) => Re
   ...Object.fromEntries(PANEL_DEFINITIONS.map((d) => [d.id, placeholderPanel(d)])),
   viewport: function ViewportPanel(_props: IDockviewPanelProps): ReactNode {
     return <MapViewport />;
+  },
+  studio: function StudioStagePanel(_props: IDockviewPanelProps): ReactNode {
+    return <StudioViewport />;
   },
   project: function ProjectTreePanel(_props: IDockviewPanelProps): ReactNode {
     return <ProjectPanel />;

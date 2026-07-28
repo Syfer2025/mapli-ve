@@ -511,3 +511,29 @@ function applyModelTransform(root: THREE.Object3D, model: StudioModelState, bott
     .multiply(new THREE.Matrix4().makeRotationY(heading));
   root.matrixWorldNeedsUpdate = true;
 }
+
+/**
+ * O palco vivo do aplicativo, para quem não é o painel dele.
+ *
+ * Existe por uma razão concreta: o `settle` do export precisa saber quantos GLB
+ * ainda estão em parse no palco, e quem dirige o export vive no painel do
+ * Viewport. Com o palco em painel próprio ([ADR-014](../../../../../docs/adr/ADR-014-studio-own-panel.md))
+ * não há mais uma ref compartilhada entre os dois.
+ *
+ * Singleton de módulo, e não um store, porque **um palco por aplicativo é o limite
+ * declarado** no ADR-014 — `collectStudioStage` já devolve só o primeiro
+ * `studio.stage` da ordem de avaliação. Se a Fase 9 pedir dois palcos, é aqui e
+ * lá que a decisão muda junto.
+ */
+let activeRuntime: StudioSceneRuntime | null = null;
+
+export function setActiveStudioRuntime(runtime: StudioSceneRuntime | null): void {
+  // Só o painel que está montando assume; desmontar limpa apenas o próprio.
+  if (runtime === null && activeRuntime === null) return;
+  activeRuntime = runtime;
+}
+
+/** 0 quando não há palco montado — ausência de painel não é trabalho pendente. */
+export function activeStudioPendingModels(): number {
+  return activeRuntime?.pendingModels() ?? 0;
+}

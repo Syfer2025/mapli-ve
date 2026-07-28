@@ -1,0 +1,43 @@
+/*
+ * Painel do Palco 3D (ADR-014).
+ *
+ * Nenhuma regra aqui esconde nada de outro painel: era exatamente isso que a
+ * versão anterior fazia (`:has(.scene-overlay--studio) .map-viewport__map`) e o
+ * que fez o modo vazar quando o nó do palco ficava invisível.
+ */
+
+.studio-viewport {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-surface-sunken, #0b0f14);
+}
+
+/*
+ * O canvas é dimensionado por CSS; o backing store quem ajusta é o
+ * `renderer.setSize` com o pixelRatio do ADR-012. Sem `display: block` um canvas
+ * inline deixa uma faixa de baseline embaixo e o palco fica com borda.
+ */
+.studio-viewport__stage {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.studio-viewport__status {
+  position: absolute;
+  bottom: var(--space-2);
+  left: var(--space-3);
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: rgb(11 17 24 / 0.72);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  /* Diagnóstico não recebe clique: o palco inteiro é área de câmera. */
+  pointer-events: none;
+}
