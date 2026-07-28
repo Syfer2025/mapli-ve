@@ -237,6 +237,26 @@ export function MapViewport(): ReactNode {
       maxPitch: 70,
       attributionControl: false,
       fadeDuration: 0,
+      /**
+       * Sem isto o export não tem terreno.
+       *
+       * O `captureExport()` compõe o mapa, o palco 3D e o overlay Pixi numa
+       * imagem só, e compor exige **ler** cada superfície. Medido no aplicativo
+       * em execução: um canvas comum ocioso continua legível, mas o do MapLibre
+       * devolve zero em todos os canais — é o caso que a documentação dele
+       * resolve com esta flag, e a única alternativa seria ler dentro do rAF
+       * dele, o que amarraria o export ao relógio do mapa.
+       *
+       * O custo não apareceu na medição: 40 mil triângulos em 1280×720 deram
+       * mediana de 13,40 ms com a flag e 13,40 ms sem — as duas presas ao vsync.
+       * Ver [ADR-013](../../../../../docs/adr/ADR-013-export-frame-composition.md).
+       *
+       * **Vai aqui dentro, não no topo das opções.** O MapLibre 5 mudou de
+       * `MapOptions.preserveDrawingBuffer` para `canvasContextAttributes`, e a
+       * chave antiga é ignorada **em silêncio**: o mapa sobe normal, o contexto
+       * continua sem preservar, e só `getContextAttributes()` conta a verdade.
+       */
+      canvasContextAttributes: { preserveDrawingBuffer: true, antialias: true },
     });
     mapRef.current = map;
     setMapInstance(map);

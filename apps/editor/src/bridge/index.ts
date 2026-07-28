@@ -67,6 +67,26 @@ const fallback: TheatrumBridge = {
       return Promise.resolve();
     },
   },
+  /**
+   * Fora do Electron não há disco, então o export recusa em vez de fingir. Um
+   * fallback que devolvesse `ok` produziria um relatório com hashes inventados —
+   * exatamente o tipo de sucesso falso que o critério byte-idêntico não perdoa.
+   */
+  export: {
+    begin: () =>
+      Promise.resolve({
+        ok: false,
+        directory: "",
+        message: "Export exige o aplicativo Electron.",
+      }),
+    frame: () =>
+      Promise.resolve({
+        ok: false,
+        bytes: 0,
+        sha256: "",
+        message: "Export exige o aplicativo Electron.",
+      }),
+  },
 };
 
 export const bridge: TheatrumBridge = window.theatrum ?? fallback;

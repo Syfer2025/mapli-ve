@@ -179,6 +179,19 @@ export function createPixiRenderBackend(options: PixiRenderBackendOptions = {}):
         sharedTicker: false,
         preference: preference === "webgpu" ? "webgpu" : "webgl",
         powerPreference: "high-performance",
+        /**
+         * O buffer sobrevive ao fim do frame para poder ser **lido de fora**.
+         *
+         * O export compõe este canvas com o do mapa e o do palco 3D
+         * ([ADR-013](../../../docs/adr/ADR-013-export-frame-composition.md)), e
+         * compor exige ler. Sem a flag, `drawImage` deste canvas devolve zero em
+         * todos os canais assim que o overlay fica ocioso — que é exatamente a
+         * condição do export, em que o pump avança o frame e nada repinta.
+         *
+         * Medido: a flag não apareceu no tempo de frame (13,40 ms com e sem, as
+         * duas presas ao vsync).
+         */
+        preserveDrawingBuffer: true,
       });
 
       for (const slot of SLOT_IDS) {

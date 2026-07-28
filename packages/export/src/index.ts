@@ -6,4 +6,13 @@
  *
  * Ver docs/02-MODULES.md.
  */
-export {};
+export {
+  type FrameRange,
+  type ExportPlanInput,
+  type PlannedFrame,
+  type ExportPlan,
+  ExportPlanError,
+  counterDigits,
+  planExport,
+  sanitizeBasename,
+} from "./frame-plan.js";

@@ -29,11 +29,14 @@ import {
   shouldPreserveRecoveryOnQuit,
   startRecovery,
 } from "./services/recovery.js";
+import { beginExport, writeExportFrame } from "./services/export-writer.js";
 import {
   IPC_CHANNELS,
   MENU_ACTION_CHANNEL,
   WORKSPACE_FLUSH_CHANNEL,
   type AppInfo,
+  type ExportBeginRequest,
+  type ExportFrameRequest,
   type IpcChannel,
   type ProjectSaveRequest,
   type RecoveryRecordRequest,
@@ -116,6 +119,13 @@ function registerIpc(): void {
     "window:set-title": (_event: unknown, title: string) => {
       editorWindow?.setTitle(title);
     },
+    "export:begin": (_event: unknown, request: ExportBeginRequest) => {
+      if (editorWindow === null) throw new Error("A janela do editor não está disponível.");
+      return beginExport(editorWindow, request);
+    },
+    // Sem a janela como argumento: escrever um frame não abre diálogo nenhum, e
+    // um export não pode morrer porque a janela foi fechada no meio.
+    "export:frame": (_event: unknown, request: ExportFrameRequest) => writeExportFrame(request),
   } satisfies Record<IpcChannel, unknown>;
 
   for (const channel of IPC_CHANNELS) {

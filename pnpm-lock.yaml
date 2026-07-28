@@ -89,6 +89,9 @@ importers:
       '@theatrum/effects':
         specifier: workspace:*
         version: link:../../packages/effects
+      '@theatrum/export':
+        specifier: workspace:*
+        version: link:../../packages/export
       '@theatrum/gis':
         specifier: workspace:*
         version: link:../../packages/gis

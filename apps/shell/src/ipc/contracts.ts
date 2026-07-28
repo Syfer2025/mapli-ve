@@ -142,6 +142,54 @@ export interface TheatrumBridge {
   readonly window: {
     readonly setTitle: (title: string) => Promise<void>;
   };
+  /**
+   * Sequência de frames em disco. `begin` pede a pasta uma vez; `frame` escreve
+   * um PNG e devolve o hash dele — que é o que prova o critério byte-idêntico da
+   * Fase 8 sem precisar reler o arquivo.
+   */
+  readonly export: {
+    readonly begin: (request: ExportBeginRequest) => Promise<ExportBeginResult>;
+    readonly frame: (request: ExportFrameRequest) => Promise<ExportFrameResult>;
+  };
+}
+
+/** Pasta de saída de um export de sequência. Ver ADR-013. */
+export interface ExportBeginRequest {
+  readonly jobName: string;
+  /**
+   * Pasta de destino já conhecida. Presente, o diálogo é pulado — é o que
+   * permite reexportar para o mesmo lugar sem perguntar de novo, e é como o
+   * verificador de fase roda sem interação.
+   */
+  readonly directory?: string;
+}
+
+export interface ExportBeginResult {
+  readonly ok: boolean;
+  readonly directory: string;
+  readonly message?: string;
+}
+
+/**
+ * Um frame a escrever.
+ *
+ * O RGBA cruza o IPC como `Uint8Array`: o Electron serializa por estrutura, sem
+ * passar por JSON, então 7 MB de pixels não viram 20 MB de texto.
+ */
+export interface ExportFrameRequest {
+  readonly directory: string;
+  readonly filename: string;
+  readonly width: number;
+  readonly height: number;
+  readonly rgba: Uint8Array;
+}
+
+export interface ExportFrameResult {
+  readonly ok: boolean;
+  readonly bytes: number;
+  /** SHA-256 do arquivo escrito: é o que prova byte-idêntico entre execuções. */
+  readonly sha256: string;
+  readonly message?: string;
 }
 
 /**
@@ -166,6 +214,8 @@ export interface IpcContracts {
   "recovery:discard": { request: string; response: RecoveryOperationResult };
   "recovery:close-clean": { request: void; response: RecoveryOperationResult };
   "window:set-title": { request: string; response: void };
+  "export:begin": { request: ExportBeginRequest; response: ExportBeginResult };
+  "export:frame": { request: ExportFrameRequest; response: ExportFrameResult };
 }
 
 export type IpcChannel = keyof IpcContracts;
@@ -188,6 +238,8 @@ export const IPC_CHANNELS = [
   "recovery:discard",
   "recovery:close-clean",
   "window:set-title",
+  "export:begin",
+  "export:frame",
 ] as const satisfies readonly IpcChannel[];
 
 /** Canal síncrono separado: nunca entra no fluxo normal de `invoke`. */

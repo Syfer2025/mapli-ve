@@ -48,6 +48,10 @@ const bridge = {
   window: {
     setTitle: (title: string): Promise<void> => invoke("window:set-title", title),
   },
+  export: {
+    begin: (request) => invoke("export:begin", request),
+    frame: (request) => invoke("export:frame", request),
+  },
   project: {
     open: () => invoke("project:open"),
     save: (request) => invoke("project:save", request),

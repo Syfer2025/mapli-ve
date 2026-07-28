@@ -949,7 +949,61 @@ Escopo:
 
 ## Fase 8 — Exportação
 
-**Objetivo.** Arquivo de vídeo. A fase que prova o determinismo.
+**Estado: núcleo entregue e provado; codecs pendentes.**
+
+O critério 2 — **exportar o mesmo projeto duas vezes produz arquivos byte a byte
+idênticos** — está **provado no Electron real**. É o critério mais importante do
+projeto, e ele não depende de codec: depende de o frame ser função pura de
+(documento, frame) e de o pump esperar a coisa certa.
+
+O que existe hoje (`pnpm verify:phase8`, **5/5**):
+
+| Critério                             | Medido                                              |
+| ------------------------------------ | --------------------------------------------------- |
+| Mapa e overlay legíveis para compor  | somas 95 994 e 110 052 (antes: zero)                |
+| **Duas execuções, hashes idênticos** | 9/9 arquivos, e 9 hashes **distintos** entre frames |
+| Gizmo de seleção não vaza            | hashes idênticos com nó selecionado                 |
+| `settleFailed` e p99 de settle       | **0** falhas, p99 de **77 ms**                      |
+
+As peças, e por que estão onde estão:
+
+- **`packages/export/src/frame-plan.ts`** — plano de frames, função pura, 22
+  testes. O passo entre frames de saída é aplicado por **multiplicação sobre o
+  índice**, nunca por acumulação: somar 1/3 três mil vezes desvia, e o desvio
+  depende de quantos frames vieram antes — não-determinismo pela porta dos fundos.
+  Os nomes são zero-padded pelo total, porque `frame_9` antes de `frame_10` é como
+  um glob monta o vídeo fora de ordem.
+- **`apps/editor/src/export/run-export.ts`** — o pump, com política de `settle` por
+  **quietude**, não por tempo fixo: o frame só é capturado depois de N ms sem
+  repintura nova e com o mapa sem tiles pendentes. Timeout fixo grava frame errado
+  em máquina lenta e desperdiça tempo em máquina rápida. O motor recebe `compose`
+  por injeção, e é isso que permitiu provar a política em teste unitário sem GPU.
+- **`apps/shell/src/main/services/export-writer.ts`** — PNG escrito por nós, com o
+  `zlib` do Node, **nível de compressão, estratégia e janela fixados** e filtro 0
+  em toda linha. `canvas.toBlob` depende do codificador do Chromium, e filtro
+  adaptativo é heurística — nenhum dos dois pode entrar num arquivo que precisa
+  sair igual daqui a um ano.
+- **`frame-composer.ts`** — a ordem de composição é contrato: mapa, palco, overlay.
+  O canvas de gizmos não está na lista, e é assim que o critério 8 é estrutural em
+  vez de disciplinar.
+
+Duas armadilhas que a medição encontrou, ambas silenciosas:
+
+1. **O canvas do MapLibre não podia ser lido.** `drawImage` devolvia zero em todos
+   os canais com o mapa ocioso — a condição exata do export. A flag existe, mas o
+   MapLibre 5 a moveu para `canvasContextAttributes`, e a chave antiga é ignorada
+   **sem aviso**. O mesmo valia para o canvas do Pixi.
+2. **O `map` foi capturado nulo numa closure.** A superfície de depuração é montada
+   num efeito de dependências vazias, e naquele instante o mapa ainda não existe.
+   O export respondia "mapa indisponível" para sempre. Agora vem de uma ref.
+
+**Falta** (e nada disso ameaça o determinismo já provado): `WebCodecsEncoder`,
+`FFmpegPipeEncoder` com sidecar, GIF, ProRes 4444 com alfa, motion blur por
+sampling temporal, painel de fila com progresso e ETA, checkpoint e retomada, e
+resolução acima do tamanho da janela — que é quando o
+[ADR-013](adr/ADR-013-export-frame-composition.md) manda voltar à janela oculta.
+
+**Objetivo original.** Arquivo de vídeo. A fase que prova o determinismo.
 
 Escopo:
 

@@ -17,6 +17,7 @@
     "@theatrum/core-utils": "workspace:*",
     "@theatrum/document": "workspace:*",
     "@theatrum/effects": "workspace:*",
+    "@theatrum/export": "workspace:*",
     "@theatrum/gis": "workspace:*",
     "@theatrum/project-io": "workspace:*",
     "@theatrum/renderer": "workspace:*",

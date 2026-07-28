@@ -38,6 +38,7 @@ import {
 import { expandGeoNodes, type GeoExpansion, type GeoViewport } from "./geo-nodes.js";
 import { expandCalloutNodes, type CalloutExpansion } from "./callout-nodes.js";
 import { expandRouteNodes, type RouteExpansion } from "./route-nodes.js";
+import { startPngSequenceExport, type StartExportResult } from "../../export/export-service.js";
 import { onGeoLayerLoaded } from "../../geo/geo-data.js";
 import { expandParticleEffects, type ParticleExpansion } from "./particle-nodes.js";
 import {
@@ -302,6 +303,14 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
   const uiCanvasRef = useRef<HTMLCanvasElement>(null);
   const studioCanvasRef = useRef<HTMLCanvasElement>(null);
   const studioRef = useRef<StudioSceneRuntime | null>(null);
+  /**
+   * O mapa por referência, não por closure.
+   *
+   * A superfície de depuração é montada num efeito de dependências vazias, e
+   * naquele instante o mapa ainda é nulo — capturá-lo ali deixava o export
+   * respondendo "mapa indisponível" para sempre.
+   */
+  const mapRef = useRef<MapLibreMap | null>(null);
   const leaseRef = useRef<ControllerLease | null>(null);
   const frameRef = useRef<OverlayFrame | null>(null);
   const sessionRef = useRef(session);
@@ -321,6 +330,7 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
 
   sessionRef.current = session;
   gizmoModeRef.current = gizmoMode;
+  mapRef.current = map;
 
   const updatePen = useCallback((next: PenState | null): void => {
     penRef.current = next;
@@ -902,6 +912,33 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
         return renderer.capture(EXPORT_SLOT_ORDER);
       },
       setGizmoMode: (mode: GizmoMode) => setGizmoMode(mode),
+      /**
+       * Export de sequência PNG (Fase 8), dirigido de fora.
+       *
+       * A sonda que o motor usa vem daqui e não de dentro dele: o overlay é quem
+       * sabe qual frame desenhou e quantas vezes repintou, e é dessa contagem que
+       * a política de `settle` depende.
+       */
+      exportPngSequence: (options?: {
+        readonly range?: { readonly first: number; readonly last: number };
+        readonly outputFps?: number;
+        readonly directory?: string;
+      }) => {
+        const liveMap = mapRef.current;
+        if (liveMap === null) {
+          return Promise.resolve({ ok: false, directory: "", message: "mapa indisponível" });
+        }
+        return startPngSequenceExport({
+          map: liveMap,
+          probe: () => ({
+            frame: frameRef.current?.screen.frame ?? -1,
+            renders: renderCountRef.current,
+          }),
+          ...(options?.range === undefined ? {} : { range: options.range }),
+          ...(options?.outputFps === undefined ? {} : { outputFps: options.outputFps }),
+          ...(options?.directory === undefined ? {} : { directory: options.directory }),
+        });
+      },
     });
     Object.defineProperty(window, "__theatrumPhase4", {
       value: debug,
@@ -1353,6 +1390,11 @@ interface Phase4DebugSurface {
   readonly getSnapshot: () => SerializedDebugFrame;
   readonly captureExport: () => Promise<CapturedFrame>;
   readonly setGizmoMode: (mode: GizmoMode) => void;
+  readonly exportPngSequence: (options?: {
+    readonly range?: { readonly first: number; readonly last: number };
+    readonly outputFps?: number;
+    readonly directory?: string;
+  }) => Promise<StartExportResult>;
 }
 
 declare global {
