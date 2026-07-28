@@ -33,14 +33,17 @@ export function applyDefaultLayout(api: DockviewApi): void {
   //     ocupam o mesmo lugar na tela e nunca são olhados ao mesmo tempo
   //     ([ADR-014](../../../../docs/adr/ADR-014-studio-own-panel.md)). Entra
   //     ANTES da timeline para não herdar a faixa inferior.
+  //     `inactive: true` em vez de `viewport.api.setActive()` depois: adicionar
+  //     uma aba a um grupo a torna ativa, e reativar o viewport em seguida é uma
+  //     correção que depende de ordem. Declarar que a aba entra inativa é a mesma
+  //     intenção sem a dependência — quem abre o editor quer o mapa.
   api.addPanel({
     id: "studio",
     component: "studio",
     title: "Palco 3D",
     position: { referencePanel: viewport, direction: "within" },
+    inactive: true,
   });
-  // O viewport volta a ser a aba ativa: quem abre o editor quer o mapa.
-  viewport.api.setActive();
 
   // 2. Timeline divide horizontalmente o grid inteiro → faixa full-width.
   const timeline = api.addPanel({

@@ -15,7 +15,7 @@ import { describe, expect, it, vi } from "vitest";
 import { percentile, runExport, type ExportHost } from "./run-export.js";
 import {
   EXCLUDED_SURFACE_SELECTORS,
-  EXPORT_SURFACE_SELECTORS,
+  EXPORT_MODES,
   exportSurfaceSelectors,
   selectExportSurfaces,
 } from "./frame-composer.js";
@@ -224,20 +224,23 @@ describe("selectExportSurfaces", () => {
     expect(ordem.map((s) => s.z)).toEqual([0, 1, 2]);
   });
 
-  it("a lista de superfícies é mapa, palco, overlay — nessa ordem", () => {
-    expect(EXPORT_SURFACE_SELECTORS).toEqual([
-      ".maplibregl-canvas",
-      ".scene-overlay__studio",
-      ".scene-overlay__pixi",
+  it("cada modo tem fundo e overlay do PROPRIO painel", () => {
+    // O ADR-014 trocou a lista fixa de tres superficies por dois contratos, um
+    // por modo. Misturar as superficies dos dois — mapa com overlay do palco —
+    // era exatamente o que a lista universal permitia expressar por engano.
+    expect(EXPORT_MODES.map((mode) => [mode.id, mode.background, mode.overlay])).toEqual([
+      ["map", ".maplibregl-canvas", ".scene-overlay__pixi"],
+      ["studio", ".studio-viewport__stage", ".studio-viewport__pixi"],
     ]);
   });
 
-  it("o matte exclui somente o mapa e preserva palco + overlay", () => {
-    expect(exportSurfaceSelectors(false)).toEqual([
-      ".scene-overlay__studio",
-      ".scene-overlay__pixi",
-    ]);
-    expect(exportSurfaceSelectors(true)).toBe(EXPORT_SURFACE_SELECTORS);
+  it("o matte descarta o fundo e preserva o overlay, nos dois modos", () => {
+    for (const mode of EXPORT_MODES) {
+      expect(exportSurfaceSelectors(mode, true)).toEqual([mode.background, mode.overlay]);
+      // Sem o fundo opaco: e ele que apagaria a transparencia que o matte existe
+      // para produzir.
+      expect(exportSurfaceSelectors(mode, false)).toEqual([mode.overlay]);
+    }
   });
 
   it("gizmos e timeline nunca entram — é o critério 8 da Fase 8", () => {
@@ -245,7 +248,9 @@ describe("selectExportSurfaces", () => {
     // de gizmos não está na lista de composição, e este teste falha se alguém
     // o acrescentar por engano.
     for (const excluido of EXCLUDED_SURFACE_SELECTORS) {
-      expect(EXPORT_SURFACE_SELECTORS).not.toContain(excluido);
+      for (const mode of EXPORT_MODES) {
+        expect(exportSurfaceSelectors(mode, true)).not.toContain(excluido);
+      }
     }
     expect(EXCLUDED_SURFACE_SELECTORS).toContain(".scene-overlay__ui");
   });

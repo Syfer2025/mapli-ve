@@ -1,24 +1,49 @@
 /**
- * Compõe o frame de export a partir das três superfícies do viewport.
+ * Compõe o frame de export a partir das superfícies do **modo ativo**.
  *
- * A ordem é contrato, não detalhe ([ADR-013](../../../../docs/adr/ADR-013-export-frame-composition.md)):
+ * A ordem é contrato, não detalhe. O [ADR-013](../../../../docs/adr/ADR-013-export-frame-composition.md)
+ * declarou uma lista fixa de três superfícies, e o
+ * [ADR-014](../../../../docs/adr/ADR-014-studio-own-panel.md) a substituiu por
+ * **dois contratos, um por modo** — porque o palco saiu do painel do Viewport e
+ * virou aba irmã.
  *
- * 1. **mapa** — MapLibre, com a camada Three.js do terreno dentro dele
- * 2. **palco 3D** — opaco quando ativo; nesse modo o mapa está escondido
- * 3. **overlay Pixi** — nós, rótulos, rotas, efeitos e filtros
+ * E aqui vem a consequência que só apareceu ao rodar o verificador: com duas abas
+ * num grupo, **as superfícies da aba inativa não existem no DOM**. Não é questão
+ * de `visibility`, é de montagem — o dockview só monta o painel ativo. Antes as
+ * duas estavam sempre presentes, porque o palco era um canvas dentro do Viewport.
  *
- * O canvas de gizmos (`.scene-overlay__ui`) **não entra**, e é assim que o
- * critério 8 da Fase 8 — nenhum elemento de UI em nenhum frame — é atendido por
- * construção em vez de por disciplina.
+ * Então o modo não é escolhido por configuração: é **detectado** por qual pilha
+ * está montada. Isso tem a propriedade certa para uma ferramenta de animação —
+ * você exporta o que está vendo — e falha com mensagem clara quando não há
+ * nenhuma, em vez de escrever frames vazios.
+ *
+ * O canvas de gizmos (`.scene-overlay__ui`) **não entra** em nenhum dos modos, e é
+ * assim que o critério 8 da Fase 8 — nenhum elemento de UI em nenhum frame — é
+ * atendido por construção em vez de por disciplina.
  *
  * Custo medido: 2,3 ms por frame a 1887×965, incluindo a leitura de volta.
  */
 
-/** Classes das superfícies, na ordem de composição. */
-export const EXPORT_SURFACE_SELECTORS: readonly string[] = Object.freeze([
-  ".maplibregl-canvas",
-  ".scene-overlay__studio",
-  ".scene-overlay__pixi",
+/** Um modo de export: a superfície de fundo e o overlay que vai por cima. */
+export interface ExportMode {
+  readonly id: "map" | "studio";
+  /** Fundo opaco. É a presença DELE no DOM que identifica o modo montado. */
+  readonly background: string;
+  /** Overlay Pixi do mesmo painel. */
+  readonly overlay: string;
+}
+
+/**
+ * Ordem de tentativa: mapa primeiro porque é o modo padrão do editor. Quem estiver
+ * montado ganha; se o usuário está no palco, é o palco que exporta.
+ */
+export const EXPORT_MODES: readonly ExportMode[] = Object.freeze([
+  Object.freeze({ id: "map", background: ".maplibregl-canvas", overlay: ".scene-overlay__pixi" }),
+  Object.freeze({
+    id: "studio",
+    background: ".studio-viewport__stage",
+    overlay: ".studio-viewport__pixi",
+  }),
 ]);
 
 /** Nunca compostas. Listadas para o teste poder afirmar a exclusão. */
@@ -27,9 +52,34 @@ export const EXCLUDED_SURFACE_SELECTORS: readonly string[] = Object.freeze([
   ".timeline-panel__canvas",
 ]);
 
-/** Seletores do frame normal ou do matte transparente. */
-export function exportSurfaceSelectors(includeMap: boolean): readonly string[] {
-  return includeMap ? EXPORT_SURFACE_SELECTORS : EXPORT_SURFACE_SELECTORS.slice(1);
+/**
+ * Superfícies do modo, na ordem. Sem o fundo quando o export é matte com alfa: o
+ * terreno opaco apagaria a transparência que o matte existe para produzir.
+ */
+export function exportSurfaceSelectors(
+  mode: ExportMode,
+  includeBackground: boolean,
+): readonly string[] {
+  return includeBackground ? [mode.background, mode.overlay] : [mode.overlay];
+}
+
+/**
+ * O modo montado, ou `null` quando nenhuma pilha está.
+ *
+ * Um canvas com `visibility: hidden` não conta: aba inativa que ainda tenha DOM
+ * (o React pode mantê-lo por um frame na troca) não deve roubar o export do modo
+ * que o usuário está olhando.
+ */
+export function detectExportMode(root: ParentNode): ExportMode | null {
+  for (const mode of EXPORT_MODES) {
+    const element = root.querySelector(mode.background);
+    if (!(element instanceof HTMLCanvasElement)) continue;
+    if (element.width <= 1 || element.height <= 1) continue;
+    const view = element.ownerDocument.defaultView;
+    if (view?.getComputedStyle(element).visibility === "hidden") continue;
+    return mode;
+  }
+  return null;
 }
 
 export interface ComposedFrame {
@@ -137,15 +187,24 @@ export class FrameComposer {
     this.#context = null;
   }
 
+  /**
+   * O modo é detectado a cada frame, não fixado no construtor.
+   *
+   * Deliberado: trocar de aba no meio de um export é coisa que o usuário pode
+   * fazer, e detectar por frame faz o export seguir o que está na tela em vez de
+   * escrever frames vazios do painel que ele deixou. Custa um `querySelector` por
+   * frame — irrelevante ao lado dos 2,3 ms da composição.
+   */
   #surfaces(): readonly HTMLCanvasElement[] {
-    const selectors = exportSurfaceSelectors(this.#includeMap);
+    const mode = detectExportMode(this.#root);
+    if (mode === null) return [];
+    const selectors = exportSurfaceSelectors(mode, this.#includeMap);
     const candidates = selectors.map((selector) => {
       const element = this.#root.querySelector(selector);
       if (!(element instanceof HTMLCanvasElement)) return null;
-      // O palco permanece dimensionado enquanto está inativo. Sem respeitar
-      // `visibility`, o último frame do estúdio cobriria o mapa mesmo depois de
-      // o usuário voltar à composição geográfica. No modo estúdio acontece o
-      // inverso: o mapa escondido não deve ficar sob o matte.
+      // Canvas invisível não entra: numa troca de aba o DOM antigo pode
+      // sobreviver um frame, e o último quadro do painel que saiu cobriria o que
+      // entrou.
       const view = element.ownerDocument.defaultView;
       if (view?.getComputedStyle(element).visibility === "hidden") return null;
       return element;

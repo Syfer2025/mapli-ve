@@ -59,10 +59,9 @@ function adoptMissingPanels(api: DockviewApi): void {
       component: definition.id,
       title: definition.title,
       position: { referencePanel: reference, direction: "within" },
+      inactive: true,
     });
   }
-  // A aba nova não rouba o foco de quem já estava trabalhando.
-  reference.api.setActive();
 }
 
 function snapshotWorkspace(api: DockviewApi): WorkspaceState {
