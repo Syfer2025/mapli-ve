@@ -18,6 +18,7 @@ dispara — geralmente uma medição, numa fase específica.
 | [008](ADR-008-flat-node-map.md)        | Mapa plano de nós em vez de árvore aninhada       | aceito | improvável   |
 | [009](ADR-009-geo-layers-overlay.md)   | Camadas geográficas desenhadas no overlay         | aceito | Fase 11      |
 | [010](ADR-010-precompiled-geo-mesh.md) | Malha geográfica pré-compilada em Int32           | aceito | improvável   |
+| [011](ADR-011-roads-spatial-join.md)   | Estradas agrupadas por país via junção espacial   | aceito | Fase 11      |
 
 ## Formato
 
