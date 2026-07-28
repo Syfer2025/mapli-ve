@@ -148,6 +148,22 @@ describe("shortestAngleDelta", () => {
     );
   });
 
+  /**
+   * A distância entre dois ângulos é modular, e comparar as normalizações com
+   * `approximately` mede na régua errada — a diferença linear atravessa a costura
+   * 0/360.
+   *
+   * Isto não é teoria: com `to = -360.00000000000006` (o double imediatamente
+   * abaixo de −360) `normalizeDegrees` devolve 359.99999999999994, enquanto
+   * `from + delta` arredonda para um múltiplo exato de 360 e devolve 0. Os dois
+   * são a MESMA direção a menos de 6e-14, mas a diferença linear é 360, e a
+   * asserção falhava. Como o `fc.assert` corre sem semente fixa e é o fast-check
+   * que insiste nas fronteiras, a falha aparecia em uma volta a cada poucas — o
+   * pior tipo de vermelho, porque parece infraestrutura e é asserção.
+   *
+   * A régua certa é o próprio `shortestAngleDelta`: se aplicar o delta chega no
+   * destino, a menor rotação entre o resultado e o destino é zero.
+   */
   it("aplicar o delta chega no destino", () => {
     fc.assert(
       fc.property(
@@ -155,12 +171,28 @@ describe("shortestAngleDelta", () => {
         fc.double({ min: -360, max: 360, noNaN: true }),
         (from, to) =>
           approximately(
-            normalizeDegrees(from + shortestAngleDelta(from, to)),
-            normalizeDegrees(to),
+            shortestAngleDelta(
+              normalizeDegrees(from + shortestAngleDelta(from, to)),
+              normalizeDegrees(to),
+            ),
+            0,
             1e-9,
           ),
       ),
     );
+  });
+
+  it("chega no destino mesmo na costura 0/360", () => {
+    // O contraexemplo exato que o fast-check achava de vez em quando.
+    for (const [from, to] of [
+      [199.67773465141272, -360.00000000000006],
+      [302.4476246687557, -360.00000000000006],
+      [0, -360.00000000000006],
+      [180, 360.00000000000006],
+    ] as const) {
+      const arrived = normalizeDegrees(from + shortestAngleDelta(from, to));
+      expect(Math.abs(shortestAngleDelta(arrived, normalizeDegrees(to)))).toBeLessThan(1e-9);
+    }
   });
 });
 

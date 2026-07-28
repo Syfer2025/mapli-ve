@@ -12,9 +12,19 @@ morde, e como não repetir erro já cometido.
 
 ## 1. Onde parou
 
-Último commit: `77aa7e4`. Cadeia do `pnpm check` verde — 997 testes em 98
-arquivos, 319 módulos, 836 dependências, sem violação de camada; build
-electron-vite ok.
+Cadeia do `pnpm check` verde — **998 testes em 98 arquivos**, 319 módulos, 836
+dependências, sem violação de camada; build electron-vite ok. Suíte rodada três
+vezes seguidas para confirmar estabilidade, porque havia um teste intermitente
+(agora corrigido, ver [§4.17](#417-comparar-ângulos-normalizados-com-régua-linear-atravessa-a-costura)).
+
+Passe de auditoria em 2026-07-28, sobre o estado que o `77aa7e4` deixou:
+
+| O quê                                                     | Resultado                                                                        |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Teste de propriedade intermitente em `shortestAngleDelta` | corrigido — era a asserção, não a função                                         |
+| README com estado de 7A++ (dizia que o 7B era o próximo)  | atualizado                                                                       |
+| `settle` do export cego para o carregamento do GLB        | **pendência aberta** — [§3, item 5](#3-o-que-vem-agora)                          |
+| Bootstrap necessário depois do 7B                         | documentado em [§4.18](#418-bootstrap-pnpm-install-e-geobuild-não-são-opcionais) |
 
 Fases 0–6 concluídas. **O bloco 7 inteiro está fechado** (única exceção declarada:
 7E.4, VFX, que o dono mandou adiar) e a **Fase 8 produz arquivo de vídeo MP4
@@ -118,6 +128,72 @@ byte-idêntico entre execuções, e o Chromium decodifica. Dois verificadores:
 3. **Formatos que faltam:** GIF, ProRes 4444 com alfa, sequência com canal alfa.
    O muxer atual é só vídeo — áudio entraria como trilha 2.
 4. **Motion blur, checkpoint e retomada.**
+5. **O `settle` do export não conhece a camada 3D.** Detalhe abaixo — é o único
+   item desta lista que ameaça o critério byte-idêntico.
+
+### O `settle` do export é cego para a camada 3D
+
+**Encontrado por leitura em 2026-07-28, não reproduzido ao vivo.** Registrado aqui
+porque é do tipo que não dá erro: o export termina, os arquivos saem, e a
+divergência só aparece comparando duas execuções.
+
+`waitForQuiet` (`apps/editor/src/export/run-export.ts`) decide que um frame está
+pronto por três condições: `observed.frame === frame`, contador de repinturas do
+overlay estável por `QUIET_MS`, e `!host.mapBusy()`. E `mapBusy` é
+
+```ts
+mapBusy: () => options.map.isMoving() || !options.map.areTilesLoaded();
+```
+
+em `export-service.ts` (duas ocorrências: linha ~109 no caminho PNG, ~213 no
+caminho MP4).
+
+Nenhuma das três condições vê o carregamento do GLB. Em
+`apps/editor/src/panels/viewport/scene3d-layer.ts`, `syncModels` resolve o
+template de forma assíncrona (`this.template(src).then(...)`) e só **depois** de o
+`GLTFLoader.parse` terminar é que a instância entra na cena e a camada chama
+`map.triggerRepaint()`. Essa repintura é do **mapa**, não do overlay Pixi: não
+mexe em `renderCountRef`, que é o que o `probe` do `SceneOverlay` devolve. E
+`areTilesLoaded()` fala de tiles, não de assets do documento.
+
+Consequência: um export iniciado antes de o GLB terminar de parsear escreve os
+primeiros frames **sem a aeronave**. Na segunda execução o template já está no
+`Map` de templates da camada, resolve na hora, e os mesmos frames saem **com** a
+aeronave. Dois exports do mesmo projeto, arquivos diferentes — exatamente o
+critério que o roteiro chama de mais importante.
+
+Por que não apareceu nos verificadores: nem `verify-phase8.mjs` nem
+`verify-phase8-video.mjs` mencionam `model3d`, `route3d` ou `scene3d` (`grep`
+devolve zero nos dois). O determinismo foi provado numa cena sem nenhum conteúdo
+3D. A camada 3D é capturada — `frame-composer.ts` inclui `.maplibregl-canvas`, e o
+[ADR-013](adr/ADR-013-export-frame-composition.md) diz que a ordem de composição é
+contrato — mas capturar não é o mesmo que esperar.
+
+**O sinal que falta já existe e está exposto.** A camada publica
+`window.__theatrumScene3d.status()` com `pending` (nós pedidos menos instâncias
+carregadas) e `lastError`. Fechar a lacuna é somar isso ao `mapBusy`, algo como
+
+```ts
+mapBusy: () => {
+  const scene3d = window.__theatrumScene3d?.status();
+  return (
+    options.map.isMoving() || !options.map.areTilesLoaded() || (scene3d?.pending ?? 0) > 0
+  );
+},
+```
+
+com duas ressalvas antes de escrever assim: `__theatrumScene3d` só é publicado sob
+`import.meta.env.DEV` (linha do `attachScene3dLayer`), então em build de produção
+o export perderia a guarda em silêncio — o certo é a camada expor `pending` por um
+caminho não-DEV, ou o `SceneOverlay` incluir isso no `probe` que já passa para o
+export. E `pending` não cobre GLB que falhou: com `lastError` preenchido o
+`pending` fica preso em > 0 para sempre e o export travaria no timeout — precisa
+tratar erro como "resolvido, sem modelo".
+
+**O teste que prova:** montar o cenário do `tools/demo-f18.mjs`, recarregar o
+renderer para esvaziar o cache de templates, disparar o export imediatamente, e
+comparar o SHA-256 dos primeiros frames com uma segunda execução. Hoje a
+expectativa é que divirjam.
 
 ### O muxer MP4 é código nosso, e o que ele ensinou
 
@@ -333,6 +409,58 @@ contexto morto de volta em `getContext`. O three aceita e só quebra adiante, co
 `TypeError: Cannot read properties of null (reading 'precision')` no meio da
 inicialização — nenhuma palavra sobre contexto perdido. Use só `renderer.dispose()`
 e deixe o navegador recolher o contexto junto com o elemento.
+
+### 4.17 Comparar ângulos normalizados com régua linear atravessa a costura
+
+Um teste de propriedade em `packages/core-math/src/scalar.test.ts` falhava em uma
+volta a cada poucas, e o vermelho parecia infraestrutura porque o arquivo passa
+12/12 quando roda sozinho. Era asserção.
+
+A propriedade "aplicar o delta chega no destino" comparava
+`normalizeDegrees(from + shortestAngleDelta(from, to))` com `normalizeDegrees(to)`
+usando `approximately(..., 1e-9)`. Contraexemplo achado por varredura de fronteira:
+
+```
+from = 199.67773465141272
+to   = -360.00000000000006        // o double imediatamente abaixo de -360
+normalizeDegrees(from + delta) =   0
+normalizeDegrees(to)           = 359.99999999999994
+```
+
+Os dois são a **mesma direção** a menos de 6e-14. A diferença **linear** é 360.
+`normalizeDegrees` e `shortestAngleDelta` estão corretos; a régua estava errada.
+A régua certa é modular — `shortestAngleDelta(chegada, destino) ≈ 0`. Corrigido,
+mais um teste tabelado com o contraexemplo exato.
+
+Duas lições que valem além deste caso:
+
+- **Qualquer asserção sobre ângulo tem de ser modular.** Vale para banking,
+  `geo-bearing`, `orbitCameraPosition` e o que vier.
+- **`fc.assert` sem semente fixa deixa a suíte não reprodutível.** Foi o
+  fast-check que achou o defeito, então a busca aleatória se pagou — mas num
+  projeto cuja tese central é determinismo, vale decidir de propósito entre
+  `{ seed: N }` (reprodutível, achado congelado) e semente livre (continua
+  procurando, vermelho intermitente). Hoje é semente livre em toda parte, por
+  omissão, não por decisão.
+
+### 4.18 Bootstrap: `pnpm install` e `geo:build` não são opcionais
+
+Clonar ou dar `git pull` e rodar `pnpm check` direto falha, e as mensagens não
+dizem "falta bootstrap":
+
+- `Cannot find module '@theatrum/export'` (e `@theatrum/gis` em `tools/`) é
+  **link de workspace faltando**, não código errado. Um pacote novo no monorepo
+  exige `pnpm install` para os symlinks de `node_modules/@theatrum/` aparecerem.
+  Sintoma colateral: `depcruise` acusa `sem-modulo-nao-resolvido` e três testes
+  falham na importação, o que parece violação de camada e não é.
+- `Malha "countries" ausente em data/geo` pede `pnpm geo:build`. E o `geo:build`
+  depende de `data/natural-earth/ne_10m_admin_0_countries.geojson`, que entrou na
+  lista do `fetch-data` no 7B — quem tem a árvore de dados de antes do 7B precisa
+  de `pnpm data:fetch` de novo (13 assets hoje, era 9). É o único comando do
+  projeto que usa rede.
+
+A ordem que funciona, do zero: `pnpm install` → `pnpm data:fetch` →
+`pnpm geo:build` → `pnpm check`.
 
 ## 5. Como verificar de verdade
 

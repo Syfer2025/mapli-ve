@@ -15,14 +15,21 @@ _theatrum belli_ — teatro de operações.
 
 ## Estado atual
 
-**Bloco 7A++ — 3D de verdade no viewport (2026-07-27): a camada Three.js
-renderiza modelos GLB/glTF **com volume** e rotas como tubo volumétrico em
-altitude. Três defeitos que faziam tudo parecer adesivo colado no mapa foram
-corrigidos de uma vez — ver "O que era o 3D chapado" abaixo. Demo F/A-18F
-Kiev→Moscou mais arco balístico Kaliningrado→Kiev em `tools/demo-f18.mjs`.
-Replanejamento vigente: explosões, tanques e elementos 3D entram como assets
-importados, não procedurais. Próximo: bloco 7B — contornos, estados e estradas;
-depois 7C (setas de avanço) e 7D (textos no mapa).**
+**Bloco 7 fechado e Fase 8 produzindo vídeo (2026-07-28): o export gera MP4
+H.264 byte-idêntico entre execuções — o critério mais importante do projeto — e
+cada bloco tem verificador próprio dirigindo o Electron real. Única exceção
+declarada no bloco 7: o 7E.4 (VFX volumétrico), adiado pelo dono e bloqueado por
+ferramenta ausente na máquina. O estado detalhado, com a tabela de verificadores
+e o que ainda falta, está em
+[docs/09-CONTINUIDADE.md](docs/09-CONTINUIDADE.md). Próximo: resolução acima do
+tamanho da janela, Fase 7 (ações), e os formatos que faltam (GIF, ProRes com
+alfa).**
+
+Antes disso, o bloco 7A++ tirou o 3D do chão: a camada Three.js renderiza modelos
+GLB/glTF **com volume** e rotas como tubo volumétrico em altitude. Três defeitos
+somados faziam tudo parecer adesivo colado no mapa — ver "O que era o 3D chapado"
+abaixo. Replanejamento vigente: explosões, tanques e elementos 3D entram como
+assets importados, não procedurais.
 
 O monorepo, os guardrails arquiteturais, o núcleo matemático/temporal, o shell
 Electron e o workspace dockável estão implementados. O viewport já é um painel
@@ -106,11 +113,12 @@ caminho que ainda não tem `route3d` montado.
 |   7A | Biblioteca de ativos (import)             | ✅ concluída |
 |  7A+ | Preview 3D no viewport (model3d)          | ✅ concluída |
 | 7A++ | 3D com volume + rotas 3D (route3d)        | ✅ concluída |
-|   7B | Camadas geo: contornos, estados, estradas | ⏭️ próxima   |
-|   7C | Setas de avanço e frente de batalha       | ⬜           |
-|   7D | Textos e rótulos no mapa                  | ⬜           |
-|    7 | Ações / simulações                        | ⬜           |
-|    8 | Exportação                                | ⬜           |
+|   7B | Camadas geo: contornos, estados, estradas | ✅ concluída |
+|   7C | Rotas e setas de avanço                   | ✅ concluída |
+|   7D | Textos e rótulos no mapa                  | ✅ concluída |
+|   7E | Satélite, rótulo com guia, modo estúdio   | ✅ 3 de 4    |
+|    7 | Ações / simulações                        | ⏭️ próxima   |
+|    8 | Exportação (PNG + MP4 H.264)              | ✅ concluída |
 |    9 | Scene Script (autoria por IA)             | ⬜           |
 |   10 | Plugins + conteúdo empacotado             | ⬜           |
 |   11 | Polimento e performance                   | ⬜           |
