@@ -1307,9 +1307,17 @@ export const STUDIO_STAGE_NODE_TYPE = defineNodeType({
     azimuthDeg: animatable(35),
     elevationDeg: animatable(14),
     fovDeg: animatable(38),
-    background: animatable("#0b0f14ff"),
-    floor: animatable("#141a22ff"),
-    gridColor: animatable("#2f4256ff"),
+    background: animatable("#0d1218ff"),
+    // Piso de tom médio, não o quase-preto do fundo do mapa.
+    //
+    // O padrão anterior (#141a22, luminância ~10%) foi herdado da estética do
+    // mapa e tornava a sombra de contato invisível: sombra funciona por
+    // contraste, e num piso já quase preto não sobra para onde escurecer.
+    // Medido no palco — a sombra escurecia 12% da tela e continuava ilegível.
+    // Vitrine de equipamento não é fundo de mapa: o piso é a superfície em que
+    // o objeto se apoia, e precisa de tom para a sombra assentar nele.
+    floor: animatable("#39424fff"),
+    gridColor: animatable("#5d6f84ff"),
     gridSpacingMeters: animatable(5),
     gridOpacity: animatable(0.55),
     keyIntensity: animatable(2.6),

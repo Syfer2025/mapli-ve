@@ -77,7 +77,7 @@ uniform float uShadowSoftness[${MAX_SHADOWS}];
  * Um RawShaderMaterial escreve no framebuffer sem nenhuma injeção do three: nem
  * tone mapping, nem conversão de espaço de cor. Mas as cores CHEGAM convertidas,
  * porque THREE.Color converte de sRGB para linear ao ler um hex. Sem esta função
- * o chão #141a22 saía como 2/3/4 em vez de 20/26/34 — quase preto — e a grade,
+ * o chão #39424f saía como 2/3/4 em vez de 20/26/34 — quase preto — e a grade,
  * que é uma mistura entre duas cores já escuras, desaparecia junto. O bug não
  * gera erro nenhum: o desenho está lá, só ilegível.
  *
@@ -279,9 +279,9 @@ export function createStudioGrid(): StudioGrid {
   const uniforms = {
     uInverseViewProjection: { value: new THREE.Matrix4() },
     uCameraPosition: { value: new THREE.Vector3() },
-    uFloorColor: { value: new THREE.Color("#141a22") },
-    uGridColor: { value: new THREE.Color("#2f4256") },
-    uHorizonColor: { value: new THREE.Color("#0b0f14") },
+    uFloorColor: { value: new THREE.Color("#39424f") },
+    uGridColor: { value: new THREE.Color("#5d6f84") },
+    uHorizonColor: { value: new THREE.Color("#0d1218") },
     uSpacing: { value: 5 },
     uOpacity: { value: 0.55 },
     uFade: { value: 120 },
