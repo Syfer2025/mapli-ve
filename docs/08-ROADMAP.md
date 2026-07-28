@@ -107,6 +107,12 @@ Escopo:
 > `motion-path` em rota catmull-rom Kiev→Moscou, marcadores de passagem
 > temporizados e destaque de contorno UA/RU — com screenshots de prova em
 > `demo-f18/`.
+>
+> ⚠️ **Três afirmações desta seção foram derrubadas por medição no 7A++**, e uma
+> delas estava marcada como "provado". Estão riscadas abaixo, no lugar onde
+> foram feitas, em vez de apagadas — quem lê o roteiro precisa ver que a
+> conclusão mudou e por quê. Leia o [7A++](#7a--3d-com-volume-e-rotas-3d-route3d)
+> antes de tocar na camada 3D.
 
 **Objetivo.** Modelos GLB/glTF da Biblioteca aparecem no mapa e seguem os
 sistemas existentes (caminhos, keyframes, comportamentos).
@@ -116,39 +122,131 @@ Escopo entregue:
 - Tipo de nó `model3d` (categoria media): `assetId`, `scaleMeters` (tamanho
   visual em metros de terreno), `altitudeMeters`, `headingOffset` (correção do
   eixo do nariz). `applyAsset` de um `model` cria esse nó
-- Camada custom do MapLibre com Three.js (`model3d-layer.ts`), mesmo canvas e
-  contexto WebGL do mapa; posição e rumo vêm da cena avaliada (inclusive a
-  contribuição do `motion-path` em `geo-bearing`), com sync por frame dirigido
+- Camada custom do MapLibre com Three.js (`scene3d-layer.ts` — chamava-se
+  `model3d-layer.ts` até o 7A++ passar a desenhar rotas nela também), mesmo
+  canvas e contexto WebGL do mapa; posição e rumo vêm da cena avaliada (inclusive
+  a contribuição do `motion-path` em `geo-bearing`), com sync por frame dirigido
   pelo `SceneOverlay` e repaint sob demanda
 - GLTFLoader via `parse` de buffer com **texturas embutidas**: a CSP libera
   `blob:` em `connect-src` (o decodificador do three faz fetch de object URLs);
   sem isso o modelo carrega sem textura nenhuma (malha branca). Modelo
   normalizado para dimensão máxima 1 e reescalado por `scaleMeters`
-- Mundo = **pixels mercator no zoom atual**: o `modelViewProjectionMatrix` do
+- ~~Mundo = **pixels mercator no zoom atual**: o `modelViewProjectionMatrix` do
   MapLibre v5 não usa mercator 0..1 (provado pelo `_calcMatrices` do Transform
-  e por diagnóstico NDC na camada)
+  e por diagnóstico NDC na camada)~~ **ERRADO, e o "provado" era falso.** O x e o
+  y são pixels mercator, mas o **z do `modelViewProjectionMatrix` é em metros** —
+  a própria matriz aplica `scale(m, m, [1, 1, _pixelPerMeter])`. O diagnóstico
+  NDC não pegou porque olhava a origem do modelo, e a origem projeta no lugar
+  certo mesmo com a escala vertical errada. Ver 7A++
 - Iluminação: environment map via `PMREMGenerator` + `RoomEnvironment` (volume
   e reflexos sem HDR externo), tone mapping ACES, preenchimento
   hemisphere+directional moderados; metalness limitado a 0,6. O traverse de
-  ajustes (`frustumCulled=false`, `depthTest=false`, clamps) roda DEPOIS do
-  `wrapper.add(model)` — rodar antes aplicava tudo no grupo vazio
+  ajustes (`frustumCulled=false`, clamps, ~~`depthTest=false`~~) roda DEPOIS do
+  `wrapper.add(model)` — rodar antes aplicava tudo no grupo vazio. O
+  `depthTest=false` foi revertido no 7A++: era ele que matava a auto-oclusão
 - Renderer builtins: `model3d` registrado com `noVisual` (o Pixi não desenha)
-- **Volume 3D exige `altitudeMeters` + câmera baixa**: com altitude 0 o modelo
-  fica colado no terreno e vira "recorte plano" em qualquer pitch — só o topo
-  das asas aparece. O demo voa a 90 km; a câmera baixa (ex.: 8 km de altitude,
-  pitch ~80°, via `calculateCameraOptionsFromTo` do MapLibre v5 — não há
-  `FreeCameraOptions` nesta versão) enxerga o ventre, a fuselagem e as deriva.
-  Prova: `demo-f18/voo-chase.png`
+- ~~**Volume 3D exige `altitudeMeters` + câmera baixa**: com altitude 0 o modelo
+  fica colado no terreno e vira "recorte plano" em qualquer pitch~~ **Diagnóstico
+  errado.** O modelo parecia plano porque a matriz o achatava, não por causa da
+  altitude — e a altitude era quase um no-op pelo mesmo defeito (260 km
+  deslocavam 0,1 px na tela; medido). Câmera baixa ajuda a ver o volume, mas
+  nunca foi requisito para existir volume. `calculateCameraOptionsFromTo` é útil
+  e a nota sobre não haver `FreeCameraOptions` no MapLibre v5 continua válida
 
 Limitações honestas (preview, não export):
 
-- O export determinístico (Fase 8) ainda não captura o 3D — é visual de
-  viewport
+- ~~O export determinístico (Fase 8) ainda não captura o 3D — é visual de
+  viewport~~ **Superado pela Fase 8:** o [ADR-013](adr/ADR-013-export-frame-composition.md)
+  compõe `.maplibregl-canvas`, e a camada 3D desenha lá dentro. Mas ver a
+  pendência do `settle` em [09-CONTINUIDADE § 3](09-CONTINUIDADE.md#3-o-que-vem-agora):
+  capturar não é o mesmo que esperar o GLB carregar
 - Opacidade hierárquica e `visible` por keyframe não se aplicam ao modelo;
   contorno de país do demo é camada de estilo em runtime (a versão documental
   é o bloco 7B)
-- Sem teste de profundidade contra o terreno por escolha de design (o modelo é
-  overlay, sempre por cima); sem projeção globo
+- Sem projeção globo
+
+### 7A++ — 3D com volume e rotas 3D (route3d)
+
+> ✅ **Concluído em 2026-07-27.** O dono relatou que os modelos apareciam "flat,
+> parecendo um adesivo colado em cima do mapa", e que as rotas de aviões e
+> mísseis tinham o mesmo problema. Eram **três** defeitos somados, não um.
+> Provado no Electron real; capturas em `demo-f18/verif-*.png`.
+
+**Objetivo.** Fazer o 3D do 7A+ ser 3D de verdade, e tirar as rotas do chão.
+
+Os três defeitos, do mais grave ao menos:
+
+1. **A matriz achatava o modelo — causa raiz.** A camada usava
+   `args.modelViewProjectionMatrix` supondo z em "pixels mercator". O
+   `_calcMatrices` do MapLibre monta essa matriz com
+   `scale(m, m, [1, 1, _pixelPerMeter])`: **o z de entrada é em metros.** Passar
+   `coordinate.z * worldSize` fazia `pixelsPerMeter` entrar duas vezes, e a escala
+   vertical saía ~2000× menor que a horizontal (no zoom do demo,
+   `pixelsPerMeter` ≈ 5e-4). O GLB era prensado num plano e 90 km de altitude
+   viravam centímetros. **Medido antes de trocar: 260 km deslocavam 0,1 px.**
+   A saída certa é `args.defaultProjectionData.mainMatrix`, e o contrato é da
+   própria doc do MapLibre: com `renderingMode: "3d"`, "a coordenada z é
+   conformal — uma caixa com x, y e z iguais em unidades mercator renderiza como
+   um cubo". Espaço isotrópico traz dois ganhos de graça: escala uniforme (matriz
+   de normais correta, logo iluminação correta) e geometria independente do zoom
+2. **`depthTest = false` matava a auto-oclusão.** Resolvia o conflito com o depth
+   buffer do mapa e cobrava o preço inteiro: triângulos pintados na ordem do
+   buffer, asa de trás sobre a fuselagem, bocal do motor sobre a asa. Agora o
+   teste fica ligado e a camada **limpa a profundidade** no início do render — a
+   cena 3D fica com o buffer inteiro, continua por cima do mapa, e cada fragmento
+   é testado contra os outros dela. Modelo e rota compartilham o buffer, então se
+   ocluem entre si
+3. **Iluminação lavada.** `RoomEnvironment` em intensidade cheia é um estúdio
+   branco, e a chave era quase zenital — num objeto horizontal visto de cima, N·L
+   igual em toda a superfície. Environment a 0,4, chave rasante (~22° de
+   elevação), preenchimento frio do lado oposto
+
+Escopo entregue além das correções:
+
+- Tipo de nó `route3d` (categoria geo, `noVisual` no renderer): traça o **mesmo**
+  caminho compartilhado que o `motion-path` percorre — a rota desenhada é a
+  trajetória de verdade, não uma cópia parecida. Props: `pathId`, `color`,
+  `widthMeters`, `altitudeMeters`, `arcMeters`, `progressStart`, `progressEnd`,
+  `curtainOpacity`. Perfil de altura é `altitudeMeters` mais ápice senoidal de
+  `arcMeters` no meio do caminho — cruzeiro é ápice zero, balístico é ápice
+  grande. `progressStart`/`progressEnd` animáveis dão desenho progressivo e rastro
+- Tubo construído à mão, não `TubeGeometry`: o raio em metros é reconvertido **por
+  amostra**, porque um metro em unidades mercator cresce com a latitude e uma rota
+  transcontinental afinaria ao norte com raio fixo
+- Geometria em unidades mercator **relativas à origem da rota**: invariante ao
+  zoom (só a matriz do grupo muda) e com a precisão do float32 preservada para a
+  forma — as coordenadas absolutas ficam perto de 0,5 e o raio do tubo é da ordem
+  de 1e-4, quatro ordens de grandeza abaixo
+- Cortina vertical translúcida da rota até o terreno, com alfa em rampa por
+  vertex color: é ela que amarra a altitude ao mapa e faz a trajetória ler como
+  3D em vez de linha flutuante
+- `#RRGGBBAA` do `ColorSchema` é separado em hex de 6 dígitos mais alfa antes de
+  chegar no `THREE.Color`: com o par de alfa anexado o three reclama no console e
+  devolve **branco** — foi assim que um míssil vermelho renderizou cinza
+- A polilinha 2D de caminho passa a ser **guia de autoria**: tracejada, e só para
+  caminho que ainda não tem `route3d` montado. Era ela o "adesivo" laranja
+  permanente que o dono via
+- `model3d-layer.ts` → `scene3d-layer.ts`: a camada desenha modelos e rotas no
+  mesmo depth buffer, e o nome tinha de dizer isso
+- Teste no registry afirma os caminhos de props do `route3d` por nome, porque são
+  contrato com a camada 3D — renomear uma prop e esquecer a camada não quebra
+  tipagem, só faz a rota sumir da tela
+
+Limite conhecido, declarado:
+
+- **Limpar a profundidade significa que terreno não vai ocluir aeronave.** Hoje
+  não custa nada, porque a base é PMTiles 2D sem relevo. No dia em que entrar
+  terreno 3D no MapLibre, a correção certa é **ler a profundidade do mapa** e
+  testar contra ela — não voltar a desligar o teste, que é o caminho que já
+  custou o volume do modelo uma vez. A razão está no comentário do `render` em
+  `scene3d-layer.ts`, onde a limpeza acontece
+- `route3d` em espaço `comp` é ignorado de propósito: sem terreno e sem altitude,
+  rota é desenho 2D, e o lugar dela é o overlay Pixi — que é exatamente o que o
+  [7C](#7c--rotas-e-setas-) entregou com o tipo `route`
+- Altitude por vértice (`PathVertex.altitude` existe no schema e continua sem
+  uso) daria perfil de subida/cruzeiro/descida. `altitudeMeters` + `arcMeters`
+  cobrem os dois casos pedidos; o perfil por vértice pede mapear vértice para
+  `progress` por comprimento de arco acumulado
 
 ### 7B — Camadas geográficas: contornos, estados, estradas
 
