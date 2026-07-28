@@ -16,3 +16,15 @@ export {
   planExport,
   sanitizeBasename,
 } from "./frame-plan.js";
+
+export { type Bytes, box, concat, fullBox } from "./mp4-boxes.js";
+
+export {
+  type EncodedSample,
+  type Mp4TrackConfig,
+  type Fragment,
+  VIDEO_TIMESCALE,
+  mp4Header,
+  mp4Fragment,
+  toTimescale,
+} from "./mp4-muxer.js";

@@ -196,3 +196,47 @@ function crc32(data: Buffer): number {
   }
   return (crc ^ 0xffffffff) >>> 0;
 }
+
+/**
+ * Anexa bytes a um arquivo dentro da pasta do job.
+ *
+ * Append e não escrita completa porque um MP4 fragmentado nasce em pedaços: o
+ * cabeçalho, e depois um par `moof`+`mdat` por fragmento. Juntar tudo em memória
+ * antes de escrever significaria 450 MB de RAM num vídeo de noventa segundos em
+ * 4K — que é exatamente a razão de o muxer ser fragmentado.
+ *
+ * `truncate` no primeiro pedaço: sem ele, reexportar para o mesmo nome anexaria
+ * ao arquivo antigo e produziria um MP4 com dois cabeçalhos.
+ */
+export async function appendExportBytes(request: ExportAppendRequest): Promise<ExportAppendResult> {
+  const directory = resolve(request.directory);
+  const target = resolve(directory, safeSegment(request.filename));
+  if (dirname(target) !== directory) {
+    return { ok: false, bytes: 0, message: "nome de arquivo escaparia da pasta" };
+  }
+  try {
+    await mkdir(directory, { recursive: true });
+    await writeFile(target, request.bytes, { flag: request.truncate ? "w" : "a" });
+    return { ok: true, bytes: request.bytes.byteLength };
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      bytes: 0,
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+export interface ExportAppendRequest {
+  readonly directory: string;
+  readonly filename: string;
+  readonly bytes: Uint8Array;
+  /** Verdadeiro no primeiro pedaco: zera o arquivo antes de escrever. */
+  readonly truncate: boolean;
+}
+
+export interface ExportAppendResult {
+  readonly ok: boolean;
+  readonly bytes: number;
+  readonly message?: string;
+}

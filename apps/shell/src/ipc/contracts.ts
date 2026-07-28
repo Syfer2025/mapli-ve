@@ -150,6 +150,7 @@ export interface TheatrumBridge {
   readonly export: {
     readonly begin: (request: ExportBeginRequest) => Promise<ExportBeginResult>;
     readonly frame: (request: ExportFrameRequest) => Promise<ExportFrameResult>;
+    readonly append: (request: ExportAppendRequest) => Promise<ExportAppendResult>;
   };
 }
 
@@ -193,6 +194,27 @@ export interface ExportFrameResult {
 }
 
 /**
+ * Um pedaço de arquivo a anexar.
+ *
+ * O MP4 fragmentado nasce em pedaços — cabeçalho, e depois um par `moof`+`mdat`
+ * por fragmento. Juntar tudo em memória antes de escrever anularia a razão de ele
+ * ser fragmentado: 450 MB de RAM num vídeo de noventa segundos em 4K.
+ */
+export interface ExportAppendRequest {
+  readonly directory: string;
+  readonly filename: string;
+  readonly bytes: Uint8Array;
+  /** Verdadeiro no primeiro pedaço: zera o arquivo antes de escrever. */
+  readonly truncate: boolean;
+}
+
+export interface ExportAppendResult {
+  readonly ok: boolean;
+  readonly bytes: number;
+  readonly message?: string;
+}
+
+/**
  * Mapa canal → { request, response }.
  *
  * O preload e o main derivam suas assinaturas daqui, então acrescentar um canal
@@ -216,6 +238,7 @@ export interface IpcContracts {
   "window:set-title": { request: string; response: void };
   "export:begin": { request: ExportBeginRequest; response: ExportBeginResult };
   "export:frame": { request: ExportFrameRequest; response: ExportFrameResult };
+  "export:append": { request: ExportAppendRequest; response: ExportAppendResult };
 }
 
 export type IpcChannel = keyof IpcContracts;
@@ -240,6 +263,7 @@ export const IPC_CHANNELS = [
   "window:set-title",
   "export:begin",
   "export:frame",
+  "export:append",
 ] as const satisfies readonly IpcChannel[];
 
 /** Canal síncrono separado: nunca entra no fluxo normal de `invoke`. */

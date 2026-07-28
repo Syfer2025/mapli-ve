@@ -13,7 +13,7 @@
  */
 
 import type { Map as MapLibreMap } from "maplibre-gl";
-import { startPngSequenceExport, type OverlayProbe } from "./export-service.js";
+import { startPngSequenceExport, startVideoExport, type OverlayProbe } from "./export-service.js";
 import type { ExportReport } from "./run-export.js";
 
 export interface ExportJobState {
@@ -27,6 +27,11 @@ export interface ExportJobState {
   readonly directory: string;
   readonly message: string | null;
   readonly report: ExportReport | null;
+  /** Qual formato este job produziu. */
+  readonly format: "png" | "mp4";
+  /** Nome e tamanho do arquivo de video, quando houve um. */
+  readonly videoFile: string | null;
+  readonly videoBytes: number;
 }
 
 const IDLE: ExportJobState = Object.freeze({
@@ -38,6 +43,9 @@ const IDLE: ExportJobState = Object.freeze({
   directory: "",
   message: null,
   report: null,
+  format: "png",
+  videoFile: null,
+  videoBytes: 0,
 });
 
 interface ViewportBinding {
@@ -78,6 +86,8 @@ export function requestExportAbort(): void {
 }
 
 export interface StartJobOptions {
+  /** `mp4` codifica com WebCodecs; `png` escreve um arquivo por frame. */
+  readonly format?: "png" | "mp4";
   readonly range?: { readonly first: number; readonly last: number };
   readonly outputFps?: number;
   readonly directory?: string;
@@ -98,11 +108,13 @@ export async function startExportJob(options: StartJobOptions = {}): Promise<voi
     return;
   }
 
+  const format = options.format ?? "png";
   abortRequested = false;
-  emit({ ...IDLE, status: "running" });
+  emit({ ...IDLE, status: "running", format });
   const startedAt = performance.now();
 
-  const result = await startPngSequenceExport({
+  const executar = format === "mp4" ? startVideoExport : startPngSequenceExport;
+  const result = await executar({
     map: current.map,
     probe: current.probe,
     ...options,
@@ -123,6 +135,8 @@ export async function startExportJob(options: StartJobOptions = {}): Promise<voi
     status: report?.aborted === true ? "aborted" : result.ok ? "done" : "failed",
     directory: result.directory,
     report,
+    videoFile: result.videoFile ?? null,
+    videoBytes: result.videoBytes ?? 0,
     // A primeira falha, quando há: uma lista de mil erros iguais não diz mais
     // que um, e o relatório completo fica acessível ao lado.
     message: result.message ?? report?.errors[0] ?? null,

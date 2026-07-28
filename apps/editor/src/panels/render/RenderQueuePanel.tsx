@@ -49,11 +49,19 @@ export function RenderQueuePanel(): ReactNode {
           <Button
             size="sm"
             variant="primary"
-            onClick={() => void startExportJob()}
+            onClick={() => void startExportJob({ format: "mp4" })}
+            disabled={running || !isExportReady() || composition === undefined}
+            aria-label="Exportar vídeo MP4"
+          >
+            Exportar MP4
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => void startExportJob({ format: "png" })}
             disabled={running || !isExportReady() || composition === undefined}
             aria-label="Exportar sequência PNG"
           >
-            Exportar PNG
+            Sequência PNG
           </Button>
           <Button
             size="sm"
@@ -106,14 +114,23 @@ export function RenderQueuePanel(): ReactNode {
 
         {report === null ? (
           <p className="render-queue__hint">
-            O export escreve uma sequência PNG com o mapa, o palco 3D e o overlay compostos num
-            arquivo por frame. Exportar o mesmo trecho duas vezes produz arquivos idênticos byte a
-            byte.
+            <strong>MP4</strong> codifica em H.264 com WebCodecs e empacota num MP4 fragmentado.
+            <strong> Sequência PNG</strong> escreve um arquivo por frame, sem perda. Nos dois casos
+            o frame é o mapa, o palco 3D e o overlay compostos, e exportar o mesmo trecho duas vezes
+            produz o mesmo resultado byte a byte.
           </p>
         ) : (
           <dl className="render-queue__report">
-            <dt>Arquivos escritos</dt>
+            <dt>{job.format === "mp4" ? "Frames codificados" : "Arquivos escritos"}</dt>
             <dd>{report.written}</dd>
+            {job.videoFile === null ? null : (
+              <>
+                <dt>Arquivo</dt>
+                <dd>
+                  {job.videoFile} · {(job.videoBytes / 1048576).toFixed(1)} MB
+                </dd>
+              </>
+            )}
             <dt>Settle falhou</dt>
             {/* Diferente de zero é o sinal de que algum frame foi capturado antes
                 de o mapa terminar — o arquivo existe e não é confiável. */}

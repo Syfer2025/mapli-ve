@@ -86,6 +86,8 @@ const fallback: TheatrumBridge = {
         sha256: "",
         message: "Export exige o aplicativo Electron.",
       }),
+    append: () =>
+      Promise.resolve({ ok: false, bytes: 0, message: "Export exige o aplicativo Electron." }),
   },
 };
 

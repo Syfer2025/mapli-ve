@@ -51,6 +51,7 @@ const bridge = {
   export: {
     begin: (request) => invoke("export:begin", request),
     frame: (request) => invoke("export:frame", request),
+    append: (request) => invoke("export:append", request),
   },
   project: {
     open: () => invoke("project:open"),

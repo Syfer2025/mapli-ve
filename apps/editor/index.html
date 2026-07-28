@@ -10,9 +10,18 @@
       Em produção nada disso é usado, mas manter a política estrita fecha a
       porta desde já.
     -->
+    <!--
+      `media-src` fica de fora do `default-src` de propósito: sem ele, mídia herda
+      `'self'` e o editor não consegue tocar nem o vídeo que ele mesmo acabou de
+      exportar. Aberto para **duas** origens e nenhuma mais: `blob:`, que é
+      conteúdo que o próprio aplicativo criou, e `theatrum-data:`, o protocolo
+      local — já confiado para imagem e fonte, e com guarda de `realpath` contra
+      travessia. Fora `data:`, que permitiria embutir mídia arbitrária vinda de
+      qualquer string que chegasse ao renderer.
+    -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: theatrum-data:; font-src 'self' data: theatrum-data:; connect-src 'self' blob: theatrum-data: ws://localhost:5273; worker-src 'self' blob:; object-src 'none'; base-uri 'none'"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: theatrum-data:; font-src 'self' data: theatrum-data:; media-src 'self' blob: theatrum-data:; connect-src 'self' blob: theatrum-data: ws://localhost:5273; worker-src 'self' blob:; object-src 'none'; base-uri 'none'"
     />
     <title>Theatrum</title>
   </head>

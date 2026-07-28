@@ -38,7 +38,11 @@ import {
 import { expandGeoNodes, type GeoExpansion, type GeoViewport } from "./geo-nodes.js";
 import { expandCalloutNodes, type CalloutExpansion } from "./callout-nodes.js";
 import { expandRouteNodes, type RouteExpansion } from "./route-nodes.js";
-import { startPngSequenceExport, type StartExportResult } from "../../export/export-service.js";
+import {
+  startPngSequenceExport,
+  startVideoExport,
+  type StartExportResult,
+} from "../../export/export-service.js";
 import { bindExportViewport } from "../../export/export-controller.js";
 import { onGeoLayerLoaded } from "../../geo/geo-data.js";
 import { expandParticleEffects, type ParticleExpansion } from "./particle-nodes.js";
@@ -943,12 +947,14 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
         readonly range?: { readonly first: number; readonly last: number };
         readonly outputFps?: number;
         readonly directory?: string;
+        readonly format?: "png" | "mp4";
       }) => {
         const liveMap = mapRef.current;
         if (liveMap === null) {
           return Promise.resolve({ ok: false, directory: "", message: "mapa indisponível" });
         }
-        return startPngSequenceExport({
+        const executar = options?.format === "mp4" ? startVideoExport : startPngSequenceExport;
+        return executar({
           map: liveMap,
           probe: () => ({
             frame: frameRef.current?.screen.frame ?? -1,
@@ -1414,6 +1420,7 @@ interface Phase4DebugSurface {
     readonly range?: { readonly first: number; readonly last: number };
     readonly outputFps?: number;
     readonly directory?: string;
+    readonly format?: "png" | "mp4";
   }) => Promise<StartExportResult>;
 }
 

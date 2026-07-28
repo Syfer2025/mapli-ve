@@ -33,6 +33,7 @@
     "verify:phase7c": "node tools/verify-phase7c.mjs",
     "verify:phase7d": "node tools/verify-phase7d.mjs",
     "verify:phase7e3": "node tools/verify-phase7e3.mjs",
+    "verify:phase8-video": "node tools/verify-phase8-video.mjs",
     "verify:phase8": "node tools/verify-phase8.mjs",
     "typecheck": "pnpm typecheck:src && pnpm typecheck:test && pnpm typecheck:node && pnpm typecheck:apps",
     "typecheck:src": "tsc -b --pretty",
