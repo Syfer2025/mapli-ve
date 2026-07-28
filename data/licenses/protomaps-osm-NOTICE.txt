@@ -1,0 +1,19 @@
+Regional vector basemap — attribution and licenses
+
+Tiles:
+  Protomaps © OpenStreetMap contributors
+  https://github.com/protomaps/basemaps
+  https://www.openstreetmap.org/copyright
+
+The regional PMTiles archive is a Produced Work of the OpenStreetMap database
+under the Open Database License (ODbL). Visible attribution is required.
+
+Style generator:
+  @protomaps/basemaps — BSD 3-Clause
+  Map design — Creative Commons Zero (CC0)
+
+Sprites:
+  Protomaps basemaps assets; icons derived from MIT-licensed Tangram Icons.
+
+Fonts:
+  Noto Sans — SIL Open Font License.

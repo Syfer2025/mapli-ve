@@ -18,6 +18,8 @@
     "preview": "electron-vite preview",
     "data:fetch": "node tools/fetch-data.ts",
     "data:verify": "node tools/fetch-data.ts --verify",
+    "satellite:hormuz": "tsx tools/fetch-regional-satellite.ts",
+    "satellite:hormuz:verify": "tsx tools/fetch-regional-satellite.ts --verify",
     "geo:build": "tsx tools/build-geo.ts",
     "geo:verify": "tsx tools/build-geo.ts --verify",
     "models:index": "node tools/build-model-index.ts",

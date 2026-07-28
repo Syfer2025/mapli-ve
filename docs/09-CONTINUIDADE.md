@@ -12,7 +12,7 @@ morde, e como não repetir erro já cometido.
 
 ## 1. Onde parou
 
-Cadeia do `pnpm check` verde — **998 testes em 98 arquivos**, 319 módulos, 836
+Cadeia do `pnpm check` verde — **1.006 testes em 99 arquivos**, 320 módulos, 838
 dependências, sem violação de camada; build electron-vite ok. Suíte rodada três
 vezes seguidas para confirmar estabilidade, porque havia um teste intermitente
 (agora corrigido, ver [§4.17](#417-comparar-ângulos-normalizados-com-régua-linear-atravessa-a-costura)).
@@ -23,7 +23,7 @@ Passe de auditoria em 2026-07-28, sobre o estado que o `77aa7e4` deixou:
 | --------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | Teste de propriedade intermitente em `shortestAngleDelta` | corrigido — era a asserção, não a função                                         |
 | README com estado de 7A++ (dizia que o 7B era o próximo)  | atualizado                                                                       |
-| `settle` do export cego para o carregamento do GLB        | **pendência aberta** — [§3, item 5](#3-o-que-vem-agora)                          |
+| `settle` do export cego para o carregamento do GLB        | **fechado e provado** — [§3](#o-settle-3d-foi-fechado-e-provado)                 |
 | Bootstrap necessário depois do 7B                         | documentado em [§4.18](#418-bootstrap-pnpm-install-e-geobuild-não-são-opcionais) |
 
 Fases 0–6 concluídas. **O bloco 7 inteiro está fechado** (única exceção declarada:
@@ -38,7 +38,7 @@ Cada bloco tem verificador próprio dirigindo o Electron real por CDP:
 | 7C · rotas e setas       | `verify:phase7c`      | verde     |
 | 7D · textos no mapa      | `verify:phase7d`      | 4/4       |
 | 7E.3 · modo estúdio      | `verify:phase7e3`     | 5/5       |
-| 8 · export byte-idêntico | `verify:phase8`       | 6/6       |
+| 8 · export byte-idêntico | `verify:phase8`       | 7/7       |
 | 8 · arquivo MP4 H.264    | `verify:phase8-video` | 6/6       |
 
 Entregue nesta sessão, em sete commits:
@@ -94,6 +94,19 @@ entregues; a quarta ele mesmo mandou adiar.** Detalhe completo em
 | `8ea54a9` | 7E.2 — rótulo com caixa e guia que acompanha objeto ou rota       |
 | `0b4c9ca` | 7E.3 — palco 3D infinito com câmera orbital animável              |
 
+### Extensão regional Irã–Hormuz (2026-07-28)
+
+O viewport deixou de depender apenas do bootstrap mundial Natural Earth z0–6.
+Há agora um pacote Protomaps/OpenStreetMap `43,22,65,41` até z15, descoberto por
+`data/basemap/detailed-basemaps.json` e só exibido quando o arquivo de 1,56 GB
+está no disco. O estilo detalhado traz províncias, cidades, ruas, edifícios,
+água, uso do solo e POIs com glifos/sprites inteiramente locais.
+
+`pnpm satellite:hormuz` monta a cobertura EOxCloudless Sentinel-2 2016
+`54,24.2,58.8,28.1` até z13 em `data/raster/`. O ano de 2016 foi escolha
+deliberada: CC BY 4.0; 2018–2025 têm cláusula não comercial. O seletor oferece
+satélite puro e híbrido com os rótulos detalhados.
+
 **7E.3, cenário de estúdio: entregue e provado (5/5 em `verify-phase7e3.mjs`).**
 A decisão que travava o começo foi medida e virou o
 [ADR-012](adr/ADR-012-studio-own-canvas.md): **2** contextos WebGL vivos hoje,
@@ -116,7 +129,7 @@ vídeo de preview como textura, com qualidade menor.
 
 O bloco 7 está fechado e a **Fase 8 produz arquivo de vídeo**: MP4 H.264,
 byte-idêntico entre execuções, e o Chromium decodifica. Dois verificadores:
-`verify:phase8` (6/6, sequência PNG e determinismo) e `verify:phase8-video`
+`verify:phase8` (7/7, sequência PNG e determinismo) e `verify:phase8-video`
 (6/6, o arquivo MP4). Sobra:
 
 1. **Resolução acima do tamanho da janela.** Hoje o frame sai no tamanho do
@@ -128,72 +141,41 @@ byte-idêntico entre execuções, e o Chromium decodifica. Dois verificadores:
 3. **Formatos que faltam:** GIF, ProRes 4444 com alfa, sequência com canal alfa.
    O muxer atual é só vídeo — áudio entraria como trilha 2.
 4. **Motion blur, checkpoint e retomada.**
-5. **O `settle` do export não conhece a camada 3D.** Detalhe abaixo — é o único
-   item desta lista que ameaça o critério byte-idêntico.
 
-### O `settle` do export é cego para a camada 3D
+### O `settle` 3D foi fechado e provado
 
-**Encontrado por leitura em 2026-07-28, não reproduzido ao vivo.** Registrado aqui
-porque é do tipo que não dá erro: o export termina, os arquivos saem, e a
-divergência só aparece comparando duas execuções.
+**Fechado em 2026-07-28.** A lacuna foi reproduzida antes da correção: com o
+renderer recarregado e o cache de templates frio, o primeiro export do F/A-18F
+divergiu do segundo em **8 de 9 frames**. Um dos hashes mostrou o mecanismo com
+precisão: o frame frio 0003 era igual ao quente 0000, porque o GLB terminou de
+parsear no meio da primeira sequência.
 
 `waitForQuiet` (`apps/editor/src/export/run-export.ts`) decide que um frame está
 pronto por três condições: `observed.frame === frame`, contador de repinturas do
-overlay estável por `QUIET_MS`, e `!host.mapBusy()`. E `mapBusy` é
+overlay estável por `QUIET_MS`, mapa livre e assets livres. As peças do fechamento:
 
-```ts
-mapBusy: () => options.map.isMoving() || !options.map.areTilesLoaded();
-```
+- `scene3d-layer.ts` expõe `scene3dLayerPending(map)` por caminho **não-DEV**;
+  `studio-scene.ts` expõe a mesma contabilidade por `pendingModels()`
+- `SceneOverlay` soma mapa + palco em `probe().pendingAssets`; o export não
+  depende do global de diagnóstico `window.__theatrumScene3d`
+- GLB que falhou no parse ou está ausente conta como **resolvido, sem modelo**;
+  esperar uma instância que nunca nascerá faria todo frame estourar o timeout
+- o pump separa `mapBusy` de `assetsBusy`: câmera/tiles mantêm o teto de **4 s**,
+  enquanto parse inicial de GLB tem teto próprio de **30 s**. Enquanto o asset
+  está pendente o relógio curto é renovado; isso não dá 30 s a tile preso
+- a transição ocupado → livre inicia a janela de quietude mesmo sem repaint novo;
+  antes, manter o mesmo contador podia deixar `quietSince` nulo para sempre
 
-em `export-service.ts` (duas ocorrências: linha ~109 no caminho PNG, ~213 no
-caminho MP4).
+Provas depois da correção:
 
-Nenhuma das três condições vê o carregamento do GLB. Em
-`apps/editor/src/panels/viewport/scene3d-layer.ts`, `syncModels` resolve o
-template de forma assíncrona (`this.template(src).then(...)`) e só **depois** de o
-`GLTFLoader.parse` terminar é que a instância entra na cena e a camada chama
-`map.triggerRepaint()`. Essa repintura é do **mapa**, não do overlay Pixi: não
-mexe em `renderCountRef`, que é o que o `probe` do `SceneOverlay` devolve. E
-`areTilesLoaded()` fala de tiles, não de assets do documento.
-
-Consequência: um export iniciado antes de o GLB terminar de parsear escreve os
-primeiros frames **sem a aeronave**. Na segunda execução o template já está no
-`Map` de templates da camada, resolve na hora, e os mesmos frames saem **com** a
-aeronave. Dois exports do mesmo projeto, arquivos diferentes — exatamente o
-critério que o roteiro chama de mais importante.
-
-Por que não apareceu nos verificadores: nem `verify-phase8.mjs` nem
-`verify-phase8-video.mjs` mencionam `model3d`, `route3d` ou `scene3d` (`grep`
-devolve zero nos dois). O determinismo foi provado numa cena sem nenhum conteúdo
-3D. A camada 3D é capturada — `frame-composer.ts` inclui `.maplibregl-canvas`, e o
-[ADR-013](adr/ADR-013-export-frame-composition.md) diz que a ordem de composição é
-contrato — mas capturar não é o mesmo que esperar.
-
-**O sinal que falta já existe e está exposto.** A camada publica
-`window.__theatrumScene3d.status()` com `pending` (nós pedidos menos instâncias
-carregadas) e `lastError`. Fechar a lacuna é somar isso ao `mapBusy`, algo como
-
-```ts
-mapBusy: () => {
-  const scene3d = window.__theatrumScene3d?.status();
-  return (
-    options.map.isMoving() || !options.map.areTilesLoaded() || (scene3d?.pending ?? 0) > 0
-  );
-},
-```
-
-com duas ressalvas antes de escrever assim: `__theatrumScene3d` só é publicado sob
-`import.meta.env.DEV` (linha do `attachScene3dLayer`), então em build de produção
-o export perderia a guarda em silêncio — o certo é a camada expor `pending` por um
-caminho não-DEV, ou o `SceneOverlay` incluir isso no `probe` que já passa para o
-export. E `pending` não cobre GLB que falhou: com `lastError` preenchido o
-`pending` fica preso em > 0 para sempre e o export travaria no timeout — precisa
-tratar erro como "resolvido, sem modelo".
-
-**O teste que prova:** montar o cenário do `tools/demo-f18.mjs`, recarregar o
-renderer para esvaziar o cache de templates, disparar o export imediatamente, e
-comparar o SHA-256 dos primeiros frames com uma segunda execução. Hoje a
-expectativa é que divirjam.
+- `scratchpad/repro-export-settle-3d.mjs`: **9/9 hashes idênticos** a frio e a
+  quente, `settleFailed=0`
+- `verify:phase8`, critério 6: cria um GLB visualmente idêntico mas com hash único
+  a cada rodada (cache realmente frio), monta `model3d` + `route3d`, dispara o
+  export imediatamente e prova **9/9 hashes idênticos**, visual 3D presente e
+  `settleFailed=0` nas duas execuções
+- 8 testes novos travam a contabilidade carregado/pendente/falho e o orçamento
+  separado do asset
 
 ### O muxer MP4 é código nosso, e o que ele ensinou
 

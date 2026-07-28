@@ -153,13 +153,14 @@ Escopo entregue:
   nunca foi requisito para existir volume. `calculateCameraOptionsFromTo` é útil
   e a nota sobre não haver `FreeCameraOptions` no MapLibre v5 continua válida
 
-Limitações honestas (preview, não export):
+Limitações honestas:
 
 - ~~O export determinístico (Fase 8) ainda não captura o 3D — é visual de
   viewport~~ **Superado pela Fase 8:** o [ADR-013](adr/ADR-013-export-frame-composition.md)
-  compõe `.maplibregl-canvas`, e a camada 3D desenha lá dentro. Mas ver a
-  pendência do `settle` em [09-CONTINUIDADE § 3](09-CONTINUIDADE.md#3-o-que-vem-agora):
-  capturar não é o mesmo que esperar o GLB carregar
+  compõe `.maplibregl-canvas`, e a camada 3D desenha lá dentro. O `settle` agora
+  espera também o parse do GLB por sinal não-DEV; `verify:phase8`, critério 6,
+  prova `model3d` + `route3d` com cache frio e 9/9 hashes idênticos à execução
+  quente. Ver [09-CONTINUIDADE § 3](09-CONTINUIDADE.md#o-settle-3d-foi-fechado-e-provado)
 - Opacidade hierárquica e `visible` por keyframe não se aplicam ao modelo;
   contorno de país do demo é camada de estilo em runtime (a versão documental
   é o bloco 7B)
@@ -692,13 +693,26 @@ bytes 0-126/3829650` e 127 bytes exatos; range impossível respondeu `416`.
 7. `pnpm check` passa com 468 testes. Cobertura V8 total: > 97,3% de linhas;
    `gis` 96,94%, `camera` 94,28% e adapters do viewport 100%.
 
-### Limite deliberado da base inicial
+### Limite deliberado da base inicial — e primeiro pacote regional
 
 O bootstrap mundial é Natural Earth z0–6 (3,83 MB), adequado para composição
 geopolítica global. OpenMapTiles/OSM detalhado, sprites de POI e terreno são
 assets incrementais por região; incluí-los no bootstrap global transformaria um
 download reprodutível pequeno em dezenas ou centenas de gigabytes. As portas e
 o formato PMTiles já permitem adicioná-los sem mudar o motor.
+
+Em 2026-07-28 essa extensão regional foi exercitada de ponta a ponta. O pacote
+`iran-hormuz-20260728-z15.pmtiles` (1.562.903.814 bytes, SHA-256
+`c56fa5daacf51aabf90b6bfcf4c64f27f23ee69e00c6d96dfda1b2a602d489bf`)
+cobre `43,22,65,41` até z15. O estilo Protomaps claro usa exclusivamente o
+protocolo local, com glifos e sprites fixados por hash, e expõe províncias,
+cidades, ruas, edifícios, água, uso do solo e POIs. Selecioná-lo enquadra
+automaticamente o Estreito de Hormuz.
+
+O mesmo recorte ganhou satélite offline à parte: EOxCloudless Sentinel-2 2016,
+CC BY 4.0, sobre `54,24.2,58.8,28.1` até z13. A variante híbrida reaproveita os
+rótulos Protomaps detalhados; versões EOX recentes não foram usadas porque sua
+licença é não comercial.
 
 ---
 
@@ -1060,14 +1074,16 @@ idênticos** — está **provado no Electron real**. É o critério mais importa
 projeto, e ele não depende de codec: depende de o frame ser função pura de
 (documento, frame) e de o pump esperar a coisa certa.
 
-O que existe hoje (`pnpm verify:phase8`, **6/6**):
+O que existe hoje (`pnpm verify:phase8`, **7/7**):
 
 | Critério                             | Medido                                              |
 | ------------------------------------ | --------------------------------------------------- |
-| Mapa e overlay legíveis para compor  | somas 95 994 e 110 052 (antes: zero)                |
+| Mapa e overlay legíveis para compor  | somas 95 124 e 126 833 (antes: zero)                |
 | **Duas execuções, hashes idênticos** | 9/9 arquivos, e 9 hashes **distintos** entre frames |
 | Gizmo de seleção não vaza            | hashes idênticos com nó selecionado                 |
-| `settleFailed` e p99 de settle       | **0** falhas, p99 de **77 ms**                      |
+| `settleFailed` e p99 de settle       | **0** falhas, p99 de **82 ms**                      |
+| Dois nós geo com filtros             | 9/9 hashes idênticos entre execuções                |
+| GLB frio com `model3d` + `route3d`   | 9/9 hashes idênticos; `settleFailed=0`              |
 
 As peças, e por que estão onde estão:
 
@@ -1079,9 +1095,11 @@ As peças, e por que estão onde estão:
   um glob monta o vídeo fora de ordem.
 - **`apps/editor/src/export/run-export.ts`** — o pump, com política de `settle` por
   **quietude**, não por tempo fixo: o frame só é capturado depois de N ms sem
-  repintura nova e com o mapa sem tiles pendentes. Timeout fixo grava frame errado
-  em máquina lenta e desperdiça tempo em máquina rápida. O motor recebe `compose`
-  por injeção, e é isso que permitiu provar a política em teste unitário sem GPU.
+  repintura nova, com o mapa sem tiles pendentes e sem asset que ainda possa
+  aparecer. Câmera/tiles têm teto de 4 s; GLB em parse tem teto próprio de 30 s,
+  sem afrouxar o caminho comum. Timeout fixo grava frame errado em máquina lenta
+  e desperdiça tempo em máquina rápida. O motor recebe `compose` por injeção, e é
+  isso que permitiu provar a política em teste unitário sem GPU.
 - **`apps/shell/src/main/services/export-writer.ts`** — PNG escrito por nós, com o
   `zlib` do Node, **nível de compressão, estratégia e janela fixados** e filtro 0
   em toda linha. `canvas.toBlob` depende do codificador do Chromium, e filtro

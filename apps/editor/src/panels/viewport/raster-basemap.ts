@@ -35,6 +35,8 @@ export interface RasterBasemap {
   readonly minZoom: number;
   readonly maxZoom: number;
   readonly attribution: string;
+  /** Cobertura do pacote, usada para enquadrar ao selecionar a imagem. */
+  readonly bounds?: readonly [west: number, south: number, east: number, north: number];
 }
 
 interface RasterManifest {
@@ -42,11 +44,27 @@ interface RasterManifest {
   readonly basemaps: readonly Partial<RasterBasemap>[];
 }
 
+function normalizeBounds(value: RasterBasemap["bounds"] | undefined): RasterBasemap["bounds"] {
+  if (
+    !Array.isArray(value) ||
+    value.length !== 4 ||
+    !value.every((coordinate) => typeof coordinate === "number" && Number.isFinite(coordinate))
+  ) {
+    return undefined;
+  }
+  const [west, south, east, north] = value;
+  if (west < -180 || east > 180 || south < -90 || north > 90 || west >= east || south >= north) {
+    return undefined;
+  }
+  return Object.freeze([...value]) as unknown as RasterBasemap["bounds"];
+}
+
 /** Preenche o que o manifesto omitiu com padrões de pirâmide comum. */
 function normalize(entry: Partial<RasterBasemap>, index: number): RasterBasemap | null {
   const source = entry.source;
   if (typeof source !== "string" || source.length === 0) return null;
   const id = entry.id ?? `raster-${index}`;
+  const bounds = normalizeBounds(entry.bounds);
   return Object.freeze({
     id,
     label: entry.label ?? "Satélite",
@@ -55,6 +73,7 @@ function normalize(entry: Partial<RasterBasemap>, index: number): RasterBasemap 
     minZoom: typeof entry.minZoom === "number" ? entry.minZoom : 0,
     maxZoom: typeof entry.maxZoom === "number" ? entry.maxZoom : 14,
     attribution: entry.attribution ?? "Imagem local do usuário",
+    ...(bounds === undefined ? {} : { bounds }),
   });
 }
 
@@ -127,12 +146,15 @@ export function rasterBasemapById(id: string): RasterBasemap | undefined {
 export type StyleChoice = string;
 
 export interface ParsedStyleChoice {
-  readonly kind: "vector" | "satellite";
+  readonly kind: "vector" | "detailed" | "satellite";
   readonly id: string;
   readonly labels: boolean;
 }
 
 export function parseStyleChoice(choice: StyleChoice): ParsedStyleChoice {
+  if (choice.startsWith("detail:")) {
+    return { kind: "detailed", id: choice.slice(7), labels: true };
+  }
   if (choice.startsWith("sat+:")) {
     return { kind: "satellite", id: choice.slice(5), labels: true };
   }

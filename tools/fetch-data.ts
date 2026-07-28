@@ -34,6 +34,169 @@ const DEMOTILES_DATA_COMMIT = "ef4389e954d46e97cd9d3b0130881d9fb789ae2e";
 const DEMOTILES_LICENSE_COMMIT = "0343c3fd0b6b82c53ec876b90679242d937e075d";
 const NATURAL_EARTH_RAW = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector";
 const DEMOTILES_RAW = "https://raw.githubusercontent.com/maplibre/demotiles";
+const PROTOMAPS_ASSETS_BASE = "https://protomaps.github.io/basemaps-assets";
+
+function protomapsAsset(
+  relativePath: string,
+  upstreamPath: string,
+  bytes: number,
+  sha256: string,
+): RemoteAsset {
+  const encodedPath = upstreamPath.split("/").map(encodeURIComponent).join("/");
+  return {
+    relativePath,
+    url: `${PROTOMAPS_ASSETS_BASE}/${encodedPath}`,
+    bytes,
+    sha256,
+  };
+}
+
+const PROTOMAPS_REMOTE_ASSETS: readonly RemoteAsset[] = [
+  protomapsAsset(
+    "glyphs/Noto Sans Regular/0-255.pbf",
+    "fonts/Noto Sans Regular/0-255.pbf",
+    76_044,
+    "62c6d49b15fa836eb6aa45e259c7ca6762f44b011b09e47776efbe4a6db1b397",
+  ),
+  protomapsAsset(
+    "glyphs/Noto Sans Regular/256-511.pbf",
+    "fonts/Noto Sans Regular/256-511.pbf",
+    127_726,
+    "2eca7561f9f566bcacfda5dd04fb5880baec1328ec0f5484678289a13994de8a",
+  ),
+  protomapsAsset(
+    "glyphs/Noto Sans Regular/1024-1279.pbf",
+    "fonts/Noto Sans Regular/1024-1279.pbf",
+    125_320,
+    "302231023f7048d9694a7b3f3b737c8bc378f5af0175aed5bb4f2f3b6188919a",
+  ),
+  protomapsAsset(
+    "glyphs/Noto Sans Regular/1536-1791.pbf",
+    "fonts/Noto Sans Regular/1536-1791.pbf",
+    110_716,
+    "f46850e6574d817d58d96b91196739c77c1b570a7b4f992ff1380d2b4d5d631f",
+  ),
+  protomapsAsset(
+    "glyphs/Noto Sans Regular/1792-2047.pbf",
+    "fonts/Noto Sans Regular/1792-2047.pbf",
+    93_383,
+    "43ed9f47288d5b73aef7a2bba7599c1ce0bb3de66a2038cb91506eb7af206faf",
+  ),
+  protomapsAsset(
+    "glyphs/Noto Sans Medium/0-255.pbf",
+    "fonts/Noto Sans Medium/0-255.pbf",
+    77_628,
+    "ba2f0118dd024e3041b158e5f9eb49bc0a658019f53f458e9f5c0b8efcd79b91",
+  ),
+  protomapsAsset(
+    "glyphs/Noto Sans Medium/256-511.pbf",
+    "fonts/Noto Sans Medium/256-511.pbf",
+    129_635,
+    "d5e801a1a5b1d409d3298c3a1e1ca76328e2314a751078833a618620e8e66e4d",
+  ),
+  protomapsAsset(
+    "glyphs/Noto Sans Medium/1024-1279.pbf",
+    "fonts/Noto Sans Medium/1024-1279.pbf",
+    128_608,
+    "1fd3385560bae824ee48de8c920412ca3a75cabe5ada5ea67d8d188787018319",
+  ),
+  protomapsAsset(
+    "glyphs/Noto Sans Medium/1536-1791.pbf",
+    "fonts/Noto Sans Medium/1536-1791.pbf",
+    115_002,
+    "e998806d6e6b4c03950564e64be0d91c0cfc576c886d698953a42d33f2ccc099",
+  ),
+  protomapsAsset(
+    "glyphs/Noto Sans Medium/1792-2047.pbf",
+    "fonts/Noto Sans Medium/1792-2047.pbf",
+    49_721,
+    "220dc297746615eb947c2f3db297fa7b6c5a321f0a0b7fa2a72b177965b63d13",
+  ),
+  protomapsAsset(
+    "glyphs/Noto Sans Italic/0-255.pbf",
+    "fonts/Noto Sans Italic/0-255.pbf",
+    79_344,
+    "43edfca91c285ba1226f09d5e74d68e1473a088c517f02a5212ff6ccb10037dc",
+  ),
+  protomapsAsset(
+    "glyphs/Noto Sans Italic/256-511.pbf",
+    "fonts/Noto Sans Italic/256-511.pbf",
+    132_976,
+    "a6f9f6574c86a4a28aba630ca1017857ceadd2370ed32a1293c35f819ab9bd60",
+  ),
+  protomapsAsset(
+    "glyphs/Noto Sans Italic/1024-1279.pbf",
+    "fonts/Noto Sans Italic/1024-1279.pbf",
+    128_015,
+    "9c3f67dce1f538ee635405a5562c364c95ba4db06a6b312a45c84ad6edf4c28a",
+  ),
+  protomapsAsset(
+    "glyphs/Noto Sans Italic/1536-1791.pbf",
+    "fonts/Noto Sans Italic/1536-1791.pbf",
+    26,
+    "130f950ea1de60403501b681f786514f3a57a06b2304dd77400634a8ddfd8a83",
+  ),
+  protomapsAsset(
+    "glyphs/Noto Sans Italic/1792-2047.pbf",
+    "fonts/Noto Sans Italic/1792-2047.pbf",
+    26,
+    "64efeb5aafbe4c9bf7480434622e094df7be95c37f8f09137cb6b37bb70075c3",
+  ),
+  protomapsAsset(
+    "glyphs/Noto Sans Devanagari Regular v1/0-255.pbf",
+    "fonts/Noto Sans Devanagari Regular v1/0-255.pbf",
+    76_044,
+    "62c6d49b15fa836eb6aa45e259c7ca6762f44b011b09e47776efbe4a6db1b397",
+  ),
+  protomapsAsset(
+    "glyphs/Noto Sans Devanagari Regular v1/256-511.pbf",
+    "fonts/Noto Sans Devanagari Regular v1/256-511.pbf",
+    127_726,
+    "2eca7561f9f566bcacfda5dd04fb5880baec1328ec0f5484678289a13994de8a",
+  ),
+  protomapsAsset(
+    "glyphs/Noto Sans Devanagari Regular v1/1024-1279.pbf",
+    "fonts/Noto Sans Devanagari Regular v1/1024-1279.pbf",
+    125_320,
+    "302231023f7048d9694a7b3f3b737c8bc378f5af0175aed5bb4f2f3b6188919a",
+  ),
+  protomapsAsset(
+    "glyphs/Noto Sans Devanagari Regular v1/1536-1791.pbf",
+    "fonts/Noto Sans Devanagari Regular v1/1536-1791.pbf",
+    110_716,
+    "f46850e6574d817d58d96b91196739c77c1b570a7b4f992ff1380d2b4d5d631f",
+  ),
+  protomapsAsset(
+    "glyphs/Noto Sans Devanagari Regular v1/1792-2047.pbf",
+    "fonts/Noto Sans Devanagari Regular v1/1792-2047.pbf",
+    93_383,
+    "43ed9f47288d5b73aef7a2bba7599c1ce0bb3de66a2038cb91506eb7af206faf",
+  ),
+  protomapsAsset(
+    "sprites/protomaps-light.json",
+    "sprites/v4/light.json",
+    3_549,
+    "bfac76cf7ed5c2aa2992695904056a1c6b07785b7fd20e6c640cb44fd6244a2e",
+  ),
+  protomapsAsset(
+    "sprites/protomaps-light.png",
+    "sprites/v4/light.png",
+    16_174,
+    "b6a34640917bdc57d0bd080836db33376371a3312ebe7b849045268015de3481",
+  ),
+  protomapsAsset(
+    "sprites/protomaps-light@2x.json",
+    "sprites/v4/light@2x.json",
+    3_579,
+    "1fb5b123fbe35d2e1f6ac171513ce01df89e671273a417ee89c44886a4c132f0",
+  ),
+  protomapsAsset(
+    "sprites/protomaps-light@2x.png",
+    "sprites/v4/light@2x.png",
+    28_852,
+    "23f6e9df27c2e9a14385763980a24e3608966bfc8192a106058bc2ca959ab563",
+  ),
+];
 
 const REMOTE_ASSETS: readonly RemoteAsset[] = [
   {
@@ -131,6 +294,7 @@ const REMOTE_ASSETS: readonly RemoteAsset[] = [
     bytes: 128_493,
     sha256: "0354f1c092e3604b09177de773f84caa1ca6d4f17a8099e4787fcba8e7282907",
   },
+  ...PROTOMAPS_REMOTE_ASSETS,
   {
     relativePath: "licenses/maplibre-demotiles-LICENSE.txt",
     url: `${DEMOTILES_RAW}/${DEMOTILES_LICENSE_COMMIT}/LICENSE`,

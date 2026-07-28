@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "basemaps": [
+    {
+      "id": "iran-hormuz",
+      "label": "Detalhado · Irã e Estreito de Hormuz",
+      "source": "iran-hormuz-20260728-z15.pmtiles",
+      "bounds": [43, 22, 65, 41],
+      "focusBounds": [55.6, 25.3, 57.7, 27.8],
+      "minZoom": 0,
+      "maxZoom": 15,
+      "attribution": "<a href=\"https://github.com/protomaps/basemaps\">Protomaps</a> © <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap contributors</a>",
+      "provenance": {
+        "source": "https://build.protomaps.com/20260728.pmtiles",
+        "extractedWith": "go-pmtiles 1.31.2",
+        "bbox": "43,22,65,41",
+        "bytes": 1562903814,
+        "sha256": "c56fa5daacf51aabf90b6bfcf4c64f27f23ee69e00c6d96dfda1b2a602d489bf"
+      }
+    }
+  ]
+}

@@ -19,10 +19,14 @@ const MIME_TYPES: Readonly<Record<string, string>> = {
   ".geojson": "application/geo+json",
   ".glb": "model/gltf-binary",
   ".gltf": "model/gltf+json",
+  ".jpeg": "image/jpeg",
+  ".jpg": "image/jpeg",
   ".json": "application/json",
   ".pbf": "application/x-protobuf",
   ".pmtiles": "application/vnd.pmtiles",
+  ".png": "image/png",
   ".txt": "text/plain; charset=utf-8",
+  ".webp": "image/webp",
 };
 const ALLOWED_EXTENSIONS = new Set(Object.keys(MIME_TYPES));
 

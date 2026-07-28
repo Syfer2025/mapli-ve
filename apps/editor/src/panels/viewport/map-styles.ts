@@ -1,9 +1,11 @@
+import { layers as protomapsLayers, namedFlavor } from "@protomaps/basemaps";
 import { DATA_BASE_URL } from "@theatrum/shell";
 import type {
   LayerSpecification,
   RasterSourceSpecification,
   StyleSpecification,
 } from "maplibre-gl";
+import { detailedBasemapSourceUrl, type DetailedBasemap } from "./detailed-basemap.js";
 import { rasterSourceUrl, type RasterBasemap } from "./raster-basemap.js";
 
 export type MapStyleId = "dark-relief" | "historical-parchment" | "minimal-political";
@@ -30,6 +32,8 @@ const PLACES_URL = `${DATA_BASE_URL}/natural-earth/ne_10m_populated_places_simpl
 const LAKES_URL = `${DATA_BASE_URL}/natural-earth/ne_110m_lakes.geojson`;
 const RIVERS_URL = `${DATA_BASE_URL}/natural-earth/ne_110m_rivers_lake_centerlines.geojson`;
 const GLYPHS_URL = `${DATA_BASE_URL}/glyphs/{fontstack}/{range}.pbf`;
+const PROTOMAPS_SPRITE_URL = `${DATA_BASE_URL}/sprites/protomaps-light`;
+const DETAILED_SOURCE_ID = "regional-detail";
 
 interface Palette {
   readonly ocean: string;
@@ -240,6 +244,34 @@ export function createMapStyle(styleId: MapStyleId): StyleSpecification {
 }
 
 /**
+ * Estilo urbano/regional baseado em OpenStreetMap.
+ *
+ * Diferente do bootstrap mundial z0–6, este tileset chega a z15 e inclui
+ * províncias, cidades, ruas, edifícios, uso do solo, água e pontos de interesse.
+ * Fonte, glifos e sprites continuam locais para o export ser reproduzível.
+ */
+export function createDetailedMapStyle(basemap: DetailedBasemap): StyleSpecification {
+  return {
+    version: 8,
+    name: basemap.label,
+    glyphs: GLYPHS_URL,
+    sprite: PROTOMAPS_SPRITE_URL,
+    sources: {
+      [DETAILED_SOURCE_ID]: {
+        type: "vector",
+        url: detailedBasemapSourceUrl(basemap),
+        minzoom: basemap.minZoom,
+        maxzoom: basemap.maxZoom,
+        attribution: basemap.attribution,
+      },
+    },
+    layers: protomapsLayers(DETAILED_SOURCE_ID, namedFlavor("light"), {
+      lang: "en",
+    }) as unknown as LayerSpecification[],
+  };
+}
+
+/**
  * Estilo com imagem de satélite por baixo.
  *
  * Duas variantes, e a diferença entre elas é o que a AiTelly usa nas cenas:
@@ -253,7 +285,12 @@ export function createMapStyle(styleId: MapStyleId): StyleSpecification {
  */
 export function createSatelliteStyle(
   basemap: RasterBasemap,
-  options: { readonly labels: boolean; readonly opacity?: number } = { labels: true },
+  options: {
+    readonly labels: boolean;
+    readonly opacity?: number;
+    /** Quando cobre a mesma região, fornece ruas, províncias e cidades ao híbrido. */
+    readonly labelsBasemap?: DetailedBasemap;
+  } = { labels: true },
 ): StyleSpecification {
   const palette = PALETTES["dark-relief"];
   const source = rasterSourceUrl(basemap);
@@ -270,24 +307,49 @@ export function createSatelliteStyle(
    * Só rótulo e fronteira sobrevivem por cima da imagem. Preenchimento de país e
    * cor de oceano tapariam justamente o que a imagem tem a dizer.
    */
-  const overlays = options.labels
-    ? layers(palette).filter((layer) =>
-        ["country-borders", "country-labels", "cities", "city-labels"].includes(layer.id),
-      )
-    : [];
+  const detailedLabels = options.labels ? options.labelsBasemap : undefined;
+  const overlays =
+    detailedLabels !== undefined
+      ? (protomapsLayers(DETAILED_SOURCE_ID, namedFlavor("light"), {
+          labelsOnly: true,
+          lang: "en",
+        }) as unknown as LayerSpecification[])
+      : options.labels
+        ? layers(palette).filter((layer) =>
+            ["country-borders", "country-labels", "cities", "city-labels"].includes(layer.id),
+          )
+        : [];
+
+  const overlaySources =
+    detailedLabels !== undefined
+      ? {
+          [DETAILED_SOURCE_ID]: {
+            type: "vector" as const,
+            url: detailedBasemapSourceUrl(detailedLabels),
+            minzoom: detailedLabels.minZoom,
+            maxzoom: detailedLabels.maxZoom,
+            attribution: detailedLabels.attribution,
+          },
+        }
+      : options.labels
+        ? {
+            "natural-earth": {
+              type: "vector" as const,
+              url: BASEMAP_URL,
+              attribution: "Natural Earth · domínio público",
+            },
+            places: { type: "geojson" as const, data: PLACES_URL },
+          }
+        : {};
 
   return {
     version: 8,
     name: `${basemap.label}${options.labels ? " com rótulos" : ""}`,
     glyphs: GLYPHS_URL,
+    ...(detailedLabels === undefined ? {} : { sprite: PROTOMAPS_SPRITE_URL }),
     sources: {
       satellite: raster,
-      "natural-earth": {
-        type: "vector",
-        url: BASEMAP_URL,
-        attribution: "Natural Earth · domínio público",
-      },
-      places: { type: "geojson", data: PLACES_URL },
+      ...overlaySources,
     },
     layers: [
       // Fundo escuro por baixo: enquanto um tile não chega, buraco preto é menos

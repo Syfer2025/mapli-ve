@@ -1,6 +1,14 @@
 import type { GeoJSONSourceSpecification, VectorSourceSpecification } from "maplibre-gl";
 import { describe, expect, it } from "vitest";
-import { createMapStyle, MAP_STYLE_OPTIONS, type MapStyleId } from "./map-styles.js";
+import type { DetailedBasemap } from "./detailed-basemap.js";
+import {
+  createDetailedMapStyle,
+  createMapStyle,
+  createSatelliteStyle,
+  MAP_STYLE_OPTIONS,
+  type MapStyleId,
+} from "./map-styles.js";
+import type { RasterBasemap } from "./raster-basemap.js";
 
 const EXPECTED_STYLE_IDS: readonly MapStyleId[] = [
   "dark-relief",
@@ -10,6 +18,25 @@ const EXPECTED_STYLE_IDS: readonly MapStyleId[] = [
 
 const FORBIDDEN_REMOTE_URL = /(?:https?:\/\/|mapbox:\/\/|api\.mapbox|cdn\.)/i;
 const LOCAL_DATA_PREFIX = "theatrum-data://local/";
+const IRAN_HORMUZ: DetailedBasemap = {
+  id: "iran-hormuz",
+  label: "Detalhado · Irã e Estreito de Hormuz",
+  source: "iran-hormuz.pmtiles",
+  bounds: [43, 22, 65, 41],
+  focusBounds: [55.6, 25.3, 57.7, 27.8],
+  minZoom: 0,
+  maxZoom: 15,
+  attribution: "Protomaps © OpenStreetMap contributors",
+};
+const SATELLITE: RasterBasemap = {
+  id: "satellite",
+  label: "Satélite local",
+  source: "hormuz.pmtiles",
+  tileSize: 256,
+  minZoom: 0,
+  maxZoom: 15,
+  attribution: "Imagem licenciada local",
+};
 
 describe("estilos offline do mapa", () => {
   it("publica exatamente os três estilos da Fase 2", () => {
@@ -62,5 +89,52 @@ describe("estilos offline do mapa", () => {
     expect(first.layers).not.toBe(second.layers);
     expect(first.layers[0]).not.toBe(second.layers[0]);
     expect(first).toEqual(second);
+  });
+
+  it("o mapa regional detalhado contém a hierarquia urbana até ruas e edifícios", () => {
+    const style = createDetailedMapStyle(IRAN_HORMUZ);
+    const serialized = JSON.stringify(style);
+    const sourceLayers = new Set(
+      style.layers.flatMap((layer) =>
+        "source-layer" in layer && typeof layer["source-layer"] === "string"
+          ? [layer["source-layer"]]
+          : [],
+      ),
+    );
+
+    expect(style.layers.length).toBeGreaterThanOrEqual(70);
+    for (const sourceLayer of [
+      "boundaries",
+      "buildings",
+      "landcover",
+      "landuse",
+      "places",
+      "roads",
+      "water",
+    ]) {
+      expect(sourceLayers.has(sourceLayer), sourceLayer).toBe(true);
+    }
+    expect(style.sources["regional-detail"]).toMatchObject({
+      type: "vector",
+      url: `pmtiles://${LOCAL_DATA_PREFIX}basemap/iran-hormuz.pmtiles`,
+      maxzoom: 15,
+    });
+    expect(style.glyphs).toBe(`${LOCAL_DATA_PREFIX}glyphs/{fontstack}/{range}.pbf`);
+    expect(style.sprite).toBe(`${LOCAL_DATA_PREFIX}sprites/protomaps-light`);
+    expect(serialized).not.toContain("access_token");
+  });
+
+  it("o híbrido usa os rótulos detalhados sobre a imagem local", () => {
+    const style = createSatelliteStyle(SATELLITE, {
+      labels: true,
+      labelsBasemap: IRAN_HORMUZ,
+    });
+
+    expect(style.sources).toHaveProperty("satellite");
+    expect(style.sources).toHaveProperty("regional-detail");
+    expect(style.sources).not.toHaveProperty("natural-earth");
+    expect(style.layers.some((layer) => layer.id === "places_locality")).toBe(true);
+    expect(style.layers.some((layer) => layer.id === "roads_labels_major")).toBe(true);
+    expect(style.layers.some((layer) => layer.id === "earth")).toBe(false);
   });
 });

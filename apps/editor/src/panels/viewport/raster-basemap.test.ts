@@ -5,8 +5,13 @@
  * trocá-los dá um mapa cinza sem nada no console.
  */
 
-import { describe, expect, it } from "vitest";
-import { parseStyleChoice, rasterSourceUrl, type RasterBasemap } from "./raster-basemap.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  loadRasterBasemaps,
+  parseStyleChoice,
+  rasterSourceUrl,
+  type RasterBasemap,
+} from "./raster-basemap.js";
 
 function basemap(overrides: Partial<RasterBasemap> = {}): RasterBasemap {
   return {
@@ -22,6 +27,10 @@ function basemap(overrides: Partial<RasterBasemap> = {}): RasterBasemap {
 }
 
 describe("imagem de satélite local", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("arquivo .pmtiles vira url com protocolo; pirâmide vira padrão de tiles", () => {
     const single = rasterSourceUrl(basemap());
     expect(single.kind).toBe("pmtiles");
@@ -36,7 +45,29 @@ describe("imagem de satélite local", () => {
     expect(rasterSourceUrl(basemap({ source: "MUNDO.PMTILES" })).kind).toBe("pmtiles");
   });
 
-  it("o seletor distingue vetorial, satélite puro e satélite com rótulos", () => {
+  it("o manifesto pode informar a cobertura para o enquadramento", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          version: 1,
+          basemaps: [
+            {
+              id: "hormuz",
+              source: "sentinel/{z}/{x}/{y}.jpg",
+              bounds: [54, 24.2, 58.8, 28.1],
+            },
+          ],
+        }),
+      }),
+    );
+
+    const [regional] = await loadRasterBasemaps();
+    expect(regional?.bounds).toEqual([54, 24.2, 58.8, 28.1]);
+  });
+
+  it("o seletor distingue vetorial detalhado, satélite puro e satélite com rótulos", () => {
     expect(parseStyleChoice("dark-relief")).toEqual({
       kind: "vector",
       id: "dark-relief",
@@ -50,6 +81,11 @@ describe("imagem de satélite local", () => {
     expect(parseStyleChoice("sat+:esri")).toEqual({
       kind: "satellite",
       id: "esri",
+      labels: true,
+    });
+    expect(parseStyleChoice("detail:iran-hormuz")).toEqual({
+      kind: "detailed",
+      id: "iran-hormuz",
       labels: true,
     });
   });

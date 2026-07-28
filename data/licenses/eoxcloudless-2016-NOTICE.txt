@@ -1,0 +1,16 @@
+Satellite basemap — attribution and license
+
+EOxCloudless https://cloudless.eox.at by EOX IT Services GmbH
+(Contains modified Copernicus Sentinel data 2016)
+
+License:
+  Creative Commons Attribution 4.0 International (CC BY 4.0)
+  https://creativecommons.org/licenses/by/4.0/
+
+Official WMTS catalog:
+  https://tiles.maps.eox.at/wmts/1.0.0/WMTSCapabilities.xml
+
+Layer:
+  s2cloudless_3857
+
+The attribution above must remain visible wherever the imagery is displayed.

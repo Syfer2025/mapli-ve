@@ -33,8 +33,8 @@ assets importados, não procedurais.
 
 O monorepo, os guardrails arquiteturais, o núcleo matemático/temporal, o shell
 Electron e o workspace dockável estão implementados. O viewport já é um painel
-real: MapLibre + PMTiles offline, três estilos, busca geográfica e câmera
-animável com transporte. O documento possui schemas Zod, Command Bus com
+real: MapLibre + PMTiles offline, três estilos mundiais, mapa regional detalhado
+Irã–Hormuz, satélite local, busca geográfica e câmera animável com transporte. O documento possui schemas Zod, Command Bus com
 undo/redo, projeto `.theatrum` determinístico, escrita atômica, autosave com
 recuperação de crash e painéis reais de Projeto e Histórico. Agora há objetos de
 verdade sobre o mapa: quinze tipos de nó no registry, overlay Pixi com âncoras geo
@@ -154,7 +154,7 @@ Leia nesta ordem.
 | UI                    | React 19 + TypeScript 6 + Vite 7    | Padrão, rápido, tipado                                                                                           |
 | Layout de painéis     | dockview                            | Docking estilo AE, mantido                                                                                       |
 | Mapa                  | MapLibre GL JS 5                    | Vetorial, offline, pitch/bearing/globo, sem licença ([ADR-006](docs/adr/ADR-006-maplibre.md))                    |
-| Dados geo offline     | PMTiles 3 + Natural Earth           | Arquivos locais verificados, zero servidor                                                                       |
+| Dados geo offline     | PMTiles 3 + Natural Earth + OSM     | Mundo leve e pacotes regionais detalhados, todos locais                                                          |
 | Renderer de overlay   | PixiJS 8 (WebGL2 / WebGPU)          | Maduro, shaders customizados, batching                                                                           |
 | Estado de UI          | Zustand 5                           | Simples, sem boilerplate                                                                                         |
 | Documento / histórico | Immer + JSON Patch                  | Undo barato, invalidação dirigida por patch                                                                      |

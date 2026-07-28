@@ -28,11 +28,18 @@ import {
 import { Button } from "../../ui/index.js";
 import { createMapLibreCameraPort } from "./maplibre-adapters.js";
 import {
+  createDetailedMapStyle,
   createMapStyle,
   createSatelliteStyle,
   MAP_STYLE_OPTIONS,
   type MapStyleId,
 } from "./map-styles.js";
+import {
+  detailedBasemapById,
+  knownDetailedBasemaps,
+  loadDetailedBasemaps,
+  type DetailedBasemap,
+} from "./detailed-basemap.js";
 import {
   loadRasterBasemaps,
   parseStyleChoice,
@@ -119,11 +126,47 @@ function formatTime(currentFrame: number): string {
  */
 function styleSpecFor(choice: StyleChoice) {
   const parsed = parseStyleChoice(choice);
+  if (parsed.kind === "detailed") {
+    const basemap = detailedBasemapById(parsed.id);
+    if (basemap !== undefined) return createDetailedMapStyle(basemap);
+  }
   if (parsed.kind === "satellite") {
     const basemap = rasterBasemapById(parsed.id);
-    if (basemap !== undefined) return createSatelliteStyle(basemap, { labels: parsed.labels });
+    if (basemap !== undefined) {
+      const labelsBasemap = parsed.labels ? knownDetailedBasemaps()[0] : undefined;
+      return createSatelliteStyle(basemap, {
+        labels: parsed.labels,
+        ...(labelsBasemap === undefined ? {} : { labelsBasemap }),
+      });
+    }
   }
   return createMapStyle((parsed.kind === "vector" ? parsed.id : "dark-relief") as MapStyleId);
+}
+
+function readyStatus(choice: StyleChoice): string {
+  const parsed = parseStyleChoice(choice);
+  if (parsed.kind === "detailed") {
+    const basemap = detailedBasemapById(parsed.id);
+    if (basemap !== undefined)
+      return `offline detalhado · ruas e edifícios até z${basemap.maxZoom}`;
+  }
+  if (parsed.kind === "satellite") {
+    const labels =
+      parsed.labels && knownDetailedBasemaps().length > 0 ? " · híbrido detalhado" : "";
+    return `satélite local pronto${labels}`;
+  }
+  return "offline pronto · mapa mundial z0–6";
+}
+
+function focusDetailedBasemap(map: MapLibreMap, basemap: DetailedBasemap): void {
+  const [west, south, east, north] = basemap.focusBounds;
+  map.fitBounds(
+    [
+      [west, south],
+      [east, north],
+    ],
+    { padding: 56, duration: 900, essential: true },
+  );
 }
 
 export function MapViewport(): ReactNode {
@@ -136,6 +179,9 @@ export function MapViewport(): ReactNode {
   const fpsRef = useRef({ startedAt: 0, frames: 0 });
 
   const [styleId, setStyleId] = useState<StyleChoice>("dark-relief");
+  const selectedStyleRef = useRef<StyleChoice>("dark-relief");
+  /** Pacotes regionais de alta resolução realmente presentes no disco. */
+  const [detailedBasemaps, setDetailedBasemaps] = useState<readonly DetailedBasemap[]>([]);
   /** Imagens de satélite achadas nesta máquina; vazio esconde as opções. */
   const [rasters, setRasters] = useState<readonly RasterBasemap[]>([]);
   const [mapInstance, setMapInstance] = useState<MapLibreMap | null>(null);
@@ -275,10 +321,7 @@ export function MapViewport(): ReactNode {
       new maplibregl.NavigationControl({ showCompass: true, showZoom: true, visualizePitch: true }),
       "bottom-right",
     );
-    map.addControl(
-      new maplibregl.AttributionControl({ compact: true, customAttribution: "Natural Earth" }),
-      "bottom-left",
-    );
+    map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
 
     const updateCamera = (): void => {
       setCamera(cameraFromMap(map));
@@ -289,14 +332,18 @@ export function MapViewport(): ReactNode {
       const startedAt = performance.now();
       void settle(createMapLibreCameraPort(map), 2_000).then((result) => {
         if (result.settled) {
-          setMapStatus(`offline pronto · settle ${(performance.now() - startedAt).toFixed(0)} ms`);
+          setMapStatus(
+            `${readyStatus(selectedStyleRef.current)} · settle ${(
+              performance.now() - startedAt
+            ).toFixed(0)} ms`,
+          );
         } else {
           setMapStatus(`mapa local · settle ${result.reason}`);
         }
       });
     };
     const onStyleData = (): void => {
-      if (map.isStyleLoaded()) setMapStatus("offline pronto · PMTiles z0–6");
+      if (map.isStyleLoaded()) setMapStatus(readyStatus(selectedStyleRef.current));
     };
     // Camada 3D volta a cada setStyle: trocar de estilo descarta custom layers.
     const onStyleLoad = (): void => {
@@ -352,22 +399,64 @@ export function MapViewport(): ReactNode {
     loopRef.current = isLooping;
   }, [isLooping]);
 
-  // Imagem de satélite é opcional e local: descobre uma vez, e a ausência
-  // simplesmente não acrescenta opção ao seletor.
+  // Pacotes regionais e imagens de satélite são opcionais e locais: a ausência
+  // simplesmente não acrescenta opções ao seletor.
   useEffect(() => {
     let active = true;
-    void loadRasterBasemaps().then((found) => {
-      if (active) setRasters(found);
-    });
+    void Promise.all([loadDetailedBasemaps(), loadRasterBasemaps()]).then(
+      ([foundDetailed, foundRasters]) => {
+        if (!active) return;
+        setDetailedBasemaps(foundDetailed);
+        setRasters(foundRasters);
+
+        // Esta instalação já traz o recorte Irã–Hormuz: abre diretamente nele,
+        // sem obrigar o usuário a descobrir a opção antes de ver o ganho.
+        const initial = foundDetailed[0];
+        const map = mapRef.current;
+        if (initial !== undefined && map !== null && selectedStyleRef.current === "dark-relief") {
+          const choice = `detail:${initial.id}`;
+          selectedStyleRef.current = choice;
+          setStyleId(choice);
+          setMapStatus("abrindo Irã e Estreito de Hormuz…");
+          map.setStyle(createDetailedMapStyle(initial), { diff: false });
+          focusDetailedBasemap(map, initial);
+        }
+      },
+    );
     return () => {
       active = false;
     };
   }, []);
 
   const selectStyle = (nextStyle: StyleChoice): void => {
+    selectedStyleRef.current = nextStyle;
     setStyleId(nextStyle);
     setMapStatus("aplicando estilo local…");
-    mapRef.current?.setStyle(styleSpecFor(nextStyle), { diff: false });
+    const map = mapRef.current;
+    if (map === null) return;
+    map.setStyle(styleSpecFor(nextStyle), { diff: false });
+
+    const parsed = parseStyleChoice(nextStyle);
+    if (parsed.kind === "detailed") {
+      const basemap = detailedBasemapById(parsed.id);
+      if (basemap !== undefined) {
+        stopAnimation();
+        focusDetailedBasemap(map, basemap);
+      }
+    } else if (parsed.kind === "satellite") {
+      const basemap = rasterBasemapById(parsed.id);
+      if (basemap?.bounds !== undefined) {
+        const [west, south, east, north] = basemap.bounds;
+        stopAnimation();
+        map.fitBounds(
+          [
+            [west, south],
+            [east, north],
+          ],
+          { padding: 56, duration: 900, essential: true },
+        );
+      }
+    }
   };
 
   const goToHit = useCallback(
@@ -423,7 +512,7 @@ export function MapViewport(): ReactNode {
           <span>Estilo</span>
           <select
             value={styleId}
-            onChange={(event) => selectStyle(event.target.value as MapStyleId)}
+            onChange={(event) => selectStyle(event.target.value as StyleChoice)}
             aria-label="Estilo do mapa"
           >
             {MAP_STYLE_OPTIONS.map((option) => (
@@ -431,6 +520,15 @@ export function MapViewport(): ReactNode {
                 {option.label}
               </option>
             ))}
+            {detailedBasemaps.length > 0 && (
+              <optgroup label="Mapas detalhados">
+                {detailedBasemaps.map((basemap) => (
+                  <option key={basemap.id} value={`detail:${basemap.id}`}>
+                    {basemap.label}
+                  </option>
+                ))}
+              </optgroup>
+            )}
             {rasters.map((basemap) => (
               <optgroup key={basemap.id} label={basemap.label}>
                 <option value={`sat:${basemap.id}`}>{basemap.label}</option>
