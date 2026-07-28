@@ -19,14 +19,14 @@
  */
 
 import type { EvaluatedScene } from "@theatrum/animation";
-import { rect, type Rect, type Vec2 } from "@theatrum/core-math";
+import { mat2d, rect, type Rect, type Vec2 } from "@theatrum/core-math";
 import { clipBufferSize, clipPolyline, clipRing, type GeoMesh } from "@theatrum/gis";
 import type { ScreenScene as LayoutScreenScene } from "@theatrum/scene-graph";
 import type { ScreenNode, ScreenScene } from "@theatrum/renderer";
 import { geoMeshFor } from "../../geo/geo-data.js";
 
 /** Tipos de nó que este passe alimenta. */
-const GEO_NODE_TYPES: ReadonlySet<string> = new Set(["geo.region", "geo.rivers"]);
+const GEO_NODE_TYPES: ReadonlySet<string> = new Set(["geo.region", "geo.rivers", "geo.roads"]);
 
 export interface GeoDiagnostic {
   readonly nodeId: string;
@@ -295,6 +295,22 @@ export function expandGeoNodes(
       }),
       layout: Object.freeze({
         ...node.layout,
+        /**
+         * Devolve a origem local para a âncora. A matriz vem do estágio de
+         * layout, onde o pivot é `anchorPoint × tamanho` — 32 px no tamanho
+         * padrão de 64. Os anéis, porém, são medidos a partir de `anchorPx`:
+         * sem empurrar o pivot de volta, o território inteiro é pintado
+         * deslocado da projeção (achado na prova ao vivo do `geo.roads`, 7B).
+         * Multiplicar por `translate(pivot)` cancela o `translate(-pivot)` da
+         * composição e mantém rotação, escala e skew aplicados sobre a âncora.
+         */
+        matrix: mat2d.multiply(
+          hostLayout.matrix,
+          mat2d.translate(
+            hostEvaluated.transform.anchorPoint[0] * hostLayout.sizePx[0],
+            hostEvaluated.transform.anchorPoint[1] * hostLayout.sizePx[1],
+          ),
+        ),
         size: [maxX - minX, maxY - minY] as Vec2,
         visible: true,
       }),

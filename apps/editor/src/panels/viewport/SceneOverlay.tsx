@@ -104,18 +104,31 @@ function geoViewportOf(map: MapLibreMap): GeoViewport {
  * O estágio de layout roda antes da projeção da malha, então mede o tamanho
  * padrão do nó. Quem sabe a extensão do contorno é o passe geográfico, e é depois
  * dele que o frame ganha um layout utilizável para clique e gizmo.
+ *
+ * A matriz recebe o mesmo remendo do passe: os anéis são relativos à âncora,
+ * então o pivot `anchorPoint × tamanho` aplicado pelo layout genérico tem de ser
+ * devolvido — senão gizmo e hit-test apontam para a geometria deslocada.
  */
 function withGeoBounds(
   layout: LayoutScreenScene,
   bounds: ReadonlyMap<string, Rect>,
+  evaluated: EvaluatedScene,
 ): LayoutScreenScene {
   if (bounds.size === 0) return layout;
   const layouts = new Map(layout.layouts);
   for (const [nodeId, box] of bounds) {
     const current = layouts.get(nodeId);
     if (current === undefined) continue;
+    const anchorPoint = evaluated.nodes.get(nodeId)?.transform.anchorPoint ?? [0, 0];
     layouts.set(nodeId, {
       ...current,
+      matrix: mat2d.multiply(
+        current.matrix,
+        mat2d.translate(
+          (anchorPoint[0] ?? 0) * current.sizePx[0],
+          (anchorPoint[1] ?? 0) * current.sizePx[1],
+        ),
+      ),
       bounds: box,
       sizePx: [box.width, box.height],
       // O passe só devolve caixa para nó que desenhou, então ele não está culled.
@@ -427,7 +440,7 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
           evaluated,
           // Clique e gizmo consultam este layout. Sem as caixas reais eles apontariam
           // para um quadrado de 64 px na âncora em vez do território inteiro.
-          layout: withGeoBounds(layout, geo.bounds),
+          layout: withGeoBounds(layout, geo.bounds, evaluated),
           screen,
           behaviors: pass.diagnostics,
           effects: particles.diagnostics,
