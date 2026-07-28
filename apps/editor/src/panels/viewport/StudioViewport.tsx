@@ -15,16 +15,30 @@
  * `SceneOverlay`: sem caneta, sem marquee, sem gizmo. No palco não se desenha
  * caminho no terreno.
  *
- * ETAPA 1 do ADR-014. Rótulos técnicos (`label.callout`), efeitos e filtros ainda
- * não desenham aqui — eles vivem no overlay Pixi, que continua no Viewport. É
- * regressão temporária declarada no ADR, e a etapa 2 a fecha.
+ * Duas superfícies, na ordem: o palco 3D no fundo, o overlay Pixi por cima. É o
+ * overlay que desenha os rótulos técnicos (`label.callout`) — e é por ele existir
+ * aqui, e não no Viewport, que o palco é um ambiente completo em vez de um fundo.
  */
 
 import { evaluate } from "@theatrum/animation";
 import { applySceneBehaviors, createBuiltinBehaviorRegistry } from "@theatrum/behaviors";
+import { mat2d, type Mat2D, type Vec2 } from "@theatrum/core-math";
+import {
+  createPixiRenderBackend,
+  createRenderer,
+  createScreenScene,
+  PREVIEW_SLOT_ORDER,
+  registerBuiltinRenderables,
+  RenderableRegistry,
+  type Renderer,
+} from "@theatrum/renderer";
+import { layoutScene } from "@theatrum/scene-graph";
+import type { Composition } from "@theatrum/schema";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useEditorSession } from "../../document/useEditorSession.js";
 import { Panel } from "../../ui/index.js";
+import { expandCalloutNodes } from "./callout-nodes.js";
+import { createStudioProjectorPort, withStudioProjection } from "./studio-projector.js";
 import {
   collectStudioModels,
   collectStudioStage,
@@ -36,6 +50,16 @@ import "./StudioViewport.css";
 /** Comportamentos são puros e sem estado: uma instância por painel serve. */
 const behaviorRegistry = createBuiltinBehaviorRegistry();
 
+/**
+ * Letterbox da composição no painel, igual ao Viewport: nó em espaço `comp` cai
+ * no mesmo lugar relativo nos dois ambientes, e um rótulo não pula de posição ao
+ * trocar de aba.
+ */
+function compositionToViewport(composition: Composition, viewport: Vec2): Mat2D {
+  const scale = Math.min(viewport[0] / composition.width, viewport[1] / composition.height);
+  return mat2d.scaling(scale, scale);
+}
+
 interface StudioDebugWindow extends Window {
   __theatrumStudio?: { readonly status: () => ReturnType<StudioSceneRuntime["status"]> };
 }
@@ -44,7 +68,11 @@ export function StudioViewport(): ReactNode {
   const session = useEditorSession();
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const pixiCanvasRef = useRef<HTMLCanvasElement>(null);
   const runtimeRef = useRef<StudioSceneRuntime | null>(null);
+  const rendererRef = useRef<Renderer | null>(null);
+  /** Sobe quando o Pixi termina de inicializar: o primeiro frame precisa dele. */
+  const [rendererRevision, setRendererRevision] = useState(0);
   const [size, setSize] = useState<readonly [number, number]>([0, 0]);
   /** Bump para repintar quando o GLB termina de carregar, fora do ciclo do React. */
   const [assetRevision, setAssetRevision] = useState(0);
@@ -76,6 +104,49 @@ export function StudioViewport(): ReactNode {
       runtimeRef.current = null;
       setActiveStudioRuntime(null);
       runtime.dispose();
+    };
+  }, []);
+
+  /**
+   * Overlay Pixi do palco — o quarto contexto WebGL do aplicativo.
+   *
+   * O [ADR-012](../../../../../docs/adr/ADR-012-studio-own-canvas.md) mediu o
+   * orçamento: teto de 16 no Chromium, 3,6 ms para criar, um custo único na
+   * abertura. O [ADR-014](../../../../../docs/adr/ADR-014-studio-own-panel.md)
+   * gastou um desses porque a alternativa era o palco não ter rótulo nenhum.
+   *
+   * `missingRenderable: "skip"` importa aqui mais que no Viewport: no palco há
+   * tipos de nó que legitimamente não desenham (contorno de país, rota geo), e
+   * eles não podem virar erro só por estarem no documento.
+   */
+  useEffect(() => {
+    const canvas = pixiCanvasRef.current;
+    if (canvas === null) return;
+    const registry = new RenderableRegistry();
+    const builtins = registerBuiltinRenderables(registry);
+    const renderer = createRenderer({
+      backend: createPixiRenderBackend({ preference: "webgl2" }),
+      registry,
+      missingRenderable: "skip",
+    });
+    let alive = true;
+    void renderer
+      .init({ overlay: { native: canvas } })
+      .then(() => {
+        if (!alive) return;
+        rendererRef.current = renderer;
+        setRendererRevision((value) => value + 1);
+      })
+      .catch((error: unknown) => {
+        if (alive) {
+          setStatus(`GPU indisponível · ${error instanceof Error ? error.message : String(error)}`);
+        }
+      });
+    return () => {
+      alive = false;
+      rendererRef.current = null;
+      renderer.dispose();
+      builtins.dispose();
     };
   }, []);
 
@@ -114,7 +185,38 @@ export function StudioViewport(): ReactNode {
     );
     const stage = collectStudioStage(pass.scene);
     const models = stage === null ? [] : collectStudioModels(pass.scene);
+    // O palco desenha ANTES do layout, porque é ele quem diz onde, em pixels,
+    // está cada modelo: a projeção sai da câmera orbital DESTE frame.
     runtime.render({ stage, models }, size[0], size[1]);
+
+    const renderer = rendererRef.current;
+    if (renderer !== null) {
+      const viewport: Vec2 = [size[0], size[1]];
+      const compToScreen = compositionToViewport(composition, viewport);
+      const projector = createStudioProjectorPort(viewport, stage?.fovDeg ?? 38);
+      const base = layoutScene(pass.scene, projector, {
+        compToScreen,
+        viewport: { x: 0, y: 0, width: size[0], height: size[1] },
+      });
+      const layout = stage === null ? base : withStudioProjection(base, models, runtime, viewport);
+      const composed = createScreenScene(pass.scene, layout, {
+        size: viewport,
+        pixelRatio: Math.max(1, window.devicePixelRatio),
+      });
+      // Rótulo com guia (7E.2) é o que a apresentação usa para falar do míssil e
+      // da cabine. O projetor geo entra como o do palco: um rótulo ancorado em
+      // geografia não tem alvo aqui, e é descartado em vez de inventado.
+      const callouts = expandCalloutNodes(
+        composed,
+        pass.scene,
+        layout,
+        session.document.paths,
+        compToScreen,
+        (lngLat) => projector.project([lngLat[0], lngLat[1]]),
+      );
+      renderer.render(callouts.scene, PREVIEW_SLOT_ORDER);
+    }
+
     const report = runtime.status();
     setStatus(
       stage === null
@@ -125,12 +227,20 @@ export function StudioViewport(): ReactNode {
             ? `carregando ${report.pending} modelo(s)…`
             : `${report.loaded} modelo(s) · ${size[0]}×${size[1]}`,
     );
-  }, [session.document, session.playheadFrame, session.selectedCompositionId, size, assetRevision]);
+  }, [
+    session.document,
+    session.playheadFrame,
+    session.selectedCompositionId,
+    size,
+    assetRevision,
+    rendererRevision,
+  ]);
 
   return (
     <Panel scroll={false}>
       <div ref={containerRef} className="studio-viewport">
         <canvas ref={canvasRef} className="studio-viewport__stage" aria-hidden="true" />
+        <canvas ref={pixiCanvasRef} className="studio-viewport__pixi" aria-hidden="true" />
         <p className="studio-viewport__status">{status}</p>
       </div>
     </Panel>

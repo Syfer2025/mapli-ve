@@ -41,3 +41,17 @@
   /* Diagnóstico não recebe clique: o palco inteiro é área de câmera. */
   pointer-events: none;
 }
+
+/*
+ * Overlay Pixi do palco: por cima do chão 3D, e é ele que desenha os rótulos
+ * técnicos. Sem `pointer-events: none` ele engoliria o clique destinado à câmera.
+ */
+.studio-viewport__pixi {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
