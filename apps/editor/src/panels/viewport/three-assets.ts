@@ -25,6 +25,18 @@ export interface ModelTemplate {
    * máxima cortaria as pontas do primeiro.
    */
   readonly radius: number;
+  /**
+   * Caixa do modelo normalizado, para quem precisa da forma e não do raio: a
+   * sombra de contato do palco projeta uma elipse com estes semi-eixos, e um
+   * caça deitado tem sombra comprida, não redonda. `bottom` é o quanto a base
+   * fica abaixo do centro — é ela que diz se o objeto está encostado no chão ou
+   * suspenso, e a penumbra abre conforme essa altura.
+   */
+  readonly footprint: {
+    readonly halfX: number;
+    readonly halfZ: number;
+    readonly bottom: number;
+  };
 }
 
 /**
@@ -87,7 +99,15 @@ function normalizeModel(model: THREE.Object3D): ModelTemplate {
       }
     }
   });
-  return { root: wrapper, radius: (Math.hypot(size.x, size.y, size.z) / 2) * normalizer };
+  return {
+    root: wrapper,
+    radius: (Math.hypot(size.x, size.y, size.z) / 2) * normalizer,
+    footprint: {
+      halfX: (size.x * normalizer) / 2,
+      halfZ: (size.z * normalizer) / 2,
+      bottom: -(size.y * normalizer) / 2,
+    },
+  };
 }
 
 /**

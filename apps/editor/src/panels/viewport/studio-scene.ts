@@ -27,7 +27,7 @@ import {
   type LightRig,
   type ModelTemplate,
 } from "./three-assets.js";
-import { createStudioGrid, type StudioGrid } from "./studio-grid.js";
+import { createStudioGrid, type StudioGrid, type StudioShadow } from "./studio-grid.js";
 
 /** Estado do palco num frame, já avaliado. Tudo em metros e graus. */
 export interface StudioStageState {
@@ -45,6 +45,10 @@ export interface StudioStageState {
   readonly keyIntensity: number;
   readonly rimIntensity: number;
   readonly environmentIntensity: number;
+  /** Textura procedural do piso. 0 devolve o piso liso. */
+  readonly floorTexture: number;
+  /** Sombra de contato sob cada objeto. 0 desliga. */
+  readonly shadowStrength: number;
 }
 
 /** Um `model3d` posicionado no palco em vez de no globo. */
@@ -91,6 +95,8 @@ export function collectStudioStage(evaluated: EvaluatedScene): StudioStageState 
       keyIntensity: Math.max(0, num(props, "keyIntensity", 2.6)),
       rimIntensity: Math.max(0, num(props, "rimIntensity", 1.8)),
       environmentIntensity: Math.max(0, num(props, "environmentIntensity", 0.75)),
+      floorTexture: clamp01(num(props, "floorTexture", 0.35)),
+      shadowStrength: clamp01(num(props, "shadowStrength", 0.75)),
     };
   }
   return null;
@@ -155,6 +161,7 @@ interface StudioInstance {
   readonly root: THREE.Object3D;
   readonly src: string;
   readonly radius: number;
+  readonly footprint: ModelTemplate["footprint"];
 }
 
 /** Diagnóstico DEV, e o que o verificador de fase lê. */
@@ -291,6 +298,8 @@ export class StudioSceneRuntime {
       horizon: stripAlpha(scene.stage.background),
       spacingMeters: scene.stage.gridSpacingMeters,
       opacity: scene.stage.gridOpacity,
+      texture: scene.stage.floorTexture,
+      shadows: this.collectShadows(scene.models, scene.stage.shadowStrength),
     });
     this.renderer.setSize(width, height, false);
     this.renderer.render(this.scene, this.camera);
@@ -305,6 +314,73 @@ export class StudioSceneRuntime {
     const ndc = new THREE.Vector3(point[0], point[1], point[2]).project(this.camera);
     if (ndc.z > 1) return null;
     return [((ndc.x + 1) / 2) * width, ((1 - ndc.y) / 2) * height];
+  }
+
+  /**
+   * Raio da esfera que envolve tudo que está visível no palco, medido do alvo da
+   * câmera. É o número que dimensiona o alcance de profundidade: sem ele, `near`
+   * e `far` seriam palpite, e palpite largo custa z-fighting.
+   *
+   * Piso mínimo de 1 m para palco vazio não gerar um frustum degenerado.
+   */
+  private sceneRadiusMeters(target: readonly [number, number, number]): number {
+    let radius = 1;
+    for (const model of this.models) {
+      const instance = this.instances.get(model.id);
+      if (instance === undefined || model.opacity <= 0) continue;
+      const offset = Math.hypot(
+        model.position[0] - target[0],
+        model.position[1] - target[1],
+        model.position[2] - target[2],
+      );
+      radius = Math.max(radius, offset + instance.radius * model.sizeMeters);
+    }
+    return radius;
+  }
+
+  /**
+   * Pegada de cada objeto para a sombra de contato do chão.
+   *
+   * A elipse sai da caixa do modelo, não do raio: um caça é comprido e fino, e
+   * sombra redonda em objeto comprido é o tipo de erro que ninguém sabe nomear
+   * mas todo mundo percebe. Objeto suspenso — aeronave em voo no palco — recebe
+   * sombra mais larga, mais fraca e mais difusa, que é o que a penumbra de uma
+   * luz de área acima faz de verdade.
+   */
+  private collectShadows(
+    models: readonly StudioModelState[],
+    strength: number,
+  ): readonly StudioShadow[] {
+    if (strength <= 0) return [];
+    const shadows: StudioShadow[] = [];
+    for (const model of models) {
+      const instance = this.instances.get(model.id);
+      if (instance === undefined || model.opacity <= 0) continue;
+      const scale = model.sizeMeters;
+      // Altura da base sobre o chão, em metros. Negativa (objeto enterrado) conta
+      // como encostado.
+      const height = Math.max(0, model.position[1] + instance.footprint.bottom * scale);
+      const span = Math.max(
+        0.1,
+        Math.max(instance.footprint.halfX, instance.footprint.halfZ) * scale,
+      );
+      // A penumbra abre proporcional à altura relativa ao próprio tamanho: um
+      // caça a 2 m do chão e um míssil a 2 m não estão igualmente soltos.
+      const lift = Math.min(1, height / (span * 2));
+      const spread = 1 + lift * 1.4;
+      shadows.push({
+        center: [model.position[0], model.position[2]],
+        radius: [
+          instance.footprint.halfX * scale * spread,
+          instance.footprint.halfZ * scale * spread,
+        ],
+        headingDeg: model.headingDeg,
+        // Sombra desbota junto com o objeto: opacidade 0 não pode deixar mancha.
+        strength: strength * model.opacity * (1 - lift * 0.55),
+        softness: lift,
+      });
+    }
+    return shadows;
   }
 
   /** Raio em metros do modelo carregado, para o enquadramento automático. */
@@ -327,11 +403,23 @@ export class StudioSceneRuntime {
     this.camera.lookAt(stage.target[0], stage.target[1], stage.target[2]);
     this.camera.fov = stage.fovDeg;
     this.camera.aspect = width / height;
-    // O plano próximo acompanha a distância: fixo em 5 cm com a câmera a 2 km, a
-    // razão far/near passa de 1e5 e o depth buffer perde resolução onde importa —
-    // as faces do modelo começam a piscar umas sobre as outras.
-    this.camera.near = Math.max(0.02, stage.distanceMeters / 2_000);
-    this.camera.far = Math.max(100, stage.distanceMeters * 40);
+    // Alcance de profundidade derivado do CONTEÚDO, não de um divisor arbitrário.
+    //
+    // A versão anterior escalava com a distância (`distanceMeters / 2000`) com a
+    // intenção certa — está no comentário dela: "as faces do modelo começam a
+    // piscar umas sobre as outras". Mas o divisor não alcançava o objetivo: com a
+    // câmera a 34 m dava `near` 0,02 e `far` 1360, razão **68.000:1**. Nessa
+    // razão, 1 mm de separação entre duas faces a 34 m vale 0,29 de um passo do
+    // depth buffer de 24 bits — ou seja, **menos que um passo**, e duas faces
+    // coplanares passam a ganhar uma da outra conforme o arredondamento. É o
+    // z-fighting que aparece como linhas finas piscando sobre a fuselagem.
+    //
+    // O plano próximo não tem motivo para ficar a 2 cm quando a geometria mais
+    // próxima está a 17 m. Derivando do raio da cena a razão cai para a casa de
+    // 10:1, e o mesmo milímetro passa a valer ~270 passos.
+    const radius = this.sceneRadiusMeters(stage.target);
+    this.camera.near = Math.max(0.05, stage.distanceMeters - radius * 1.6);
+    this.camera.far = stage.distanceMeters + radius * 6 + 50;
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld();
     this.rig.key.intensity = stage.keyIntensity;
@@ -359,7 +447,12 @@ export class StudioSceneRuntime {
         if (this.instances.has(model.id)) return;
         const root = template.root.clone(true);
         root.matrixAutoUpdate = false;
-        this.instances.set(model.id, { root, src: model.assetSrc, radius: template.radius });
+        this.instances.set(model.id, {
+          root,
+          src: model.assetSrc,
+          radius: template.radius,
+          footprint: template.footprint,
+        });
         this.scene.add(root);
         this.repaint?.();
       });

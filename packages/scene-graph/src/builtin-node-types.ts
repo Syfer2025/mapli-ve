@@ -381,6 +381,10 @@ const StudioStagePropsSchema = z
     keyIntensity: NonNegativeNumberPropertySchema,
     rimIntensity: NonNegativeNumberPropertySchema,
     environmentIntensity: NonNegativeNumberPropertySchema,
+    /** Textura procedural do piso, somada à grade. 0 devolve piso liso. */
+    floorTexture: UnitNumberPropertySchema,
+    /** Sombra de contato sob cada objeto do palco. 0 desliga. */
+    shadowStrength: UnitNumberPropertySchema,
   })
   .passthrough();
 
@@ -1311,6 +1315,8 @@ export const STUDIO_STAGE_NODE_TYPE = defineNodeType({
     keyIntensity: animatable(2.6),
     rimIntensity: animatable(1.8),
     environmentIntensity: animatable(0.75),
+    floorTexture: animatable(0.35),
+    shadowStrength: animatable(0.75),
   },
   propertySchema: StudioStagePropsSchema,
   properties: [
@@ -1466,6 +1472,30 @@ export const STUDIO_STAGE_NODE_TYPE = defineNodeType({
       animatable: true,
       min: 0,
       step: 0.05,
+    }),
+    property({
+      path: "props.floorTexture",
+      label: "Textura do piso",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      max: 1,
+      step: 0.05,
+      unit: "percent",
+    }),
+    property({
+      path: "props.shadowStrength",
+      label: "Sombra de contato",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      max: 1,
+      step: 0.05,
+      unit: "percent",
     }),
   ],
   supportsChildren: false,
