@@ -12,7 +12,7 @@ morde, e como não repetir erro já cometido.
 
 ## 1. Onde parou
 
-Cadeia final verde — **1.028 testes funcionais em 104 arquivos**, suíte isolada
+Cadeia final verde — **1.052 testes funcionais em 106 arquivos**, suíte isolada
 de performance com 6/6 testes, 336 módulos e 896 dependências sem violação de
 camada; build electron-vite e pacote Windows verificados. Os orçamentos de
 performance ficam isolados dos workers funcionais para medir o motor, não a
@@ -29,13 +29,13 @@ Passe de auditoria em 2026-07-28, sobre o estado que o `77aa7e4` deixou:
 
 Passe seguinte, no mesmo dia — o palco 3D, a pedido do dono:
 
-| O quê                                             | Resultado                                                        |
-| ------------------------------------------------- | ---------------------------------------------------------------- |
-| Grade do palco cintilando ao girar a câmera       | filtro de Nyquist no shader; MSAA nunca ia resolver              |
-| Linhas piscando sobre o modelo (z-fighting)       | `near`/`far` derivados do conteúdo: razão 68.000:1 → ~10:1       |
-| Sombra "flutuando" recusada pelo dono             | refeita como **silhueta projetada**, com a forma real do objeto  |
-| Opacidade do palco reacendia o mapa               | **ADR-014**: palco em painel próprio, quatro etapas provadas     |
-| Pontos de interesse para a câmera de apresentação | **ADR-015** escrito e aceito; implementação é o próximo trabalho |
+| O quê                                             | Resultado                                                          |
+| ------------------------------------------------- | ------------------------------------------------------------------ |
+| Grade do palco cintilando ao girar a câmera       | filtro de Nyquist no shader; MSAA nunca ia resolver                |
+| Linhas piscando sobre o modelo (z-fighting)       | `near`/`far` derivados do conteúdo: razão 68.000:1 → ~10:1         |
+| Sombra "flutuando" recusada pelo dono             | refeita como **silhueta projetada**, com a forma real do objeto    |
+| Opacidade do palco reacendia o mapa               | **ADR-014**: palco em painel próprio, quatro etapas provadas       |
+| Pontos de interesse para a câmera de apresentação | **ADR-015 entregue e provado** — `verify:phase7e3` de 5/5 para 6/6 |
 
 Fases 0–6 concluídas. **O bloco 7 inteiro está fechado** (única exceção declarada:
 7E.4, VFX, que o dono mandou adiar) e a **Fase 8 produz MP4 H.264, GIF, ProRes
@@ -49,7 +49,7 @@ Cada bloco tem verificador próprio dirigindo o Electron real por CDP:
 | 7B · camadas geográficas | `verify:phase7b`        | 4/4       |
 | 7C · rotas e setas       | `verify:phase7c`        | verde     |
 | 7D · textos no mapa      | `verify:phase7d`        | 4/4       |
-| 7E.3 · modo estúdio      | `verify:phase7e3`       | 5/5       |
+| 7E.3 · modo estúdio      | `verify:phase7e3`       | 6/6       |
 | 8 · export byte-idêntico | `verify:phase8`         | 7/7       |
 | 8 · arquivo MP4 H.264    | `verify:phase8-video`   | 6/6       |
 | 8 · GIF + ProRes/alfa    | `verify:phase8-formats` | 5/5       |
@@ -151,30 +151,55 @@ seletor **Exemplos…** depois dessa prova. Portanto, o instalador que está em
 2026-07-28 parou porque a autorização de rede atingiu a cota, não por erro de
 código. Sobra no produto:
 
-1. **Implementar o [ADR-015](adr/ADR-015-studio-points-of-interest.md) — pontos de
-   interesse do palco.** É o último pedido do dono e o próximo trabalho. O ADR está
-   escrito com a forma decidida e cinco consequências declaradas: nó `studio.poi`,
-   botão "Marcar pontos" com raycast na superfície, marcadores no overlay do palco,
-   e roteiro **compilando para keyframes** nas props de câmera que o `studio.stage`
-   já tem — não um player paralelo, para a câmera continuar função pura de
-   `(documento, frame)` e o export byte-idêntico continuar valendo.
-
-   **Não substitua o clique por uma lista de nós do glTF.** Foi medido e a premissa
-   morreu: o 2S19M1 do dono tem 0 animações, 0 skins e 51 nós irmãos chamados
-   `Object_2` a `Object_50`, agrupados por **material** — 20 das 49 malhas ocupam
-   mais de 60% de um eixo do veículo, várias em 100%. Não existe "o nó da torre", e
-   isso vale para qualquer modelo vindo de OBJ → Sketchfab, que é a maior parte do
-   acervo militar disponível.
-
-   **E não confunda com animação de parte:** POI leva a câmera **até** a torre; não
-   a **gira**. Girar exige `gltf.animations`, hoje descartado em
-   `three-assets.ts:47`, e um modelo com a torre como nó separado.
-
-2. **Resolução acima do tamanho da janela.** Hoje o frame sai no tamanho do
+1. **Resolução acima do tamanho da janela.** Hoje o frame sai no tamanho do
    viewport, e o H.264 exige dimensão par — 1227×643 vira 1226×642. É o gatilho
    declarado no [ADR-013](adr/ADR-013-export-frame-composition.md) para voltar à
    janela de render oculta.
-3. **Motion blur, checkpoint e retomada.**
+2. **Motion blur, checkpoint e retomada.**
+3. **Fase 7 (ações): templates de impacto.** Nada dela ameaça o que já está provado.
+
+### Pontos de interesse do palco (ADR-015): entregue e provado
+
+**Fechado em 2026-07-28.** O último pedido do dono — a câmera vai até o míssil e
+ele fala do míssil. Quatro peças: tipo de nó `studio.poi`, botão **Marcar pontos**
+com raycast na superfície do modelo, marcadores numerados em superfície própria, e
+**Compilar roteiro**, que transforma a sequência de pontos em keyframes das seis
+props de câmera do `studio.stage`.
+
+O critério 5 do `verify:phase7e3` prova a cadeia inteira com dois cliques de mouse
+de verdade, e as duas afirmações que sobram são em pixel: a **ida e volta** do
+raycast (projetar o ponto devolvido cai a **0,60 e 0,30 px** de onde o raio partiu)
+e a **visita** (no frame de chegada da segunda parada o ponto dela projeta a
+**0,00 px do centro** da tela, porque é para lá que a câmera mira). Ver a nota de
+implementação do [ADR-015](adr/ADR-015-studio-points-of-interest.md) para os três
+desvios da letra do documento e o motivo de cada um.
+
+Três coisas para lembrar antes de mexer nisto:
+
+- **Marcador não é conteúdo, é chrome de autoria.** Ele mora em
+  `.studio-viewport__markers`, que está na `EXCLUDED_SURFACE_SELECTORS` do
+  `frame-composer`. Desenhá-lo no overlay Pixi do palco — que o ADR sugeria e que é
+  **composto** no export — poria um número verde sobre o míssil no vídeo entregue
+  toda vez que alguém esquecesse o modo de marcação ligado.
+- **Azimute é grandeza modular, e o keyframe não sabe disso.** Paradas em 350° e
+  10° estão a vinte graus uma da outra; a interpolação linear percorre 340 pelo
+  lado errado. `unwrapAzimuths` desenrola a sequência antes de gravar. É a família
+  de defeito da [§ 4.17](#417-comparar-ângulos-normalizados-com-régua-linear-atravessa-a-costura),
+  agora do lado de quem **escreve** o ângulo, não de quem o afirma em teste.
+- **POI leva a câmera até a torre; não a gira.** Girar exige `gltf.animations`,
+  hoje descartado em `three-assets.ts`, e um modelo com a torre como nó separado —
+  que o 2S19 do dono não tem. São problemas diferentes.
+
+### Trocar de aba do dockview por CDP: resolvido
+
+A [pendência do ADR-014](#o-palco-virou-painel-próprio-adr-014-e-o-que-isso-ensinou)
+dizia que `Input.dispatchMouseEvent` por coordenada trocava de aba **às vezes**, e
+não se sabia por quê. O que funciona de forma confiável é despachar
+`PointerEvent('pointerdown'/'pointerup')` **no próprio elemento da aba**, com
+`bubbles`, `composed`, `pointerId` e `isPrimary` preenchidos — o dockview escuta
+pointer no elemento, e o evento sintetizado a partir do mouse do CDP nem sempre
+chega lá. Custou uma rodada do `verify:phase8` inteira relatando
+`.maplibregl-canvas ausente`, que é o **sinal do painel errado** pela quarta vez.
 
 ### O palco virou painel próprio (ADR-014), e o que isso ensinou
 

@@ -422,13 +422,50 @@ Três defeitos que só a medição em pixel encontrou, todos silenciosos:
    seguinte pegava o contexto morto. O three só quebrava adiante, lendo
    `precision` de null.
 
-Verificado em Electron real: `node tools/verify-phase7e3.mjs` — **5/5**. O palco
+Verificado em Electron real: `node tools/verify-phase7e3.mjs` — **6/6** (o sexto é
+o do ADR-015, abaixo). O palco
 substitui o mapa e desenha grade (7/7/6 transições de luminância em três linhas);
 um GLB da Biblioteca local pinta 6,64% da tela e some sem resíduo com opacidade 0;
 azimute animado de 0° a 180° mantém o raio em 40,000 m com dispersão de 0,0000 m e
 muda 13–15% dos pixels a cada amostra; o rótulo mantém o afastamento exato de
 (140, −90) px enquanto o modelo percorre 334 px de tela. Desfazer devolve o
 documento byte a byte e traz o mapa de volta.
+
+#### 7E.5 — Pontos de interesse do palco ✅
+
+O último pedido do dono: _"quero falar sobre os mísseis, aí a câmera tem que ir até
+o míssil; falar da cabine, a câmera tem que mirar para a cabine."_ Decidido no
+[ADR-015](adr/ADR-015-studio-points-of-interest.md) depois de a premissa óbvia
+morrer na medição — o obuseiro 2S19M1 do dono tem 0 animações, 0 skins e 51 nós
+irmãos chamados `Object_2`…`Object_50`, agrupados por **material**: não existe "o
+nó da torre" para oferecer numa lista. O ponto nasce de **clique na superfície**.
+
+Quatro peças:
+
+1. **`studio.poi`** — nome (o do nó), ponto em metros do palco e o enquadramento
+   **absoluto** da visita. Sem `COMMON_PROPERTIES`, pelo mesmo motivo do palco:
+   `transform.opacity` num nó que não desenha só pode fazê-lo sumir.
+2. **Marcar pontos** — `StudioSceneRuntime.pick()` faz raycast contra os modelos
+   (nunca o chão: ele é infinito, e um clique errado acertaria "alguma coisa" e
+   criaria um ponto plausível no lugar errado). Modelo em parse não é alvo, e o
+   painel diz isso em vez de tratar o `null` como vazio.
+3. **Marcadores numerados** em superfície própria, fora da composição do export.
+4. **Compilar roteiro** — a sequência vira keyframes das seis props de câmera do
+   `studio.stage`, por `keyframe.replace-all`. Não é player paralelo: a câmera
+   continua função pura de `(documento, frame)`, e o export byte-idêntico continua
+   valendo.
+
+Critério 5 do verificador, com **dois cliques de mouse de verdade**: 2 pontos
+criados, ida e volta do raycast em **0,60 / 0,30 px**, pontos a 7,0 e 4,8 m do
+centro de um modelo de 18 m de vão (superfície, não chão), 2 marcadores com
+3.032 px de tinta e **0** depois de desligar o modo, 4 keyframes em cada uma das 6
+trilhas de câmera, e o ponto da segunda parada projetando a **0,00 px do centro**
+da tela no frame de chegada. `verify:phase8` seguiu **7/7**.
+
+**Limite conhecido:** o ponto guarda metros absolutos do palco. Mover o `model3d`
+em `stageX`/`stageZ` — ou trocar o GLB dele — deixa os pontos onde estavam, e eles
+podem cair no vazio. É a consequência declarada no ADR-015; o aviso cabe na
+interface, e ainda não existe.
 
 #### 7E.4 — VFX volumétrico ⛔ bloqueado por ferramenta
 

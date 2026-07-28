@@ -16,6 +16,11 @@
  *    isso separa uma câmera que gira de um número que muda.
  * 4. Um label.callout apontando para o modelo acompanha a projeção 3D
  *    enquanto a câmera orbita — a costura entre o palco e o overlay Pixi.
+ * 5. Ponto de interesse (ADR-015): dois cliques de mouse DE VERDADE na
+ *    superfície do modelo criam dois nós studio.poi, o marcador desenha e
+ *    apaga, e o roteiro compilado leva a câmera até o ponto. As duas
+ *    afirmações que sobram são em pixel: a ida e volta do raycast, e o ponto
+ *    da segunda parada projetando no centro da tela no frame de chegada.
  *
  * Como nas fases anteriores, o script desfaz tudo o que cria e compara o
  * documento com o estado inicial antes de sair.
@@ -205,6 +210,39 @@ const studioPixels = () => {
   const context = scratch.getContext('2d', { willReadFrequently: true });
   context.drawImage(source, 0, 0);
   return context.getImageData(0, 0, scratch.width, scratch.height);
+};
+
+/**
+ * Tinta na superfície dos marcadores (ADR-015).
+ *
+ * Canvas 2D comum, então basta ler. O que se prova com isto é que o modo de
+ * marcação DESENHA — e, no fim do critério, que desligá-lo APAGA. Um canvas que
+ * só é limpo quando há o que desenhar deixaria o último quadro na tela para
+ * sempre, e o dono exportaria com números fantasmas por cima do modelo.
+ */
+const markerInk = () => {
+  const canvas = document.querySelector('.studio-viewport__markers');
+  if (canvas === null) return -1;
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  const image = context.getImageData(0, 0, canvas.width, canvas.height);
+  let painted = 0;
+  for (let i = 3; i < image.data.length; i += 4) {
+    if (image.data[i] > 8) painted += 1;
+  }
+  return painted;
+};
+
+/** O botão da barra do palco, pelo texto. */
+const studioTool = (label) =>
+  [...document.querySelectorAll('.studio-viewport__tools button')].find((button) =>
+    button.textContent.includes(label),
+  ) ?? null;
+
+/** Os nós de um tipo na composição corrente, na ordem das camadas. */
+const nodesOfType = (type) => {
+  const comp = composition();
+  if (comp === undefined) return [];
+  return Object.values(comp.nodes).filter((node) => node.type === type);
 };
 
 /** O palco está realmente aparecendo, ou só existe no DOM? */
@@ -708,6 +746,192 @@ async function main() {
         `${completos.length}/${report.samples.length} amostras com rótulo desenhado, ` +
           `lado ${ladoOk ? "correto em todas" : "ERRADO"}, ` +
           `modelo andou ${andou.toFixed(1)} px, rótulo andou ${rotuloAndou.toFixed(1)} px`,
+      );
+    }
+
+    // ── 5. Ponto de interesse nasce do clique, e o roteiro leva a câmera lá ──
+    //
+    // O critério do [ADR-015](../docs/adr/ADR-015-studio-points-of-interest.md).
+    // Ele prova a cadeia inteira com dois cliques de mouse DE VERDADE, e as duas
+    // afirmações que sobram são em pixel:
+    //
+    // - **ida e volta**: projetar o ponto que o raycast devolveu tem de cair no
+    //   pixel de onde o raio partiu. Duas transformações independentes casando
+    //   em pixel é o que pega matriz de um frame atrás, que nenhum teste de
+    //   unidade veria;
+    // - **a câmera visitou**: no frame de chegada da segunda parada, o ponto dela
+    //   tem de projetar no CENTRO da tela — porque é para lá que a câmera mira.
+    //   Isso afirma o efeito, não a estrutura: não adianta o keyframe existir se
+    //   a câmera não for.
+    if (modelId !== undefined && stageId !== undefined) {
+      const alvos = await client.evaluate(
+        `(async () => {
+          await atFrame(0);
+          const botao = studioTool('Marcar pontos');
+          if (botao === null) throw new Error('botão "Marcar pontos" ausente na barra do palco');
+          // Botão HTML comum: aqui click() basta. Foi a ABA do dockview que
+          // exigiu evento de ponteiro por coordenada (ADR-014), não isto.
+          botao.click();
+          await wait(200);
+          const canvas = studioCanvas().getBoundingClientRect();
+          // Dois pontos do modelo, afastados na tela para não caírem no mesmo
+          // marcador — e o clique tem de acertar geometria, então saem da
+          // projeção do próprio modelo, não de um palpite de coordenada.
+          const pontos = [[6, 0, 0], [6, 1.2, 0]].map((p) => window.__theatrumStudio.project(p));
+          return {
+            canvas: [canvas.left, canvas.top, canvas.width, canvas.height],
+            pontos,
+            marcandoAntes: markerInk(),
+          };
+        })()`,
+      );
+
+      const cliques = [];
+      for (const ponto of alvos.pontos) {
+        if (!Array.isArray(ponto)) continue;
+        const x = Math.round(alvos.canvas[0] + ponto[0]);
+        const y = Math.round(alvos.canvas[1] + ponto[1]);
+        await client.request("Input.dispatchMouseEvent", { type: "mouseMoved", x, y });
+        for (const type of ["mousePressed", "mouseReleased"]) {
+          await client.request("Input.dispatchMouseEvent", {
+            type,
+            x,
+            y,
+            button: "left",
+            clickCount: 1,
+          });
+        }
+        cliques.push([ponto[0], ponto[1]]);
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+
+      const report = await client.evaluate(
+        `(async () => {
+          await wait(250);
+          const pois = nodesOfType('studio.poi');
+          const cliques = ${JSON.stringify(cliques)};
+          // Ida e volta: onde cada ponto marcado projeta agora.
+          const roundTrip = pois.map((poi, index) => {
+            const ponto = [
+              poi.props.pointX.value,
+              poi.props.pointY.value,
+              poi.props.pointZ.value,
+            ];
+            const tela = window.__theatrumStudio.project(ponto);
+            const clique = cliques[index];
+            return tela === null || clique === undefined
+              ? null
+              : Math.hypot(tela[0] - clique[0], tela[1] - clique[1]);
+          });
+          // O ponto tem de estar na SUPERFÍCIE do modelo, não no chão nem no
+          // vazio: o F/A-18 tem 18 m de vão, então nada legítimo cai a mais de
+          // 12 m do centro dele.
+          const distanciasAoModelo = pois.map((poi) =>
+            Math.hypot(
+              poi.props.pointX.value - 6,
+              poi.props.pointY.value,
+              poi.props.pointZ.value,
+            ),
+          );
+          const tintaMarcando = markerInk();
+          const marcadores = window.__theatrumStudio.markers();
+
+          // Compilar. O aviso de substituição é window.confirm, o mesmo padrão
+          // que o resto do editor usa para ação destrutiva; aqui ele é respondido
+          // em vez de contornado, senão o critério não passaria pelo caminho que
+          // o dono percorre.
+          const confirmOriginal = window.confirm;
+          window.confirm = () => true;
+          let compilou = false;
+          try {
+            const compilar = studioTool('Compilar roteiro');
+            if (compilar === null) throw new Error('botão "Compilar roteiro" ausente');
+            compilar.click();
+            compilou = true;
+          } finally {
+            window.confirm = confirmOriginal;
+          }
+          await wait(250);
+
+          const palco = composition().nodes[${JSON.stringify(stageId)}];
+          const trilhas = [
+            'targetX', 'targetY', 'targetZ', 'distanceMeters', 'azimuthDeg', 'elevationDeg',
+          ].map((key) => palco.props[key].keyframes.length);
+
+          return {
+            pois: pois.length,
+            roundTrip,
+            distanciasAoModelo,
+            tintaMarcando,
+            marcadores: marcadores.length,
+            ordinais: marcadores.map((m) => m.ordinal),
+            compilou,
+            trilhas,
+            chegadaSegunda: palco.props.targetX.keyframes.map((k) => k.frame),
+            pontoSegunda: pois.length < 2 ? null : [
+              pois[1].props.pointX.value,
+              pois[1].props.pointY.value,
+              pois[1].props.pointZ.value,
+            ],
+          };
+        })()`,
+      );
+
+      // A câmera visitou de verdade? No frame de chegada da segunda parada o
+      // ponto dela projeta no centro da tela, porque é o alvo da câmera.
+      let centragem = null;
+      let apagou = null;
+      if (report.pontoSegunda !== null && report.chegadaSegunda.length >= 3) {
+        const chegada = report.chegadaSegunda[2];
+        const visita = await client.evaluate(
+          `(async () => {
+            await atFrame(${String(chegada)});
+            const canvas = studioCanvas().getBoundingClientRect();
+            const tela = window.__theatrumStudio.project(${JSON.stringify(report.pontoSegunda)});
+            // E desliga a marcação: a superfície tem de ficar limpa, não guardar
+            // o último quadro desenhado.
+            studioTool('Marcar pontos').click();
+            await wait(250);
+            return {
+              tela,
+              centro: [canvas.width / 2, canvas.height / 2],
+              tintaDepois: markerInk(),
+            };
+          })()`,
+        );
+        centragem =
+          visita.tela === null
+            ? null
+            : Math.hypot(visita.tela[0] - visita.centro[0], visita.tela[1] - visita.centro[1]);
+        apagou = visita.tintaDepois;
+      }
+
+      const roundTripOk =
+        report.roundTrip.length === 2 && report.roundTrip.every((d) => d !== null && d < 3);
+      const superficieOk =
+        report.distanciasAoModelo.length === 2 && report.distanciasAoModelo.every((d) => d < 12);
+      const trilhasOk = report.trilhas.every((count) => count === 4);
+      // Tolerância de 6 px: o alvo da câmera é o ponto, e o resto é arredondamento
+      // de projeção e do próprio frame de chegada.
+      const centradoOk = centragem !== null && centragem < 6;
+      record(
+        "5 · ponto do clique vira nó, e o roteiro leva a câmera até ele",
+        report.pois === 2 &&
+          roundTripOk &&
+          superficieOk &&
+          report.tintaMarcando > 200 &&
+          report.marcadores === 2 &&
+          report.compilou &&
+          trilhasOk &&
+          centradoOk &&
+          apagou === 0,
+        `${report.pois} ponto(s) criados por clique, ida e volta ` +
+          `${report.roundTrip.map((d) => (d === null ? "—" : d.toFixed(2))).join("/")} px, ` +
+          `distância ao modelo ${report.distanciasAoModelo.map((d) => d.toFixed(1)).join("/")} m, ` +
+          `marcadores ${report.ordinais.join("/")} com ${report.tintaMarcando} px de tinta ` +
+          `(${apagou} depois de desligar), ` +
+          `keyframes por trilha ${report.trilhas.join("/")}, ` +
+          `ponto centrado a ${centragem === null ? "—" : centragem.toFixed(2)} px do centro`,
       );
     }
   } finally {

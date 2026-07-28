@@ -110,6 +110,41 @@ implementação.
   não resolve girá-la. São problemas diferentes e não devem ser confundidos —
   ver [09-CONTINUIDADE](../09-CONTINUIDADE.md) sobre `gltf.animations`.
 
+## Nota de implementação (2026-07-28)
+
+Implementado e provado: `verify:phase7e3` passou de 5/5 para **6/6**, e
+`verify:phase8` continua **7/7**. Três desvios da letra deste ADR, todos medidos:
+
+- **O marcador não vai no overlay Pixi do palco.** Este documento sugeria
+  reaproveitá-lo, e o argumento estava certo quanto ao custo — mas aquele overlay
+  (`.studio-viewport__pixi`) **é composto no frame de export**. Um marcador ali
+  apareceria no vídeo sempre que alguém esquecesse o modo de marcação ligado, e o
+  critério 8 da Fase 8 (nenhum elemento de UI em nenhum frame) está escrito para
+  ser atendido por construção. Os marcadores ganharam superfície própria,
+  `.studio-viewport__markers`, declarada em `EXCLUDED_SURFACE_SELECTORS` — o mesmo
+  arranjo do canvas de gizmos do Viewport. Provado nos dois sentidos: 3.032 px de
+  tinta com o modo ligado, **0** depois de desligar.
+- **O nome do ponto é o nome do nó**, não uma `props.name`. Todo nó já tem `name`,
+  o painel de camadas já o edita e o avaliador já o entrega. Dois campos "nome"
+  para a mesma coisa divergiriam no primeiro rename.
+- **O roteiro não virou `ActionTemplate` em `packages/behaviors`.** A ordem das
+  visitas é a ordem das camadas, e quem sabe calculá-la é `topologicalOrder`, de
+  `@theatrum/scene-graph` — que `behaviors` não tem entre as dependências.
+  Duplicar a travessia lá deixaria a numeração do marcador e a ordem da visita
+  livres para divergir em silêncio. O compilador é função pura em
+  `apps/editor/src/panels/viewport/studio-tour.ts`, e grava por
+  `keyframe.replace-all` pelo Command Bus: o precedente da Fase 7 no que importa
+  — compila para keyframes, sem player paralelo, com aviso de substituição.
+
+E uma armadilha que a implementação achou e este ADR não previa: **azimute
+atravessa a costura 0/360**. Duas paradas em 350° e 10° estão a vinte graus uma da
+outra, e a interpolação linear dos keyframes percorre 340 pelo lado errado — a
+câmera dá uma volta quase completa em torno do objeto no meio da narração. Os
+azimutes são **desenrolados** antes de virar keyframe (`unwrapAzimuths`), com o
+valor de cada parada trocado pelo representante mais próximo do anterior. É a
+mesma família de defeito de 09-CONTINUIDADE § 4.17: régua linear sobre grandeza
+modular.
+
 ## Quando revisar
 
 Quando entrar um modelo com hierarquia de verdade — rig de torre, trem de pouso
