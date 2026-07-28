@@ -423,8 +423,19 @@ export class StudioSceneRuntime {
     // O plano próximo não tem motivo para ficar a 2 cm quando a geometria mais
     // próxima está a 17 m. Derivando do raio da cena a razão cai para a casa de
     // 10:1, e o mesmo milímetro passa a valer ~270 passos.
+    // Mas o conteúdo não é só o modelo: o CHÃO é infinito e começa embaixo da
+    // câmera. Derivar `near` apenas do raio da cena recortava tudo mais perto que
+    // ele — com o palco vazio o raio é o mínimo de 1 m, `near` ia a 38 m, e o piso
+    // inteiro abaixo do horizonte virava fundo. O verificador do 7E.3 pegou isso
+    // como "transições por linha 0/0/0": a grade não tinha desaparecido, o chão
+    // tinha. `near` fica limitado a metade da altura da câmera sobre o piso, que é
+    // menor que a distância de qualquer ponto de chão visível.
     const radius = this.sceneRadiusMeters(stage.target);
-    this.camera.near = Math.max(0.05, stage.distanceMeters - radius * 1.6);
+    const cameraHeight = Math.max(0.5, Math.abs(position[1]));
+    this.camera.near = Math.max(
+      0.05,
+      Math.min(stage.distanceMeters - radius * 1.6, cameraHeight * 0.5),
+    );
     this.camera.far = stage.distanceMeters + radius * 6 + 50;
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld();

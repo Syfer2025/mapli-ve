@@ -4,17 +4,17 @@
  *
  *   node tools/verify-phase7e3.mjs
  *
- * 1. Um `studio.stage` na cena troca o mapa pelo palco: o canvas do estúdio
+ * 1. Um studio.stage na cena troca o mapa pelo palco: o canvas do estúdio
  *    passa a pintar, o do MapLibre some da imagem, e o chão infinito tem
  *    grade de verdade — medida como variação de luminância ao longo de uma
  *    linha de pixels, não como "o shader compilou".
- * 2. Um `model3d` no palco aparece em pixels sobre o chão, e some quando o
+ * 2. Um model3d no palco aparece em pixels sobre o chão, e some quando o
  *    nó é escondido. É a diferença entre o modelo estar carregado e o modelo
  *    estar visível.
  * 3. Azimute animado por keyframes orbita a câmera de verdade: a posição
  *    percorre um arco à distância constante do alvo, e a imagem muda. Só
  *    isso separa uma câmera que gira de um número que muda.
- * 4. Um `label.callout` apontando para o modelo acompanha a projeção 3D
+ * 4. Um label.callout apontando para o modelo acompanha a projeção 3D
  *    enquanto a câmera orbita — a costura entre o palco e o overlay Pixi.
  *
  * Como nas fases anteriores, o script desfaz tudo o que cria e compara o
@@ -131,31 +131,65 @@ const canonical = (value) => {
   return Object.fromEntries(Object.keys(value).sort().map((k) => [k, canonical(value[k])]));
 };
 
-/** Espera o overlay parar de repintar no frame pedido. */
+/**
+ * Espera o PALCO parar de repintar no frame pedido.
+ *
+ * Antes esperava o overlay do Viewport (window.__theatrumPhase4). Com o palco em
+ * painel proprio (ADR-014) o Viewport esta DESMONTADO enquanto a aba do palco esta
+ * ativa, e aquele sinal nunca chega — o verificador morria em
+ * 'overlay nao estabilizou' por um motivo que nao tinha nada a ver com o palco.
+ *
+ * O contador certo e o do proprio palco. Ele repinta por efeito do React quando a
+ * sessao muda, nao em laco continuo, entao estabilizar e o sinal correto de
+ * 'terminou' — nao de 'esta parado porque nunca comecou'.
+ */
 const atFrame = async (frame) => {
   session().actions.setPlayhead(frame);
   const deadline = Date.now() + 8000;
   let quietSince = null;
   let lastRenders = -1;
   while (Date.now() < deadline) {
-    const snapshot = overlay();
-    if (snapshot.frame === frame) {
-      if (snapshot.renders === lastRenders) {
-        if (quietSince !== null && Date.now() - quietSince >= 90) return snapshot;
-      } else {
-        lastRenders = snapshot.renders;
-        quietSince = Date.now();
-      }
+    const renders = studio().renders;
+    if (renders === lastRenders) {
+      if (quietSince !== null && Date.now() - quietSince >= 120) return { frame, renders };
+    } else {
+      lastRenders = renders;
+      quietSince = Date.now();
     }
     await wait(24);
   }
-  throw new Error('overlay não estabilizou no frame ' + frame);
+  throw new Error('palco nao estabilizou no frame ' + frame);
 };
 
 const studioCanvas = () => {
-  const canvas = document.querySelector('.scene-overlay__studio');
-  if (canvas === null) throw new Error('canvas do palco ausente no DOM');
+  const canvas = document.querySelector('.studio-viewport__stage');
+  if (canvas === null) throw new Error('canvas do palco ausente no DOM — a aba Palco 3D está ativa?');
   return canvas;
+};
+
+/** O painel do palco, para perguntar o que existe DENTRO dele. */
+const studioPanel = () => document.querySelector('.studio-viewport');
+
+/**
+ * O mapa não existe dentro do painel do palco.
+ *
+ * Este é o critério que substituiu "o palco esconde o mapa". A diferença não é
+ * de redação: antes o canvas do mapa ESTAVA lá, invisível por CSS, e qualquer
+ * coisa que zerasse visible no nó do palco o reacendia — foi assim que o
+ * defeito apareceu. Agora ele não está. Isolamento estrutural, não visual.
+ */
+const mapAusenteDoPalco = () => {
+  const panel = studioPanel();
+  if (panel === null) return false;
+  return panel.querySelector('.maplibregl-canvas') === null;
+};
+
+/** O overlay Pixi do próprio palco, a segunda superfície da etapa 2. */
+const studioOverlayPresente = () => {
+  const panel = studioPanel();
+  if (panel === null) return false;
+  const canvas = panel.querySelector('.studio-viewport__pixi');
+  return canvas !== null && canvas.width > 1 && canvas.height > 1;
 };
 
 /**
@@ -180,11 +214,14 @@ const studioVisible = () => {
   return getComputedStyle(canvas).visibility === 'visible' && box.width > 1 && box.height > 1;
 };
 
-const mapVisible = () => {
-  const canvas = document.querySelector('.maplibregl-canvas');
-  if (canvas === null) return false;
-  return getComputedStyle(canvas).visibility === 'visible';
-};
+/**
+ * O palco desligou como MODO: não há studio.stage visível na cena.
+ *
+ * Substitui o antigo mapVisible. Perguntar "o mapa voltou?" deixou de fazer
+ * sentido: com painéis separados isso depende de qual aba o usuário está olhando,
+ * e aba ativa não é estado do documento — é do espaço de trabalho.
+ */
+const palcoDesligado = () => window.__theatrumStudio.status().active === false;
 
 /** Quantos pixels de uma imagem diferem de outra além do ruído de compressão. */
 const differingPixels = (a, b, tolerance = 6) => {
@@ -299,10 +336,51 @@ function record(name, ok, detail) {
   console.log(`${ok ? "PASSA" : "FALHA"}  ${name}\n        ${detail}`);
 }
 
+/**
+ * Ativa a aba do Palco 3D.
+ *
+ * Obrigatório desde o [ADR-014](../docs/adr/ADR-014-studio-own-panel.md): o palco
+ * é painel próprio, e o dockview **só monta o painel ativo** — com a aba do
+ * Viewport na frente, o canvas do palco não existe no DOM e todo critério aqui
+ * falharia por um motivo que não tem nada a ver com o palco.
+ *
+ * E tem de ser evento de ponteiro de verdade, por coordenada: o dockview escuta
+ * pointer, e element.click() NÃO troca de aba. Perdi uma volta descobrindo isso;
+ * está aqui para ninguém perder a segunda.
+ */
+async function activateStudioTab(client) {
+  const box = await client.evaluate(`(() => {
+    const tab = [...document.querySelectorAll('.dv-tab')].find((t) => t.textContent.includes('Palco'));
+    if (tab === undefined) return null;
+    const r = tab.getBoundingClientRect();
+    return JSON.stringify([Math.round(r.x + r.width / 2), Math.round(r.y + r.height / 2)]);
+  })()`);
+  if (box === null) {
+    throw new Error(
+      "aba 'Palco 3D' não existe. Layout salvo antigo? Use 'Restaurar layout' no cabeçalho.",
+    );
+  }
+  const [x, y] = JSON.parse(box);
+  await client.request("Input.dispatchMouseEvent", { type: "mouseMoved", x, y });
+  for (const type of ["mousePressed", "mouseReleased"]) {
+    await client.request("Input.dispatchMouseEvent", { type, x, y, button: "left", clickCount: 1 });
+  }
+  const deadline = Date.now() + 8000;
+  for (;;) {
+    const ready = await client.evaluate(
+      `Boolean(document.querySelector('.studio-viewport__stage'))`,
+    );
+    if (ready === true) return;
+    if (Date.now() > deadline) throw new Error("painel do palco não montou depois de ativar a aba");
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+}
+
 async function main() {
   const target = await pageTarget();
   const client = new CdpClient(target.webSocketDebuggerUrl);
   await client.connect();
+  await activateStudioTab(client);
 
   const baseline = await client.evaluate(
     `(async () => {
@@ -320,11 +398,10 @@ async function main() {
   let modelId;
 
   try {
-    // ── 1. O palco substitui o mapa, com chão de verdade ────────────────────
+    // ── 1. O palco é ambiente à parte, com chão de verdade ──────────────────
     {
       const report = await client.evaluate(
         `(async () => {
-          const mapBefore = mapVisible();
           const id = session().actions.addNodeOfType('studio.stage');
           if (id === null) throw new Error('addNodeOfType recusou studio.stage');
           await atFrame(0);
@@ -338,8 +415,8 @@ async function main() {
           const transitions = rows.map((y) => lineTransitions(image, y));
           return {
             id,
-            mapBefore,
-            mapAfter: mapVisible(),
+            mapAusente: mapAusenteDoPalco(),
+            overlayProprio: studioOverlayPresente(),
             studioShowing: studioVisible(),
             renders: status.renders,
             active: status.active,
@@ -353,17 +430,18 @@ async function main() {
       stageId = report.id;
       const gridOk = report.transitions.filter((count) => count >= 4).length >= 2;
       const ok =
-        report.mapBefore &&
-        !report.mapAfter &&
+        report.mapAusente &&
+        report.overlayProprio &&
         report.studioShowing &&
         report.active &&
         report.renders > 0 &&
         !report.contextLost &&
         gridOk;
       record(
-        "1 · palco substitui o mapa e desenha chão com grade",
+        "1 · palco é ambiente à parte e desenha chão com grade",
         ok,
-        `mapa ${report.mapBefore ? "visível" : "oculto"}→${report.mapAfter ? "visível" : "oculto"}, ` +
+        `mapa dentro do painel do palco: ${report.mapAusente ? "AUSENTE (correto)" : "PRESENTE"}, ` +
+          `overlay próprio ${report.overlayProprio ? "ok" : "AUSENTE"}, ` +
           `palco ${report.studioShowing ? "visível" : "oculto"}, ${report.renders} renders, ` +
           `contexto ${report.contextLost ? "PERDIDO" : "ok"}, transições por linha ${report.transitions.join("/")} ` +
           `em ${report.size.join("×")}${report.lastError === null ? "" : `, erro: ${report.lastError}`}`,
@@ -574,17 +652,17 @@ async function main() {
         return {
           undone,
           document: JSON.stringify(canonical(session().getSnapshot().document)),
-          mapBack: mapVisible(),
+          palcoDesligado: palcoDesligado(),
           studioActive: studio().active,
         };
       })()`,
     );
     const clean = restored.document === baseline;
     record(
-      "0 · desfazer devolve o documento e o mapa",
-      clean && restored.mapBack && !restored.studioActive,
+      "0 · desfazer devolve o documento e desliga o palco",
+      clean && restored.palcoDesligado && !restored.studioActive,
       `${restored.undone} comandos desfeitos, documento ${clean ? "idêntico" : "DIVERGENTE"}, ` +
-        `mapa ${restored.mapBack ? "de volta" : "AINDA OCULTO"}, palco ${restored.studioActive ? "AINDA ATIVO" : "desligado"}`,
+        `palco ${restored.studioActive ? "AINDA ATIVO" : "desligado"}`,
     );
     client.close();
   }
