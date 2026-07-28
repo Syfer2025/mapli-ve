@@ -424,6 +424,9 @@ importers:
 
   tools:
     dependencies:
+      '@theatrum/gis':
+        specifier: workspace:*
+        version: link:../packages/gis
       '@theatrum/schema':
         specifier: workspace:*
         version: link:../packages/schema

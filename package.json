@@ -29,6 +29,7 @@
     "verify:phase5": "node tools/verify-phase5.mjs",
     "verify:phase6": "node tools/verify-phase6.mjs",
     "verify:phase7a": "node tools/verify-phase7a.mjs",
+    "verify:phase7b": "node tools/verify-phase7b.mjs",
     "typecheck": "pnpm typecheck:src && pnpm typecheck:test && pnpm typecheck:node && pnpm typecheck:apps",
     "typecheck:src": "tsc -b --pretty",
     "typecheck:test": "tsc -p tsconfig.test.json --pretty",

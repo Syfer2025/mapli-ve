@@ -12,11 +12,13 @@ morde, e como não repetir erro já cometido.
 
 ## 1. Onde parou
 
-Último commit: `d57c9d8`. Cadeia do `pnpm check` verde — 846 testes em 88
-arquivos, 288 módulos, 756 dependências, sem violação de camada; build
+Último commit: `6415855`. Cadeia do `pnpm check` verde — 858 testes em 89
+arquivos, 290 módulos, 759 dependências, sem violação de camada; build
 electron-vite ok; `data:verify` (13 assets) e `geo:verify` (4 camadas) íntegros.
 
-Fases 0–6 concluídas. Blocos 7A e 7A+ concluídos. **Bloco 7B em curso.**
+Fases 0–6 concluídas. Blocos 7A e 7A+ concluídos. **Bloco 7B concluído** — os
+quatro critérios verificados no Electron real por `tools/verify-phase7b.mjs`
+(`pnpm verify:phase7b`), duas rodadas consecutivas idênticas.
 
 Entregue no 7B, em cinco commits:
 
@@ -39,21 +41,26 @@ E nesta sessão, o 7B.1 (`geo.roads`), em quatro commits:
 | `dac3c39` | Passe geo sem o deslocamento de 32 px do pivot — achado da prova ao vivo           |
 | `d57c9d8` | Nó `geo.roads` de ponta a ponta, com prova ao vivo verde                           |
 
-## 2. O que falta no 7B, na ordem que eu faria
+E o fechamento do 7B, em dois commits:
 
-### 2.1 `area.transfer` — transição de cor de território em OkLab
+| Commit    | O quê                                                                              |
+| --------- | ---------------------------------------------------------------------------------- |
+| `535c0ac` | Interpolação de cor hex em OkLab no avaliador de keyframes (`core-math/color.ts`)  |
+| `6415855` | `tools/verify-phase7b.mjs` — os quatro critérios provados, com guarda de documento |
 
-Interpolar `fill` de um `geo.region` em OkLab, não em sRGB. Está no escopo do
-bloco e é o uso real de território animado: mostrar avanço de frente.
+## 2. Depois do 7B
 
-Ponto de atenção: a interpolação tem de ser **determinística e reversível** —
-critério 2 do bloco exige hash de frame idêntico no scrub para trás.
+Nada ficou para trás no bloco. A ordem do roteiro é **7C** (rotas e setas 2D) →
+**7D** (textos no mapa) → **Fase 7** (ações) → **Fase 8** (exportação).
 
-### 2.2 Verificador `tools/verify-phase7b.mjs`
-
-Os quatro critérios de saída estão em [08-ROADMAP](08-ROADMAP.md#7b--camadas-geográficas-contornos-estados-estradas).
-Use `tools/verify-phase7a.mjs` como molde. Provas ao vivo já escritas que valem
-reaproveitar estão descritas na seção 4.
+Uma observação em aberto, que a Fase 8 vai cobrar se for real: numa rodada do
+verificador com **dois nós geo na cena** (região + estradas, ambas pintando),
+aplicar outline+glow na região derrubou a área pintada da captura de 1,25 M
+para 539 mil pixels. Não reproduzi de forma determinística — nas rodadas
+seguintes o halo abriu normal — e a suspeita é o caminho de `captureExport()`
+com filtros, não o render ao vivo. O verificador do 7B roda o critério de
+filtros sem estradas na cena exatamente para não misturar as duas coisas.
+Vale uma investigação focada antes da Fase 8, que exporta por esse caminho.
 
 ## 3. Armadilhas desta base de código
 

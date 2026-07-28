@@ -141,7 +141,7 @@ describe("expandGeoNodes · matriz da âncora", () => {
     expect(expansion.drawn).toBe(1);
     const node = expansion.scene.nodes.get("n1");
     expect(node).toBeDefined();
-    const rings = node?.props.rings as readonly (readonly Vec2[])[];
+    const rings = node?.props["rings"] as readonly (readonly Vec2[])[];
     expect(rings).toHaveLength(1);
     // Os anéis continuam relativos à âncora...
     expect(rings[0]).toEqual([

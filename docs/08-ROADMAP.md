@@ -152,9 +152,9 @@ Limitações honestas (preview, não export):
 
 ### 7B — Camadas geográficas: contornos, estados, estradas
 
-> 🚧 **Em curso.** Entregue: malha compilada (ADR-009 e ADR-010), leitor,
-> catálogo de busca, tipos de nó `geo.region` e `geo.rivers`, o passe que projeta
-> a geometria por frame, e o recorte contra a vista.
+> ✅ **Concluído.** Malha compilada (ADR-009 e ADR-010), leitor, catálogo de
+> busca, tipos de nó `geo.region`, `geo.rivers` e `geo.roads`, o passe que
+> projeta a geometria por frame, e o recorte contra a vista.
 >
 > Verificado no Electron real: o contorno da Ucrânia cai sobre as fronteiras do
 > basemap; o nível de detalhe sobe com o zoom; território fora da vista não é
@@ -184,7 +184,33 @@ translate(pivot)`), com teste unitário e medida ao vivo. Também entregue:
 > busca de território no Inspector filtrada pelo tipo do nó, carregando só a
 > camada necessária.
 >
-> **Falta:** `area.transfer` em OkLab e o verificador dos quatro critérios.
+> **`area.transfer` em OkLab entregue.** A interpolação mora no avaliador de
+> keyframes (`interpolateValue`): se os dois lados são strings que leem como
+> hex, a cor cruza em OkLab; as demais strings seguem discretas, como antes.
+> Os extremos saem bit-idênticos ao documento — o valor de um keyframe não
+> passa por roundtrip. Cobre o `fill` de qualquer nó e as tonalidades de
+> efeito, que recebem o valor já avaliado. Prova ao vivo
+> (`scratchpad/probe-fill-oklab.mjs`): vermelho→azul cruza por roxo (meio em
+> 137, 88, 168; o lerp sRGB daria o #800080 morto), e o SHA-256 do frame 30 é
+> idêntico na visita direta, depois de varrer 0→60 e depois de varrer 60→0.
+>
+> **Os quatro critérios, verificados** (`tools/verify-phase7b.mjs`, duas
+> rodadas consecutivas idênticas):
+>
+> 1. Ucrânia adicionada: Kiev e Kharkiv pintados, Minsk e Varsóvia limpos em
+>    vista de país; em z6,5 com pitch 55 e bearing 45, o traço casa **154 de
+>    154** vértices reais da malha num raio de 3 px; em z8 com pitch 60 e
+>    bearing −30, **31 de 31**.
+> 2. `fill` de `geo.region` keyframado vermelho→azul: extremos bit-exatos,
+>    intermediários na família roxa e todos distintos, hash do frame 30
+>    idêntico nas três visitas (direto, ida 0→60, volta 60→0).
+> 3. Estradas da Ucrânia inteira na cena em zoom de país: 974 vértices, o nó
+>    custa 0,4–0,5 ms e o overlay total fica em 1,1 ms — longe dos 8 ms do
+>    orçamento.
+> 4. `geo.region` aparece no Inspector gerado (controle de território,
+>    preenchimento, contorno) e aceita outline e glow pelo caminho real do
+>    editor: os dois mudam o frame e o glow abre halo fora do contorno
+>    (+20% de pixels pintados).
 
 **Objetivo.** País, estado, rio e estrada viram nós animáveis, não decoração do
 basemap.
