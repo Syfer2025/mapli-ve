@@ -327,6 +327,11 @@ const UnitPropsSchema = z
     callsign: StringPropertySchema,
     affiliation: animatablePropertySchema(z.enum(["friendly", "hostile", "neutral", "unknown"])),
     tint: ColorPropertySchema,
+    /**
+     * Velocidade operacional usada por Action Templates para inferir duração.
+     * Opcional para abrir projetos anteriores à Fase 7.
+     */
+    defaultSpeedKmh: PositiveNumberPropertySchema.optional(),
   })
   .passthrough();
 
@@ -437,6 +442,27 @@ const RoutePropsSchema = z
     bodyWidth: NonNegativeNumberPropertySchema,
     headWidth: NonNegativeNumberPropertySchema,
     headLength: NonNegativeNumberPropertySchema,
+  })
+  .passthrough();
+
+const FrontlinePropsSchema = z
+  .object({
+    /**
+     * GeoJSON deliberadamente embutido: a linha de frente é conteúdo autoral,
+     * não uma referência ao catálogo geográfico nem a um arquivo externo.
+     */
+    geometry: z
+      .object({
+        type: z.literal("LineString"),
+        coordinates: z.array(Vec2Schema).min(2),
+      })
+      .passthrough(),
+    color: ColorPropertySchema,
+    width: NonNegativeNumberPropertySchema,
+    dashPx: NonNegativeNumberPropertySchema,
+    gapPx: NonNegativeNumberPropertySchema,
+    trimStart: UnitNumberPropertySchema,
+    trimEnd: UnitNumberPropertySchema,
   })
   .passthrough();
 
@@ -906,6 +932,17 @@ const UNIT_PROPERTIES: readonly PropertyDescriptor[] = Object.freeze([
     binding: "animatable",
     animatable: true,
   }),
+  property({
+    path: "props.defaultSpeedKmh",
+    label: "Velocidade operacional",
+    kind: "number",
+    group: "content",
+    binding: "animatable",
+    animatable: false,
+    min: 0.1,
+    step: 1,
+    unit: "km/h",
+  }),
 ]);
 
 export const UNIT_ARMOR_NODE_TYPE = defineNodeType({
@@ -918,6 +955,7 @@ export const UNIT_ARMOR_NODE_TYPE = defineNodeType({
     callsign: animatable(""),
     affiliation: animatable("friendly" as const),
     tint: animatable("#ffffffff"),
+    defaultSpeedKmh: animatable(45),
   },
   propertySchema: UnitPropsSchema,
   properties: [...COMMON_PROPERTIES, ...UNIT_PROPERTIES],
@@ -936,6 +974,7 @@ export const UNIT_INFANTRY_NODE_TYPE = defineNodeType({
     callsign: animatable(""),
     affiliation: animatable("friendly" as const),
     tint: animatable("#ffffffff"),
+    defaultSpeedKmh: animatable(5),
   },
   propertySchema: UnitPropsSchema,
   properties: [...COMMON_PROPERTIES, ...UNIT_PROPERTIES],
@@ -1777,6 +1816,74 @@ export const LABEL_CALLOUT_NODE_TYPE = defineNodeType({
   defaultSizeMode: "screen",
 });
 
+export const GEO_FRONTLINE_NODE_TYPE = defineNodeType({
+  type: "geo.frontline",
+  category: "geo",
+  label: "Linha de frente",
+  icon: "git-commit-horizontal",
+  defaultProps: {
+    geometry: {
+      type: "LineString" as const,
+      coordinates: [
+        [0, 0],
+        [1, 0],
+      ],
+    },
+    color: animatable("#ef4444ff"),
+    width: animatable(5),
+    dashPx: animatable(14),
+    gapPx: animatable(10),
+    trimStart: animatable(0),
+    trimEnd: animatable(1),
+  },
+  propertySchema: FrontlinePropsSchema,
+  properties: [
+    ...COMMON_PROPERTIES,
+    property({
+      path: "props.geometry",
+      label: "GeoJSON",
+      kind: "points",
+      group: "content",
+      binding: "geometry",
+      animatable: false,
+    }),
+    property({
+      path: "props.color",
+      label: "Cor",
+      kind: "color",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+    }),
+    property({
+      path: "props.width",
+      label: "Espessura",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      step: 0.5,
+      unit: "px",
+    }),
+    property({
+      path: "props.trimEnd",
+      label: "Revelação",
+      kind: "number",
+      group: "content",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      unit: "percent",
+    }),
+  ],
+  supportsChildren: false,
+  defaultAnchorSpace: "geo",
+  defaultSizeMode: "screen",
+});
+
 export const ROUTE3D_NODE_TYPE = defineNodeType({
   type: "route3d",
   category: "geo",
@@ -1907,6 +2014,7 @@ export const BUILTIN_NODE_TYPE_IDS = Object.freeze([
   "route3d",
   "studio.stage",
   "route",
+  "geo.frontline",
 ] as const);
 
 export type BuiltinNodeType = (typeof BUILTIN_NODE_TYPE_IDS)[number];
@@ -1933,6 +2041,7 @@ export const BUILTIN_NODE_TYPES: readonly NodeTypeDefinition[] = Object.freeze([
   ROUTE3D_NODE_TYPE,
   STUDIO_STAGE_NODE_TYPE,
   ROUTE_NODE_TYPE,
+  GEO_FRONTLINE_NODE_TYPE,
 ]);
 
 export function createBuiltinNodeTypeRegistry(): NodeTypeRegistry {

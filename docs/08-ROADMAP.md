@@ -1027,9 +1027,13 @@ Escopo:
 
 ## Fase 7 — Ações e simulações
 
-> ⏭️ **Começa depois dos blocos 7A–7D.** Templates de impacto (`bombard`,
-> `airstrike`) referenciam assets importados (7A) ou os emissores já
-> implementados — nenhum efeito procedural novo.
+> ✅ **Concluída em 2026-07-28.** As 16 Actions usam um registry único e a mesma
+> expansão para preview live e bake. `advance` calculou duração geodésica a
+> partir de `defaultSpeedKmh`; `bombard` gerou 15 nós e 75 keyframes para cinco
+> trajetórias, com impactos, fumaça e tremor visível de câmera. A prova no editor
+> confirmou atualização de parâmetro sem perder uma renomeação independente,
+> bake editável e restauração completa com um único Desfazer. Os testes puros
+> também comparam a cena avaliada live e materializada.
 
 **Objetivo.** Um clique produz 40 keyframes editáveis.
 

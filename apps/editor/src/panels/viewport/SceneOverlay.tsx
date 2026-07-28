@@ -2,8 +2,10 @@ import { evaluate, type EvaluatedScene } from "@theatrum/animation";
 import {
   applySceneBehaviors,
   createBuiltinBehaviorRegistry,
+  expandLiveActions,
   pathGeometry,
   pointAt,
+  type ActionDiagnostic,
   type BehaviorDiagnostic,
 } from "@theatrum/behaviors";
 import { createBuiltinEffectRegistry } from "@theatrum/effects";
@@ -43,6 +45,7 @@ import {
 import { expandGeoNodes, type GeoExpansion, type GeoViewport } from "./geo-nodes.js";
 import { expandCalloutNodes, type CalloutExpansion } from "./callout-nodes.js";
 import { expandRouteNodes, type RouteExpansion } from "./route-nodes.js";
+import { activeActionCameraCenter } from "./action-camera.js";
 import {
   startPngSequenceExport,
   startVideoExport,
@@ -200,6 +203,9 @@ interface OverlayFrame {
   readonly evaluated: EvaluatedScene;
   readonly layout: LayoutScreenScene;
   readonly screen: RendererScreenScene;
+  readonly actions: readonly ActionDiagnostic[];
+  readonly actionNodes: number;
+  readonly actionKeyframes: number;
   readonly behaviors: readonly BehaviorDiagnostic[];
   readonly effects: ParticleExpansion["diagnostics"];
   readonly particleNodes: number;
@@ -503,17 +509,32 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
       .then(({ renderer }) => {
         if (!active || generation !== renderGenerationRef.current) return;
         const startedAt = performance.now();
-        // Duas etapas separadas de propósito: `evaluate` é puro e não conhece
-        // comportamentos (L2 não pode importar L3); o passe de comportamentos
-        // roda depois e produz uma cena nova, com caminhos, seguimento e
-        // oscilação já resolvidos.
+        // Actions viram um documento derivado com nós/comportamentos/keyframes
+        // normais. O bake persiste exatamente a mesma expansão, então live e
+        // materializado não têm duas implementações visuais para divergir.
+        const actions = expandLiveActions(session.document, composition.id);
+        const renderComposition =
+          actions.document.compositions.find((entry) => entry.id === composition.id) ?? composition;
+        // `evaluate` é puro e não conhece comportamentos (L2 não pode importar
+        // L3); o passe de comportamentos roda depois sobre o documento já
+        // expandido pelas Actions.
         const pass = applySceneBehaviors(
-          evaluate(session.document, composition.id, session.playheadFrame),
-          session.document,
+          evaluate(actions.document, composition.id, session.playheadFrame),
+          actions.document,
           composition.id,
           { registry: behaviorRegistry },
         );
         const evaluated = pass.scene;
+        const actionCamera = activeActionCameraCenter(evaluated, actions.expansions);
+        if (actionCamera !== null) {
+          const current = map.getCenter();
+          if (
+            Math.abs(current.lng - actionCamera[0]) > 0.000_001 ||
+            Math.abs(current.lat - actionCamera[1]) > 0.000_001
+          ) {
+            map.jumpTo({ center: [actionCamera[0], actionCamera[1]] });
+          }
+        }
         const evaluatedAt = performance.now();
         const projector = createMapLibreProjectorPort(map);
         const compToScreen = compositionToViewport(composition, surfaceSize);
@@ -577,7 +598,7 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
           callouts.scene,
           evaluated,
           layout,
-          composition,
+          renderComposition,
           effectRegistry,
         );
         const screen = particles.scene;
@@ -604,6 +625,9 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
           // para um quadrado de 64 px na âncora em vez do território inteiro.
           layout: withGeoBounds(layout, new Map([...geo.bounds, ...routes2d.bounds]), evaluated),
           screen,
+          actions: actions.diagnostics,
+          actionNodes: actions.generatedNodes,
+          actionKeyframes: actions.generatedKeyframes,
           behaviors: pass.diagnostics,
           effects: particles.diagnostics,
           particleNodes: particles.particleNodes,
@@ -1303,6 +1327,10 @@ interface SerializedDebugFrame {
   readonly ready: boolean;
   /** Contador de renders do overlay: distingue frame novo de leitura obsoleta. */
   readonly renders: number;
+  /** Actions live expandidas neste documento derivado. */
+  readonly actions?: readonly ActionDiagnostic[];
+  readonly actionNodes?: number;
+  readonly actionKeyframes?: number;
   /** Comportamentos que não puderam contribuir, com motivo. */
   readonly behaviors?: readonly BehaviorDiagnostic[];
   /** Efeitos que não puderam contribuir, e o volume de partículas do frame. */
@@ -1363,6 +1391,9 @@ function serializeDebugFrame(
   return {
     ready: true,
     renders,
+    actions: frame.actions,
+    actionNodes: frame.actionNodes,
+    actionKeyframes: frame.actionKeyframes,
     behaviors: frame.behaviors,
     effects: frame.effects,
     particleNodes: frame.particleNodes,

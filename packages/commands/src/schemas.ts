@@ -1,4 +1,5 @@
 import {
+  ActionInstanceDataSchema,
   AnchorSchema,
   AssetDescriptorSchema,
   BehaviorInstanceDataSchema,
@@ -401,6 +402,50 @@ export const CommandSchemas = {
         compositionId: IdentifierSchema,
         nodeId: IdentifierSchema,
         behaviorId: IdentifierSchema,
+        enabled: z.boolean(),
+      })
+      .strict(),
+  ),
+
+  "action.add": commandSchema(
+    "action.add",
+    z
+      .object({
+        compositionId: IdentifierSchema,
+        nodeId: IdentifierSchema,
+        action: ActionInstanceDataSchema,
+        index: z.number().int().nonnegative().optional(),
+      })
+      .strict(),
+  ),
+  "action.remove": commandSchema(
+    "action.remove",
+    z
+      .object({
+        compositionId: IdentifierSchema,
+        nodeId: IdentifierSchema,
+        actionId: IdentifierSchema,
+      })
+      .strict(),
+  ),
+  "action.set-params": commandSchema(
+    "action.set-params",
+    z
+      .object({
+        compositionId: IdentifierSchema,
+        nodeId: IdentifierSchema,
+        actionId: IdentifierSchema,
+        params: z.record(z.string(), z.unknown()),
+      })
+      .strict(),
+  ),
+  "action.set-enabled": commandSchema(
+    "action.set-enabled",
+    z
+      .object({
+        compositionId: IdentifierSchema,
+        nodeId: IdentifierSchema,
+        actionId: IdentifierSchema,
         enabled: z.boolean(),
       })
       .strict(),

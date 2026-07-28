@@ -13,10 +13,10 @@ import type { ScreenNode, ScreenScene } from "@theatrum/renderer";
 
 const IDENTITY: Mat2D = MAT2D_IDENTITY;
 
-function node(id: string, props: Record<string, unknown> = {}): ScreenNode {
+function node(id: string, props: Record<string, unknown> = {}, type = "route"): ScreenNode {
   return {
     id,
-    type: "route",
+    type,
     slot: "scene",
     props,
     layout: {
@@ -60,16 +60,16 @@ function layoutOf(entries: readonly (readonly [string, Vec2])[]) {
   };
 }
 
-function evaluatedOf(entries: readonly (readonly [string, Record<string, unknown>])[]) {
+function evaluatedOf(entries: readonly (readonly [string, Record<string, unknown>, string?])[]) {
   return {
     compositionId: "cmp",
     frame: 0,
     camera: {} as never,
     drawOrder: entries.map(([id]) => id),
     nodes: new Map(
-      entries.map(([id, props]) => [
+      entries.map(([id, props, type = "route"]) => [
         id,
-        { id, type: "route", visible: true, props, opacity: 1 } as never,
+        { id, type, visible: true, props, opacity: 1 } as never,
       ]),
     ),
   } as never;
@@ -231,6 +231,34 @@ describe("passe de rotas", () => {
       project,
     );
     expect([...result.pathIds]).toEqual(["p1"]);
+  });
+
+  it("desenha geo.frontline a partir do LineString embutido", () => {
+    const props = {
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [10, 20],
+          [11, 21],
+          [12, 20],
+        ],
+      },
+      trimEnd: 1,
+    };
+    const result = expandRouteNodes(
+      scene([node("frente", props, "geo.frontline")]),
+      evaluatedOf([["frente", props, "geo.frontline"]]),
+      layoutOf([["frente", [0, 0]]]),
+      {},
+      ([lng, lat]) => [lng * 10, lat * 10],
+    );
+    const { strokes } = geometryOf(result, "frente");
+    expect(strokes).toHaveLength(1);
+    expect(strokes[0]?.[0]).toEqual([100, 200]);
+    expect(strokes[0]?.at(-1)).toEqual([120, 200]);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.drawn).toBe(1);
+    expect([...result.pathIds]).toEqual([]);
   });
 
   it("devolve a cena original quando não há rota nenhuma", () => {

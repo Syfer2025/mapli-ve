@@ -25,7 +25,7 @@ export type PropertyKind =
   | "points";
 
 export type PropertyGroup = "transform" | "layout" | "appearance" | "content";
-export type PropertyUnit = "px" | "degrees" | "ratio" | "percent" | "meters";
+export type PropertyUnit = "px" | "degrees" | "ratio" | "percent" | "meters" | "km/h";
 export type PropertyBinding = "animatable" | "anchor" | "size" | "geometry";
 
 export interface PropertyOption {

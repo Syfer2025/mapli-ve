@@ -83,3 +83,38 @@ export {
   type BehaviorPassOptions,
   type BehaviorPassResult,
 } from "./apply.js";
+
+export {
+  ActionError,
+  createActionRegistry,
+  type ActionErrorCode,
+  type ActionRegistry,
+} from "./action-registry.js";
+
+export {
+  BUILTIN_ACTIONS,
+  BUILTIN_ACTION_TYPES,
+  actionInternals,
+  createBuiltinActionRegistry,
+  type BuiltinActionType,
+} from "./builtin-actions.js";
+
+export {
+  expandLiveActions,
+  materializeActionExpansions,
+  type ActionDocumentPass,
+  type MaterializedActions,
+} from "./apply-actions.js";
+
+export type {
+  ActionBehaviorPlacement,
+  ActionCategory,
+  ActionDiagnostic,
+  ActionExpansion,
+  ActionExpansionContext,
+  ActionKeyframeWrite,
+  ActionParamDescriptor,
+  ActionParamKind,
+  ActionResolution,
+  ActionTemplate,
+} from "./action-contracts.js";

@@ -84,6 +84,8 @@ export function unitLabel(descriptor: PropertyDescriptor): string | undefined {
       return "px";
     case "ratio":
       return "×";
+    case "km/h":
+      return "km/h";
     case undefined:
       return undefined;
   }

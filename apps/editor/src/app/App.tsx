@@ -79,7 +79,7 @@ function TopBar({ onResetLayout }: { readonly onResetLayout: () => void }): Reac
   return (
     <header className="app__topbar">
       <span className="app__brand">{APP_NAME}</span>
-      <span className="app__phase">Fase 4 · objetos e timeline</span>
+      <span className="app__phase">Fase 7 · ações e simulações</span>
 
       <div className="app__file-actions">
         <Button size="sm" variant="ghost" onClick={() => void editorActions.newProject()}>

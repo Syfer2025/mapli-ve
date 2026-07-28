@@ -627,16 +627,18 @@ interface ActionTemplate<P> {
   expand(params: P, ctx: ExpansionContext): ActionExpansion;
 }
 interface ActionExpansion {
-  nodes: readonly SyntheticNode[];
+  durationFrames: number;
+  nodes: readonly Node[];
+  behaviors: readonly BehaviorPlacement[];
   keyframes: readonly KeyframeWrite[];
-  effects: readonly EffectPlacement[];
   diagnostics: readonly Diagnostic[];
 }
 ```
 
 Actions previstas: `advance`, `attack`, `bombard`, `patrol`, `retreat`,
-`intercept`, `dogfight`, `missile-launch`, `amphibious-landing`, `airdrop`,
-`encircle`, `frontline-shift`, `naval-blockade`, `supply-line`.
+`intercept`, `dogfight`, `missile-launch`, `airstrike`, `siege`,
+`amphibious-landing`, `airdrop`, `encircle`, `frontline-shift`,
+`naval-blockade`, `supply-line`.
 
 **Depende de.** `animation`, `camera`, `effects`, `gis`, `assets`.
 

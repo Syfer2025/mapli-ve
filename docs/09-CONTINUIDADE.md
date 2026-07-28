@@ -503,8 +503,8 @@ Malha geográfica: `pnpm data:fetch` baixa as origens fixadas por hash e
 
 ## 7. Fases seguintes
 
-Ordem do roteiro: **7C** (rotas e setas 2D) → **7D** (textos no mapa) →
-**Fase 7** (ações) → **Fase 8** (exportação) → 9, 10, 11.
+Ordem atual do roteiro: completar os **formatos extras da Fase 8** → 9, 10 e 11.
+Os blocos 7C/7D e a **Fase 7 de Ações** já foram concluídos.
 
 Duas pendências herdadas que valem atenção antes da Fase 8:
 

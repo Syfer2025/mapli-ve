@@ -9,6 +9,7 @@ import {
   type AssetReference,
 } from "@theatrum/assets";
 import { createCommandBus, type HistorySnapshot } from "@theatrum/commands";
+import { createBuiltinActionRegistry } from "@theatrum/behaviors";
 import { createIdFactory } from "@theatrum/core-utils";
 import { createDocumentStore, select } from "@theatrum/document";
 import { createBuiltinNodeTypeRegistry, type NodeTypeDefinition } from "@theatrum/scene-graph";
@@ -50,6 +51,7 @@ const HEARTBEAT_INTERVAL_MS = 5_000;
 
 const ids = createIdFactory(0x0f03_2026, { detectCollisions: true });
 export const nodeTypeRegistry = createBuiltinNodeTypeRegistry();
+export const actionTemplateRegistry = createBuiltinActionRegistry();
 const initialDocument = createEmptyProjectDocument();
 const documentStore = createDocumentStore(initialDocument);
 export const commandBus = createCommandBus(documentStore);
@@ -1096,6 +1098,136 @@ export const editorActions = Object.freeze({
       type: "behavior.remove",
       payload: { compositionId: snapshot.selectedCompositionId, nodeId, behaviorId },
       source: "user",
+    });
+  },
+
+  addAction(nodeId: string, type: string, params: Record<string, unknown>): string | null {
+    if (!actionTemplateRegistry.has(type)) return null;
+    const actionId = ids("act");
+    const ok = this.dispatch({
+      type: "action.add",
+      payload: {
+        compositionId: snapshot.selectedCompositionId,
+        nodeId,
+        action: {
+          id: actionId,
+          type,
+          enabled: true,
+          mode: "live",
+          startFrame: snapshot.playheadFrame,
+          params,
+        },
+      },
+      source: "user",
+    });
+    return ok ? actionId : null;
+  },
+
+  setActionParams(nodeId: string, actionId: string, params: Record<string, unknown>): boolean {
+    return this.dispatch({
+      type: "action.set-params",
+      payload: {
+        compositionId: snapshot.selectedCompositionId,
+        nodeId,
+        actionId,
+        params,
+      },
+      source: "user",
+    });
+  },
+
+  setActionEnabled(nodeId: string, actionId: string, enabled: boolean): boolean {
+    return this.dispatch({
+      type: "action.set-enabled",
+      payload: {
+        compositionId: snapshot.selectedCompositionId,
+        nodeId,
+        actionId,
+        enabled,
+      },
+      source: "user",
+    });
+  },
+
+  removeAction(nodeId: string, actionId: string): boolean {
+    return this.dispatch({
+      type: "action.remove",
+      payload: { compositionId: snapshot.selectedCompositionId, nodeId, actionId },
+      source: "user",
+    });
+  },
+
+  /**
+   * Materializa a expansão live como uma única entrada de histórico.
+   *
+   * Cada comando dentro da transação continua validado. O último remove a
+   * Action; Ctrl+Z restaura a Action e retira nós/comportamentos/keyframes de
+   * uma vez, sem estado intermediário visível.
+   */
+  bakeAction(nodeId: string, actionId: string): boolean {
+    const document = documentStore.get();
+    const composition = selectedComposition();
+    const owner = composition?.nodes[nodeId];
+    const action = owner?.actions.find((entry) => entry.id === actionId);
+    if (composition === undefined || owner === undefined || action === undefined) return false;
+    const resolution = actionTemplateRegistry.resolve(action, owner, composition, document);
+    if (resolution.status !== "expanded") {
+      const message =
+        resolution.status === "invalid-params"
+          ? resolution.message
+          : resolution.status === "unknown-type"
+            ? `Ação não registrada: ${resolution.type}.`
+            : "A ação não está disponível para conversão.";
+      update({ error: message, status: "Não foi possível converter a ação" });
+      return false;
+    }
+    const expansion = resolution.expansion;
+    const blocking = expansion.diagnostics[0];
+    if (blocking !== undefined) {
+      update({ error: blocking.message, status: "Não foi possível converter a ação" });
+      return false;
+    }
+
+    return runTransaction(`Converter ${action.type} em keyframes`, () => {
+      for (const placement of expansion.behaviors) {
+        commandBus.dispatch({
+          type: "behavior.add",
+          payload: {
+            compositionId: composition.id,
+            nodeId: placement.nodeId,
+            behavior: placement.behavior,
+          },
+          source: "user",
+        });
+      }
+      for (const node of expansion.nodes) {
+        commandBus.dispatch({
+          type: "node.create",
+          payload: {
+            compositionId: composition.id,
+            parentId: node.parent ?? composition.root,
+            node,
+          },
+          source: "user",
+        });
+      }
+      for (const write of expansion.keyframes) {
+        commandBus.dispatch({
+          type: "keyframe.set",
+          payload: {
+            compositionId: composition.id,
+            target: write.target,
+            path: [...write.path],
+            keyframe: write.keyframe,
+          },
+          source: "user",
+        });
+      }
+      commandBus.dispatch({
+        type: "action.remove",
+        payload: { compositionId: composition.id, nodeId, actionId },
+        source: "user",
+      });
     });
   },
 

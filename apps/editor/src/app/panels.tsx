@@ -1,6 +1,7 @@
 import type { IDockviewPanelProps } from "dockview-react";
 import type { ReactNode } from "react";
 import { EffectsPanel } from "../panels/effects/EffectsPanel.js";
+import { ActionsPanel } from "../panels/actions/ActionsPanel.js";
 import { GraphPanel } from "../panels/graph/GraphPanel.js";
 import { HistoryPanel } from "../panels/history/HistoryPanel.js";
 import { RenderQueuePanel } from "../panels/render/RenderQueuePanel.js";
@@ -63,6 +64,12 @@ export const PANEL_DEFINITIONS = [
     hint: "Pilha de efeitos do nó selecionado, com parâmetros animáveis.",
   },
   {
+    id: "actions",
+    title: "Ações",
+    phase: "Fase 7",
+    hint: "Templates live e conversão transacional em keyframes.",
+  },
+  {
     id: "timeline",
     title: "Timeline",
     phase: "Fase 4",
@@ -121,6 +128,9 @@ export const PANEL_COMPONENTS: Record<string, (props: IDockviewPanelProps) => Re
   },
   effects: function NodeEffectsPanel(_props: IDockviewPanelProps): ReactNode {
     return <EffectsPanel />;
+  },
+  actions: function NodeActionsPanel(_props: IDockviewPanelProps): ReactNode {
+    return <ActionsPanel />;
   },
   library: function AssetLibraryPanel(_props: IDockviewPanelProps): ReactNode {
     return <LibraryPanel />;

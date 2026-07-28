@@ -278,7 +278,7 @@ export const DATA_HOST = "local";
 export const DATA_BASE_URL = `${DATA_SCHEME}://${DATA_HOST}`;
 
 /** Versão do formato de workspace. Incompatível → descarta e usa o padrão. */
-export const WORKSPACE_VERSION = 3;
+export const WORKSPACE_VERSION = 4;
 
 /** Nome sob o qual o preload publica a ponte em `window`. */
 export const BRIDGE_KEY = "theatrum";

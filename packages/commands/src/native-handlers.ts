@@ -1,5 +1,6 @@
 import type { Draft } from "@theatrum/document";
 import type {
+  ActionInstanceData,
   AnimatableProperty,
   AssetDescriptor,
   BehaviorInstanceData,
@@ -292,6 +293,35 @@ export const NATIVE_COMMAND_DEFINITIONS: readonly ErasedDefinition[] = [
     getBehavior(draft, command.payload).enabled = command.payload.enabled;
   }),
 
+  defineNative("action.add", "Adicionar ação", (draft, command) => {
+    const node = getNode(
+      getComposition(draft, command.payload.compositionId),
+      command.payload.nodeId,
+    );
+    if (node.actions.some((entry) => entry.id === command.payload.action.id)) {
+      rejectCommand(`Ação já existe: ${command.payload.action.id}.`);
+    }
+    const action = command.payload.action;
+    const index = command.payload.index;
+    if (index === undefined || index >= node.actions.length) node.actions.push(action);
+    else node.actions.splice(index, 0, action);
+  }),
+  defineNative("action.remove", "Remover ação", (draft, command) => {
+    const node = getNode(
+      getComposition(draft, command.payload.compositionId),
+      command.payload.nodeId,
+    );
+    const index = node.actions.findIndex((entry) => entry.id === command.payload.actionId);
+    if (index < 0) rejectCommand(`Ação não encontrada: ${command.payload.actionId}.`);
+    node.actions.splice(index, 1);
+  }),
+  defineNative("action.set-params", "Alterar ação", (draft, command) => {
+    getAction(draft, command.payload).params = command.payload.params;
+  }),
+  defineNative("action.set-enabled", "Ativar ação", (draft, command) => {
+    getAction(draft, command.payload).enabled = command.payload.enabled;
+  }),
+
   defineNative("effect.add", "Adicionar efeito", (draft, command) => {
     const node = getNode(
       getComposition(draft, command.payload.compositionId),
@@ -424,6 +454,22 @@ function getEffect(
     rejectCommand(`Efeito não encontrado: ${location.effectId}.`);
   }
   return effect;
+}
+
+function getAction(
+  draft: Draft<ProjectDocument>,
+  location: {
+    readonly compositionId: string;
+    readonly nodeId: string;
+    readonly actionId: string;
+  },
+): Draft<ActionInstanceData> {
+  const node = getNode(getComposition(draft, location.compositionId), location.nodeId);
+  const action = node.actions.find((entry) => entry.id === location.actionId);
+  if (action === undefined) {
+    rejectCommand(`Ação não encontrada: ${location.actionId}.`);
+  }
+  return action;
 }
 
 function insertComposition(draft: Draft<ProjectDocument>, composition: Composition): void {

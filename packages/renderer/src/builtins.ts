@@ -272,6 +272,7 @@ export const BUILTIN_RENDERABLE_TYPES = [
   "route3d",
   "studio.stage",
   "route",
+  "geo.frontline",
 ] as const;
 
 const BUILTIN_EVALUATORS: Readonly<
@@ -309,6 +310,7 @@ const BUILTIN_EVALUATORS: Readonly<
   // câmera, luz e chão. Ver ADR-012.
   "studio.stage": noVisual,
   route: routeVisual,
+  "geo.frontline": routeVisual,
 };
 
 /**

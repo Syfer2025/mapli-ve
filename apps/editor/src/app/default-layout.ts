@@ -7,6 +7,7 @@ import type { DockviewApi } from "dockview-react";
  *   │ Projeto  │                       │ Inspector  │
  *   ├──────────┤       Viewport        ├────────────┤
  *   │ Bibliot. │                       │ Efeitos    │
+ *   │          │                       │ Ações      │
  *   ├──────────┴───────────────────────┴────────────┤
  *   │        Timeline · Curvas · Fila de render     │
  *   └───────────────────────────────────────────────┘
@@ -79,11 +80,18 @@ export function applyDefaultLayout(api: DockviewApi): void {
     position: { referencePanel: viewport, direction: "right" },
   });
 
-  api.addPanel({
+  const effects = api.addPanel({
     id: "effects",
     component: "effects",
     title: "Efeitos",
     position: { referencePanel: inspector, direction: "below" },
+  });
+
+  api.addPanel({
+    id: "actions",
+    component: "actions",
+    title: "Ações",
+    position: { referencePanel: effects, direction: "within" },
   });
 
   timeline.api.setActive();

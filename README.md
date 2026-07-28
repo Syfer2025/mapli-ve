@@ -15,15 +15,14 @@ _theatrum belli_ — teatro de operações.
 
 ## Estado atual
 
-**Bloco 7 fechado e Fase 8 produzindo vídeo (2026-07-28): o export gera MP4
-H.264 byte-idêntico entre execuções — o critério mais importante do projeto — e
-cada bloco tem verificador próprio dirigindo o Electron real. Única exceção
+**Fase 7 de Ações concluída e Fase 8 produzindo vídeo (2026-07-28): o export
+gera MP4 H.264 byte-idêntico entre execuções — o critério mais importante do
+projeto — e cada bloco tem provas automatizadas e no editor real. Única exceção
 declarada no bloco 7: o 7E.4 (VFX volumétrico), adiado pelo dono e bloqueado por
 ferramenta ausente na máquina. O estado detalhado, com a tabela de verificadores
 e o que ainda falta, está em
 [docs/09-CONTINUIDADE.md](docs/09-CONTINUIDADE.md). Próximo: resolução acima do
-tamanho da janela, Fase 7 (ações), e os formatos que faltam (GIF, ProRes com
-alfa).**
+tamanho da janela e os formatos que faltam (GIF, ProRes com alfa).**
 
 Antes disso, o bloco 7A++ tirou o 3D do chão: a camada Three.js renderiza modelos
 GLB/glTF **com volume** e rotas como tubo volumétrico em altitude. Três defeitos
@@ -37,11 +36,10 @@ real: MapLibre + PMTiles offline, três estilos mundiais, mapa regional detalhad
 Irã–Hormuz, satélite local, busca geográfica e câmera animável com transporte. O documento possui schemas Zod, Command Bus com
 undo/redo, projeto `.theatrum` determinístico, escrita atômica, autosave com
 recuperação de crash e painéis reais de Projeto e Histórico. Agora há objetos de
-verdade sobre o mapa: quinze tipos de nó no registry, overlay Pixi com âncoras geo
+verdade sobre o mapa: 22 tipos de nó no registry, overlay Pixi com âncoras geo
 e comp, seleção por clique/marquee, gizmos de mover/rotacionar/escalar, timeline
 em canvas com trilhas, keyframes, marcadores, zoom e snap, e um Inspector gerado
-a partir de `PropertyDescriptor[]`. Os painéis das fases seguintes continuam como
-placeholders intencionais. A Fase 5 acrescentou caminhos compartilhados no
+a partir de `PropertyDescriptor[]`. A Fase 5 acrescentou caminhos compartilhados no
 projeto com ferramenta de caneta no mapa, cinco comportamentos declarativos
 (caminho com velocidade uniforme no terreno, auto-orientação, inclinação em
 curva, seguir com damping determinístico e oscilar), editor de curvas em canvas
@@ -117,7 +115,7 @@ caminho que ainda não tem `route3d` montado.
 |   7C | Rotas e setas de avanço                   | ✅ concluída |
 |   7D | Textos e rótulos no mapa                  | ✅ concluída |
 |   7E | Satélite, rótulo com guia, modo estúdio   | ✅ 3 de 4    |
-|    7 | Ações / simulações                        | ⏭️ próxima   |
+|    7 | Ações / simulações                        | ✅ concluída |
 |    8 | Exportação (PNG + MP4 H.264)              | ✅ concluída |
 |    9 | Scene Script (autoria por IA)             | ⬜           |
 |   10 | Plugins + conteúdo empacotado             | ⬜           |

@@ -97,19 +97,27 @@ export function expandRouteNodes(
   let nodes: Map<string, ScreenNode> | null = null;
 
   for (const [id, node] of evaluated.nodes) {
-    if (node.type !== "route" || node.visible === false) continue;
+    if ((node.type !== "route" && node.type !== "geo.frontline") || node.visible === false) {
+      continue;
+    }
     const own = layout.layouts.get(id);
     const target = screen.nodes.get(id);
     if (own === undefined || target === undefined) continue;
 
     const props = node.props as Readonly<Record<string, unknown>>;
-    const pathId = str(props, "pathId", "");
-    const path = paths[pathId];
+    const frontline = node.type === "geo.frontline";
+    const pathId = frontline ? `frontline:${id}` : str(props, "pathId", "");
+    const path = frontline ? frontlinePath(id, props) : paths[pathId];
     if (path === undefined) {
-      diagnostics.push({ nodeId: id, message: `caminho ausente: ${pathId || "(vazio)"}` });
+      diagnostics.push({
+        nodeId: id,
+        message: frontline
+          ? "GeoJSON da linha de frente é inválido"
+          : `caminho ausente: ${pathId || "(vazio)"}`,
+      });
       continue;
     }
-    pathIds.add(pathId);
+    if (!frontline) pathIds.add(pathId);
 
     let absolute = projectedPaths.get(pathId);
     if (absolute === undefined) {
@@ -186,6 +194,49 @@ export function expandRouteNodes(
     drawn,
     pathIds,
     bounds,
+  };
+}
+
+function frontlinePath(
+  nodeId: string,
+  props: Readonly<Record<string, unknown>>,
+): PathData | undefined {
+  const geometry = props["geometry"];
+  if (
+    typeof geometry !== "object" ||
+    geometry === null ||
+    Reflect.get(geometry, "type") !== "LineString"
+  ) {
+    return undefined;
+  }
+  const coordinates = Reflect.get(geometry, "coordinates");
+  if (!Array.isArray(coordinates) || coordinates.length < 2) return undefined;
+  const points: Vec2[] = [];
+  for (const coordinate of coordinates) {
+    if (
+      !Array.isArray(coordinate) ||
+      coordinate.length !== 2 ||
+      typeof coordinate[0] !== "number" ||
+      typeof coordinate[1] !== "number" ||
+      !Number.isFinite(coordinate[0]) ||
+      !Number.isFinite(coordinate[1])
+    ) {
+      return undefined;
+    }
+    points.push([coordinate[0], coordinate[1]]);
+  }
+  return {
+    id: `frontline:${nodeId}`,
+    name: "Linha de frente",
+    space: "geo",
+    vertices: points.map((point) => ({
+      point: [point[0], point[1]],
+      inHandle: null,
+      outHandle: null,
+    })),
+    closed: false,
+    interpolation: "linear",
+    geodesic: true,
   };
 }
 
