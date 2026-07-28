@@ -167,9 +167,24 @@ Limitações honestas (preview, não export):
 > Rússia em z13 sobre Kiev sai como quatro cantos da vista em vez de 25 mil
 > vértices que ninguém veria. Pior frame medido em qualquer zoom: 5,9 ms.
 >
-> **Falta:** `geo.roads` (com medição própria, como o ADR-009 exige),
-> `area.transfer` em OkLab, painel de seleção de território na UI, e o
-> verificador dos quatro critérios.
+> **`geo.roads` entregue.** A premissa óbvia — agrupar estradas pelo soberano
+> declarado na fonte — morreu na medição: `sov_a3` só existe em 15 valores e
+> 85,4% dos vértices ficariam órfãos. O ADR-011 registra a alternativa: junção
+> espacial por ponto médio na compilação, candidatos em ordem crescente de área
+> de caixa (enclave resolvido, Rússia fora do caminho quente), 99,1% atribuídos
+> e o restante na feição explícita `roads:--` — nada some em silêncio. Prova ao
+> vivo (`scratchpad/probe-roads.mjs`): o traço passa pelo vértice projetado com
+> distância 0 e 30 de 30 vértices amostrados casados; 696 vértices em zoom de
+> país e 39 em zoom de cidade; o nó custa 0,5 ms por frame (total do overlay
+> 0,7 ms, contra os 8 ms do orçamento). A prova ainda pegou um defeito real do
+> passe: o layout calculava a matriz com o pivot do tamanho padrão (32 px de 64)
+> e os anéis são medidos a partir da âncora — todo território era pintado
+> deslocado. O remendo devolve a origem local à âncora (`matriz ×
+translate(pivot)`), com teste unitário e medida ao vivo. Também entregue:
+> busca de território no Inspector filtrada pelo tipo do nó, carregando só a
+> camada necessária.
+>
+> **Falta:** `area.transfer` em OkLab e o verificador dos quatro critérios.
 
 **Objetivo.** País, estado, rio e estrada viram nós animáveis, não decoração do
 basemap.

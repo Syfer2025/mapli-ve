@@ -12,8 +12,9 @@ morde, e como não repetir erro já cometido.
 
 ## 1. Onde parou
 
-Último commit: `4d8959c`. `pnpm check` verde — 833 testes em 86 arquivos, 285
-módulos, 747 dependências, sem violação de camada.
+Último commit: `d57c9d8`. Cadeia do `pnpm check` verde — 846 testes em 88
+arquivos, 288 módulos, 756 dependências, sem violação de camada; build
+electron-vite ok; `data:verify` (13 assets) e `geo:verify` (4 camadas) íntegros.
 
 Fases 0–6 concluídas. Blocos 7A e 7A+ concluídos. **Bloco 7B em curso.**
 
@@ -29,23 +30,18 @@ Entregue no 7B, em cinco commits:
 | `1bb84b2` | Biblioteca 3D local por raiz nomeada; seletor de território no Inspector |
 | `4d8959c` | Seção da biblioteca no painel, com import por clique                     |
 
+E nesta sessão, o 7B.1 (`geo.roads`), em quatro commits:
+
+| Commit    | O quê                                                                              |
+| --------- | ---------------------------------------------------------------------------------- |
+| `fc986f5` | ADR-011: junção espacial por ponto médio; a premissa do `sov_a3` morreu na medição |
+| `1b90af1` | Origem `ne_10m_roads` fixada; junção no compilador; `spatial-join` no gis          |
+| `dac3c39` | Passe geo sem o deslocamento de 32 px do pivot — achado da prova ao vivo           |
+| `d57c9d8` | Nó `geo.roads` de ponta a ponta, com prova ao vivo verde                           |
+
 ## 2. O que falta no 7B, na ordem que eu faria
 
-### 2.1 `geo.roads` — com medição própria
-
-O [ADR-009](adr/ADR-009-geo-layers-overlay.md) registra explicitamente que
-estradas **não herdam** a conclusão de países: o arquivo de origem é quatro vezes
-maior e a densidade por área é outra. Medir antes de construir.
-
-O que já existe e serve: o compilador (`tools/build-geo.ts`) aceita uma camada
-nova com uma entrada na tabela `LAYERS`; o leitor, o recorte e o passe de projeção
-funcionam para qualquer camada.
-
-O que provavelmente vai morder: `ne_10m_roads.geojson` tem 48 MB e a malha é de
-linhas abertas, não anéis — o caminho de recorte é `clipPolyline`, já implementado
-e testado, mas nunca exercitado com dado real de estrada.
-
-### 2.2 `area.transfer` — transição de cor de território em OkLab
+### 2.1 `area.transfer` — transição de cor de território em OkLab
 
 Interpolar `fill` de um `geo.region` em OkLab, não em sRGB. Está no escopo do
 bloco e é o uso real de território animado: mostrar avanço de frente.
@@ -53,7 +49,7 @@ bloco e é o uso real de território animado: mostrar avanço de frente.
 Ponto de atenção: a interpolação tem de ser **determinística e reversível** —
 critério 2 do bloco exige hash de frame idêntico no scrub para trás.
 
-### 2.3 Verificador `tools/verify-phase7b.mjs`
+### 2.2 Verificador `tools/verify-phase7b.mjs`
 
 Os quatro critérios de saída estão em [08-ROADMAP](08-ROADMAP.md#7b--camadas-geográficas-contornos-estados-estradas).
 Use `tools/verify-phase7a.mjs` como molde. Provas ao vivo já escritas que valem
@@ -145,6 +141,21 @@ os pedaços pela borda do recorte. `clipRing` conta entradas e recusa acima de u
 devolvendo −1; o chamador então projeta o anel inteiro. Conta entrada **por
 aresta**, não por vértice — uma aresta longa atravessa a caixa entre dois vértices
 ambos externos.
+
+### 3.10 Medir traço fino pede detector de proporção, e a âncora tem pivot
+
+Duas mordidas da prova do `geo.roads`, na mesma sessão:
+
+1. Traço de 1,5 px com alfa < 1 sobre fundo **transparente** volta pré-multiplicado
+   na extração: pixel de borda carrega uma fração da cor e reprova qualquer limiar
+   absoluto (`r > 190` e afins). Detecte pelo alfa somado à **proporção** r:g:b,
+   que a pré-multiplicação preserva. Padrão em `scratchpad/probe-roads.mjs`.
+2. A matriz do layout carrega o pivot `anchorPoint × tamanho` — 32 px no tamanho
+   padrão de 64 — mas os anéis geo são medidos a partir de `anchorPx`. Resultado:
+   todo território pintado deslocado de (−32, −32), fino o bastante para passar
+   despercebido em zoom de país. O remendo é `matriz × translate(pivot)`, em
+   `geo-nodes.ts`; a prova geométrica com vários vértices é o que pega essa
+   classe de defeito — um vértice só pode casar com a estrada vizinha errada.
 
 ## 4. Como verificar de verdade
 
