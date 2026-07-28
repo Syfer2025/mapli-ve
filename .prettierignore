@@ -13,3 +13,4 @@ schemas/
 
 # Gerado pelo pnpm; formatá-lo faz cada `pnpm add` quebrar o `pnpm check`.
 pnpm-lock.yaml
+scratchpad/

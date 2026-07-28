@@ -34,3 +34,6 @@ tests/golden/frames/*.diff.png
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# medições e provas de bancada locais (ex.: scratchpad/measure-roads.ts do ADR-011)
+scratchpad/

@@ -78,6 +78,14 @@ export {
 
 export { clipBufferSize, clipPolyline, clipRing, type ClipBounds } from "./clip.js";
 
+export {
+  containingPolygon,
+  pointInPolygon,
+  prepareJoinPolygons,
+  type JoinPolygon,
+  type JoinRing,
+} from "./spatial-join.js";
+
 export { createRegionCatalog, type RegionCatalog, type RegionHit } from "./region-catalog.js";
 
 export { BUILTIN_GAZETTEER_PLACES } from "./gazetteer-data.js";

@@ -22,14 +22,15 @@
  * seguinte.
  *
  * Uso:
- *   node tools/build-geo.ts
- *   node tools/build-geo.ts --verify
+ *   tsx tools/build-geo.ts
+ *   tsx tools/build-geo.ts --verify
  */
 
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
+import { containingPolygon, prepareJoinPolygons, type JoinPolygon } from "@theatrum/gis";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SOURCE_ROOT = path.join(ROOT, "data", "natural-earth");
@@ -56,7 +57,12 @@ const LEVEL_TOLERANCES: readonly number[] = [0.2, 0.05, 0.012, 0.003, 0.0008];
 /** Zoom a partir do qual cada nível passa a valer. Ver `levelForZoom` no runtime. */
 const LEVEL_MIN_ZOOM: readonly number[] = [0, 5, 7, 9, 11];
 
-interface LayerSource {
+interface LayerIdentity {
+  readonly id: string;
+  readonly name: string;
+}
+
+interface SimpleLayerSource {
   readonly layer: string;
   readonly file: string;
   /** Como a feição é classificada no documento. */
@@ -64,8 +70,23 @@ interface LayerSource {
   /** Propriedades do Natural Earth que sobrevivem à compilação. */
   readonly keep: readonly string[];
   /** Identidade estável da feição, preferindo código sobre nome. */
-  identify(props: Record<string, unknown>): { id: string; name: string } | null;
+  identify(props: Record<string, unknown>): LayerIdentity | null;
+  /** A camada de países alimenta a junção espacial das camadas agrupadas. */
+  readonly collectsJoinPolygons?: boolean;
 }
+
+/**
+ * Camada agrupada pelo país que contém cada anel — o caso das estradas
+ * (ADR-011). Não há identidade por feição: a junção espacial é a identidade.
+ */
+interface GroupedLayerSource {
+  readonly layer: string;
+  readonly file: string;
+  readonly kind: "road";
+  readonly groupByCountryPolygon: true;
+}
+
+type LayerSource = SimpleLayerSource | GroupedLayerSource;
 
 function text(props: Record<string, unknown>, key: string): string | null {
   const value = props[key];
@@ -87,6 +108,7 @@ const LAYERS: readonly LayerSource[] = [
       if (name === null || code === null) return null;
       return { id: `c:${code}`, name };
     },
+    collectsJoinPolygons: true,
   },
   {
     layer: "states",
@@ -113,6 +135,17 @@ const LAYERS: readonly LayerSource[] = [
       if (name === null) return null;
       return { id: `r:${name}`, name };
     },
+  },
+  {
+    /**
+     * Estradas: agrupadas pelo país que contém o ponto médio de cada segmento
+     * (ADR-011). A origem só preenche `sov_a3` na América do Norte e Central,
+     * então a junção espacial contra a malha de países é a identidade.
+     */
+    layer: "roads",
+    file: "ne_10m_roads.geojson",
+    kind: "road",
+    groupByCountryPolygon: true,
   },
 ];
 
@@ -255,7 +288,119 @@ interface CompiledLayer {
   readonly binary: Buffer;
 }
 
-async function compileLayer(source: LayerSource): Promise<CompiledLayer> {
+interface CompiledRings {
+  readonly entries: RingEntry[];
+  readonly levelCounts: number[];
+  readonly bbox: readonly number[];
+  readonly center: readonly number[];
+  readonly nextOffset: number;
+}
+
+/**
+ * Compila um conjunto de anéis: coordenadas quantizadas e nível de cada vértice
+ * vão para os arrays compartilhados; caixas, contagens por nível e o ponto
+ * representativo voltam. Serve tanto para a feição simples quanto para o grupo
+ * de um país na junção espacial.
+ */
+function compileRings(
+  rings: readonly Ring[],
+  coordinates: number[],
+  levels: number[],
+  startOffset: number,
+): CompiledRings {
+  const entries: RingEntry[] = [];
+  const levelCounts = new Array<number>(LEVEL_TOLERANCES.length + 1).fill(0);
+  let offset = startOffset;
+  let minLng = Infinity;
+  let minLat = Infinity;
+  let maxLng = -Infinity;
+  let maxLat = -Infinity;
+  // Maior anel = massa continental. É dele que sai o ponto representativo.
+  let largestRingSize = 0;
+  let centerLng = 0;
+  let centerLat = 0;
+
+  for (const ring of rings) {
+    const significance = vertexSignificance(ring);
+    let ringW = Infinity;
+    let ringS = Infinity;
+    let ringE = -Infinity;
+    let ringN = -Infinity;
+    for (const point of ring) {
+      const lng = point[0] ?? 0;
+      const lat = point[1] ?? 0;
+      if (lng < ringW) ringW = lng;
+      if (lat < ringS) ringS = lat;
+      if (lng > ringE) ringE = lng;
+      if (lat > ringN) ringN = lat;
+    }
+    entries.push({
+      offset,
+      count: ring.length,
+      bbox: [ringW, ringS, ringE, ringN].map((value) => Math.round(value * 1e5) / 1e5),
+    });
+    if (ring.length > largestRingSize) {
+      largestRingSize = ring.length;
+      let sumLng = 0;
+      let sumLat = 0;
+      for (const point of ring) {
+        sumLng += point[0] ?? 0;
+        sumLat += point[1] ?? 0;
+      }
+      centerLng = sumLng / ring.length;
+      centerLat = sumLat / ring.length;
+    }
+    for (let index = 0; index < ring.length; index += 1) {
+      const point = ring[index];
+      const lng = point?.[0] ?? 0;
+      const lat = point?.[1] ?? 0;
+      coordinates.push(Math.round(lng * COORDINATE_SCALE), Math.round(lat * COORDINATE_SCALE));
+      const level = quantizeLevel(significance[index] ?? 0);
+      levels.push(level);
+      for (let l = level; l < levelCounts.length; l += 1) {
+        levelCounts[l] = (levelCounts[l] ?? 0) + 1;
+      }
+      if (lng < minLng) minLng = lng;
+      if (lat < minLat) minLat = lat;
+      if (lng > maxLng) maxLng = lng;
+      if (lat > maxLat) maxLat = lat;
+    }
+    offset += ring.length;
+  }
+
+  return {
+    entries,
+    levelCounts,
+    bbox: [minLng, minLat, maxLng, maxLat].map((value) => Math.round(value * 1e6) / 1e6),
+    center: [centerLng, centerLat].map((value) => Math.round(value * 1e6) / 1e6),
+    nextOffset: offset,
+  };
+}
+
+/** Contexto que a camada de países deixa para as camadas agrupadas. */
+interface JoinContext {
+  readonly polygons: readonly JoinPolygon[];
+  /** Ids de país na ordem do arquivo — a ordem das feições agrupadas. */
+  readonly order: readonly string[];
+  /** Nome e continente de cada país, para nomear o grupo de estradas. */
+  readonly meta: ReadonlyMap<
+    string,
+    { readonly code: string; readonly name: string; readonly continent: string | undefined }
+  >;
+}
+
+interface LayerCompile {
+  readonly layer: CompiledLayer;
+  /** Presente na camada de países: os polígonos para a junção espacial. */
+  readonly join: JoinContext | undefined;
+  /** Anéis sem país na junção espacial (rotas de ferry, disputados). */
+  readonly unassigned: number | undefined;
+}
+
+async function compileLayer(
+  source: LayerSource,
+  join: JoinContext | undefined,
+): Promise<LayerCompile> {
   const raw = await readFile(path.join(SOURCE_ROOT, source.file), "utf8");
   const parsed = JSON.parse(raw) as { readonly features: readonly GeoJsonFeature[] };
 
@@ -263,6 +408,76 @@ async function compileLayer(source: LayerSource): Promise<CompiledLayer> {
   const levels: number[] = [];
   const features: FeatureEntry[] = [];
   let offset = 0;
+
+  if ("groupByCountryPolygon" in source) {
+    // Caminho agrupado (ADR-011): cada anel vai para o país do seu ponto médio.
+    if (join === undefined) {
+      throw new Error(`Camada "${source.layer}" exige a malha de países compilada antes.`);
+    }
+    const buckets = new Map<string, Ring[]>();
+    const stray: Ring[] = [];
+    for (const feature of parsed.features) {
+      if (feature.geometry === null) continue;
+      for (const ring of ringsOf(feature.geometry.coordinates)) {
+        const mid = ring[Math.floor(ring.length / 2)] ?? [0, 0];
+        const polygon = containingPolygon([mid[0] ?? 0, mid[1] ?? 0], join.polygons);
+        if (polygon === undefined) {
+          stray.push(ring);
+          continue;
+        }
+        const bucket = buckets.get(polygon.id);
+        if (bucket === undefined) buckets.set(polygon.id, [ring]);
+        else bucket.push(ring);
+      }
+    }
+
+    for (const countryId of join.order) {
+      const rings = buckets.get(countryId);
+      if (rings === undefined || rings.length === 0) continue;
+      const meta = join.meta.get(countryId);
+      const code = meta?.code ?? countryId.replace(/^c:/, "");
+      const geometry = compileRings(rings, coordinates, levels, offset);
+      offset = geometry.nextOffset;
+      const props: Record<string, string> = { ADM0_A3: code };
+      if (meta?.continent !== undefined) props["CONTINENT"] = meta.continent;
+      features.push({
+        id: `roads:${code}`,
+        name: meta?.name ?? code,
+        kind: source.kind,
+        props,
+        bbox: geometry.bbox,
+        center: geometry.center,
+        rings: geometry.entries,
+        levelCounts: geometry.levelCounts,
+      });
+    }
+
+    // Nada some em silêncio: rotas de ferry e trechos disputados viram feição
+    // própria, selecionável como qualquer outra.
+    if (stray.length > 0) {
+      const geometry = compileRings(stray, coordinates, levels, offset);
+      features.push({
+        id: "roads:--",
+        name: "Fora de soberania (ferry e disputados)",
+        kind: source.kind,
+        props: {},
+        bbox: geometry.bbox,
+        center: geometry.center,
+        rings: geometry.entries,
+        levelCounts: geometry.levelCounts,
+      });
+    }
+
+    return {
+      layer: assembleLayer(source, coordinates, levels, features),
+      join: undefined,
+      unassigned: stray.length,
+    };
+  }
+
+  const joinPolygons: { id: string; rings: Ring[] }[] = [];
+  const joinOrder: string[] = [];
+  const joinMeta = new Map<string, { code: string; name: string; continent: string | undefined }>();
 
   for (const feature of parsed.features) {
     if (feature.geometry === null) continue;
@@ -277,63 +492,17 @@ async function compileLayer(source: LayerSource): Promise<CompiledLayer> {
       if (value !== null) props[key] = value;
     }
 
-    const entries: RingEntry[] = [];
-    const levelCounts = new Array<number>(LEVEL_TOLERANCES.length + 1).fill(0);
-    let minLng = Infinity;
-    let minLat = Infinity;
-    let maxLng = -Infinity;
-    let maxLat = -Infinity;
-    // Maior anel = massa continental. É dele que sai o ponto representativo.
-    let largestRingSize = 0;
-    let centerLng = 0;
-    let centerLat = 0;
+    const geometry = compileRings(rings, coordinates, levels, offset);
+    offset = geometry.nextOffset;
 
-    for (const ring of rings) {
-      const significance = vertexSignificance(ring);
-      let ringW = Infinity;
-      let ringS = Infinity;
-      let ringE = -Infinity;
-      let ringN = -Infinity;
-      for (const point of ring) {
-        const lng = point[0] ?? 0;
-        const lat = point[1] ?? 0;
-        if (lng < ringW) ringW = lng;
-        if (lat < ringS) ringS = lat;
-        if (lng > ringE) ringE = lng;
-        if (lat > ringN) ringN = lat;
-      }
-      entries.push({
-        offset,
-        count: ring.length,
-        bbox: [ringW, ringS, ringE, ringN].map((value) => Math.round(value * 1e5) / 1e5),
+    if (source.collectsJoinPolygons === true) {
+      joinPolygons.push({ id: identity.id, rings });
+      joinOrder.push(identity.id);
+      joinMeta.set(identity.id, {
+        code: identity.id.replace(/^c:/, ""),
+        name: identity.name,
+        continent: props["CONTINENT"],
       });
-      if (ring.length > largestRingSize) {
-        largestRingSize = ring.length;
-        let sumLng = 0;
-        let sumLat = 0;
-        for (const point of ring) {
-          sumLng += point[0] ?? 0;
-          sumLat += point[1] ?? 0;
-        }
-        centerLng = sumLng / ring.length;
-        centerLat = sumLat / ring.length;
-      }
-      for (let index = 0; index < ring.length; index += 1) {
-        const point = ring[index];
-        const lng = point?.[0] ?? 0;
-        const lat = point?.[1] ?? 0;
-        coordinates.push(Math.round(lng * COORDINATE_SCALE), Math.round(lat * COORDINATE_SCALE));
-        const level = quantizeLevel(significance[index] ?? 0);
-        levels.push(level);
-        for (let l = level; l < levelCounts.length; l += 1) {
-          levelCounts[l] = (levelCounts[l] ?? 0) + 1;
-        }
-        if (lng < minLng) minLng = lng;
-        if (lat < minLat) minLat = lat;
-        if (lng > maxLng) maxLng = lng;
-        if (lat > maxLat) maxLat = lat;
-      }
-      offset += ring.length;
     }
 
     features.push({
@@ -341,13 +510,35 @@ async function compileLayer(source: LayerSource): Promise<CompiledLayer> {
       name: identity.name,
       kind: source.kind,
       props,
-      bbox: [minLng, minLat, maxLng, maxLat].map((value) => Math.round(value * 1e6) / 1e6),
-      center: [centerLng, centerLat].map((value) => Math.round(value * 1e6) / 1e6),
-      rings: entries,
-      levelCounts,
+      bbox: geometry.bbox,
+      center: geometry.center,
+      rings: geometry.entries,
+      levelCounts: geometry.levelCounts,
     });
   }
 
+  const joinContext: JoinContext | undefined =
+    source.collectsJoinPolygons === true
+      ? {
+          polygons: prepareJoinPolygons(joinPolygons),
+          order: Object.freeze(joinOrder),
+          meta: joinMeta,
+        }
+      : undefined;
+
+  return {
+    layer: assembleLayer(source, coordinates, levels, features),
+    join: joinContext,
+    unassigned: undefined,
+  };
+}
+
+function assembleLayer(
+  source: LayerSource,
+  coordinates: number[],
+  levels: number[],
+  features: FeatureEntry[],
+): CompiledLayer {
   const vertexCount = coordinates.length / 2;
   const binary = Buffer.alloc(vertexCount * 8 + vertexCount);
   for (let index = 0; index < coordinates.length; index += 1) {
@@ -390,9 +581,14 @@ function formatBytes(value: number): string {
 
 async function main(): Promise<void> {
   let totalOut = 0;
+  // A camada de países deixa os polígonos que a junção espacial das estradas usa
+  // (ADR-011). A ordem da tabela LAYERS é parte do contrato.
+  let join: JoinContext | undefined;
   for (const source of LAYERS) {
     const started = process.hrtime.bigint();
-    const compiled = await compileLayer(source);
+    const result = await compileLayer(source, join);
+    if (result.join !== undefined) join = result.join;
+    const compiled = result.layer;
     const elapsed = Number(process.hrtime.bigint() - started) / 1e6;
     const binaryPath = path.join(OUTPUT_ROOT, `${source.layer}.bin`);
     const indexPath = path.join(OUTPUT_ROOT, `${source.layer}.json`);
@@ -432,6 +628,11 @@ async function main(): Promise<void> {
     console.log(
       `  vértices por nível: ${counts.map((value, level) => `z${LEVEL_MIN_ZOOM[level] ?? "+"}=${value.toLocaleString("pt-BR")}`).join(" · ")}`,
     );
+    if (result.unassigned !== undefined) {
+      console.log(
+        `  sem país na junção: ${result.unassigned.toLocaleString("pt-BR")} anéis (feição roads:--)`,
+      );
+    }
   }
 
   if (!VERIFY_ONLY) console.log(`\nTotal compilado: ${formatBytes(totalOut)}`);

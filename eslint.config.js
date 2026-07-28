@@ -13,6 +13,7 @@ export default tseslint.config(
       "**/coverage/**",
       "data/**",
       "tests/golden/frames/**",
+      "scratchpad/**",
     ],
   },
 

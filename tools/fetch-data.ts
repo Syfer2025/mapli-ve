@@ -75,6 +75,17 @@ const REMOTE_ASSETS: readonly RemoteAsset[] = [
     sha256: "bb854a900ecbd3b408df46d5e16e3e0f974ba55993f9d8b5c26e855273c0905a",
   },
   {
+    /**
+     * Estradas do bloco 7B. Quatro vezes o arquivo de países — a decisão de
+     * agrupar por país via junção espacial, e a medição que a sustenta, estão
+     * no ADR-011.
+     */
+    relativePath: "natural-earth/ne_10m_roads.geojson",
+    url: `${NATURAL_EARTH_RAW}/${NATURAL_EARTH_PHYSICAL_COMMIT}/geojson/` + "ne_10m_roads.geojson",
+    bytes: 50_474_096,
+    sha256: "66a0c7b438e92fd124822cc5921cfa11042f48c294ade5e0f03f2c6640fd0248",
+  },
+  {
     relativePath: "natural-earth/ne_10m_populated_places_simple.geojson",
     url:
       `${NATURAL_EARTH_RAW}/${NATURAL_EARTH_PLACES_COMMIT}/geojson/` +
