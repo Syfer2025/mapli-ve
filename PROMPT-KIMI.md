@@ -7,7 +7,7 @@ Copie tudo abaixo da linha e cole na sessão nova.
 Você vai continuar o **Theatrum**, um editor de animação geopolítica/militar
 estilo After Effects, 100% local e offline. Repositório em `D:\maplive\map\mapli-ve`,
 remote `https://github.com/Syfer2025/mapli-ve` (branch `main`, último commit
-`ab427f4`).
+`f9a895e`).
 
 ## Antes de escrever qualquer código, leia nesta ordem
 
@@ -47,62 +47,66 @@ OpenVDB na máquina). **Fase 8 produz MP4 H.264 byte-idêntico entre execuções
 o critério que o roteiro chama de mais importante do projeto.
 
 Sete verificadores dirigem o **Electron real** por CDP na porta 9222:
-`verify:phase7a`, `7b` (4/4), `7c`, `7d` (4/4), `7e3` (5/5), `phase8` (6/6),
-`phase8-video` (6/6).
+`verify:phase7a`, `7b` (4/4), `7c`, `7d` (4/4), `7e3` (5/5), `phase8` (7/7),
+`phase8-video` (6/6). Suíte de unidade: 1028 testes em 104 arquivos.
 
-## Sua primeira tarefa: fechar a pendência do `settle` do export
+**Depois disso veio o ADR-014**, que tirou o Palco 3D de dentro do painel Viewport
+e o transformou em aba própria, com pilha de superfícies própria. Quatro etapas,
+todas fechadas e provadas. Três coisas que ele ensinou e que você vai encontrar:
 
-É o item 5 de 09-CONTINUIDADE §3, e o único da lista que **ameaça o critério
-byte-idêntico**. Está documentado lá com mecanismo completo; resumo:
+- O dockview **só monta o painel ativo**. As superfícies da aba inativa não
+  existem no DOM — não é `visibility`, é montagem. Foi isso que quebrou o `settle`
+  do export, o `atFrame` do verificador e o critério 4 do 7E.3: **sinal do painel
+  errado**, três vezes com roupas diferentes. Se algo não aparece, pergunte primeiro
+  qual aba está na frente.
+- O dockview escuta **pointer**: `element.click()` não troca de aba. Precisa de
+  `Input.dispatchMouseEvent` por coordenada — e nem isso funciona sempre (não
+  descobri por quê; está registrado como pendência no verificador).
+- O export **detecta** o modo pela pilha montada (`detectExportMode`), em vez de
+  carregar uma lista fixa de superfícies. Você exporta o que está vendo.
 
-`waitForQuiet` em `apps/editor/src/export/run-export.ts` decide que um frame está
-pronto por três condições: `observed.frame === frame`, contador de repinturas do
-overlay estável, e `!host.mapBusy()`. E `mapBusy` é
+## Sua primeira tarefa: implementar o ADR-015 (pontos de interesse do palco)
 
-```ts
-mapBusy: () => options.map.isMoving() || !options.map.areTilesLoaded();
-```
+Leia `docs/adr/ADR-015-studio-points-of-interest.md` inteiro. Ele tem a forma
+decidida e cinco consequências declaradas. Resumo do que manda fazer:
 
-em `apps/editor/src/export/export-service.ts` (duas ocorrências: ~109 no caminho
-PNG, ~213 no MP4).
+O dono quer apresentar equipamento militar no Palco 3D: a câmera vai até o míssil
+e ele fala do míssil; vai até a cabine e fala da cabine, com texto entrando em cada
+parada. Os pontos vêm de **clique na superfície do modelo**, não dos nós do glTF.
 
-Nenhuma das três vê o carregamento do GLB. Em
-`apps/editor/src/panels/viewport/scene3d-layer.ts`, `syncModels` resolve o
-template de forma assíncrona e só **depois** do `GLTFLoader.parse` a instância
-entra na cena e a camada chama `map.triggerRepaint()`. Essa repintura é do
-**mapa**, não do overlay Pixi: não mexe em `renderCountRef`, que é o que o `probe`
-do `SceneOverlay` devolve ao export. E `areTilesLoaded()` fala de tiles, não de
-assets do documento.
+**Por que não dos nós do glTF, e não tente "melhorar" isso:** foi medido. O
+obuseiro 2S19M1 do dono tem 0 animações, 0 skins, e 51 nós irmãos planos chamados
+`Object_2` a `Object_50`. Veio de um OBJ e a Sketchfab agrupou por **material** — 20
+das 49 malhas ocupam mais de 60% de um eixo do veículo, várias em 100%. Não existe
+"o nó da torre". Para conferir por conta própria: leia o chunk JSON do GLB direto
+(header de 12 bytes, depois chunks de 8) e compare os `min`/`max` dos accessors de
+POSITION, que o glTF obriga a existir.
 
-**Consequência:** export iniciado antes de o GLB terminar de parsear escreve os
-primeiros frames **sem a aeronave**. Na segunda execução o template já está no
-cache da camada, resolve na hora, e os mesmos frames saem **com** ela. Dois
-arquivos diferentes para o mesmo projeto.
+Peças a construir, na ordem:
 
-Não apareceu nos verificadores porque
-`grep -c "model3d\|route3d\|scene3d" tools/verify-phase8*.mjs` devolve **0 nos
-dois**: o determinismo foi provado numa cena sem nenhum conteúdo 3D. A camada 3D
-é capturada — `frame-composer.ts` inclui `.maplibregl-canvas` e o ADR-013 diz que
-a ordem de composição é contrato — mas **capturar não é esperar**.
+1. **Tipo de nó `studio.poi`**: nome, ponto em metros no espaço do palco, e o
+   enquadramento da câmera ao visitá-lo. Segue o padrão de `studio.stage` em
+   `packages/scene-graph/src/builtin-node-types.ts` — e como o palco, **não** deve
+   herdar `COMMON_PROPERTIES` sem pensar. Ver ADR-014: `transform.opacity` num nó
+   que não é desenhável foi armadilha real, porque o avaliador deriva `visible` de
+   `opacity > 0` (`packages/animation/src/evaluate.ts:151`).
+2. **Botão "Marcar pontos"** no `StudioViewport`. Ligado, clique na superfície faz
+   raycast contra a cena do palco e cria o POI ali. O `StudioSceneRuntime` já tem a
+   cena e a câmera; falta expor um método de picking.
+3. **Marcadores visíveis** dos POI existentes, no overlay Pixi do palco — que já
+   existe e já desenha `label.callout`, provado no verificador 5/5.
+4. **Roteiro** como sequência de visitas, **compilando para keyframes** nas props de
+   câmera que o `studio.stage` já tem. Não faça um player paralelo: compilar mantém
+   a câmera função pura de (documento, frame), preserva o export byte-idêntico e dá
+   o editor de curvas de graça. Siga o precedente da Fase 7 (ações live →
+   keyframes) em vez de inventar outro.
 
-O sinal que falta já existe: `window.__theatrumScene3d.status()` expõe `pending`
-(nós pedidos menos instâncias carregadas) e `lastError`. Duas ressalvas antes de
-usar direto:
+**O que NÃO está no escopo, e não confunda:** POI leva a câmera **até** a torre; não
+**gira** a torre. Girar exige `gltf.animations` — hoje descartado em
+`three-assets.ts` — e um modelo com a torre como nó separado, que o 2S19 não tem.
 
-- `__theatrumScene3d` só é publicado sob `import.meta.env.DEV`. Em build de
-  produção o export perderia a guarda **em silêncio**. O certo é a camada expor
-  `pending` por caminho não-DEV, ou o `SceneOverlay` incluir isso no `probe` que
-  já passa para o export.
-- `pending` não cobre GLB que falhou: com `lastError` preenchido, `pending` fica
-  preso em > 0 para sempre e o export trava no timeout. Erro tem de contar como
-  "resolvido, sem modelo".
-
-**Teste que prova:** monte o cenário de `tools/demo-f18.mjs`, recarregue o
-renderer para esvaziar o cache de templates, dispare o export imediatamente e
-compare o SHA-256 dos primeiros frames com uma segunda execução. Hoje a
-expectativa é que divirjam. Depois da correção, estenda `verify-phase8.mjs` para
-cobrir cena **com** `model3d` e `route3d` — a lacuna existiu porque o verificador
-não olhava para lá.
+**Como verificar:** `node tools/verify-phase7e3.mjs` com a aba "Palco 3D" ativa.
+Deve continuar 5/5 depois do seu trabalho, e ganhar critério novo para o POI.
 
 ## Depois disso, na ordem do roteiro
 

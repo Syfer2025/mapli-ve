@@ -27,6 +27,16 @@ Passe de auditoria em 2026-07-28, sobre o estado que o `77aa7e4` deixou:
 | `settle` do export cego para o carregamento do GLB        | **fechado e provado** — [§3](#o-settle-3d-foi-fechado-e-provado)                 |
 | Bootstrap necessário depois do 7B                         | documentado em [§4.18](#418-bootstrap-pnpm-install-e-geobuild-não-são-opcionais) |
 
+Passe seguinte, no mesmo dia — o palco 3D, a pedido do dono:
+
+| O quê                                             | Resultado                                                        |
+| ------------------------------------------------- | ---------------------------------------------------------------- |
+| Grade do palco cintilando ao girar a câmera       | filtro de Nyquist no shader; MSAA nunca ia resolver              |
+| Linhas piscando sobre o modelo (z-fighting)       | `near`/`far` derivados do conteúdo: razão 68.000:1 → ~10:1       |
+| Sombra "flutuando" recusada pelo dono             | refeita como **silhueta projetada**, com a forma real do objeto  |
+| Opacidade do palco reacendia o mapa               | **ADR-014**: palco em painel próprio, quatro etapas provadas     |
+| Pontos de interesse para a câmera de apresentação | **ADR-015** escrito e aceito; implementação é o próximo trabalho |
+
 Fases 0–6 concluídas. **O bloco 7 inteiro está fechado** (única exceção declarada:
 7E.4, VFX, que o dono mandou adiar) e a **Fase 8 produz MP4 H.264, GIF, ProRes
 4444 e PNG normal/alfa**. Os encoders repetíveis preservam o critério mais
@@ -141,11 +151,81 @@ seletor **Exemplos…** depois dessa prova. Portanto, o instalador que está em
 2026-07-28 parou porque a autorização de rede atingiu a cota, não por erro de
 código. Sobra no produto:
 
-1. **Resolução acima do tamanho da janela.** Hoje o frame sai no tamanho do
+1. **Implementar o [ADR-015](adr/ADR-015-studio-points-of-interest.md) — pontos de
+   interesse do palco.** É o último pedido do dono e o próximo trabalho. O ADR está
+   escrito com a forma decidida e cinco consequências declaradas: nó `studio.poi`,
+   botão "Marcar pontos" com raycast na superfície, marcadores no overlay do palco,
+   e roteiro **compilando para keyframes** nas props de câmera que o `studio.stage`
+   já tem — não um player paralelo, para a câmera continuar função pura de
+   `(documento, frame)` e o export byte-idêntico continuar valendo.
+
+   **Não substitua o clique por uma lista de nós do glTF.** Foi medido e a premissa
+   morreu: o 2S19M1 do dono tem 0 animações, 0 skins e 51 nós irmãos chamados
+   `Object_2` a `Object_50`, agrupados por **material** — 20 das 49 malhas ocupam
+   mais de 60% de um eixo do veículo, várias em 100%. Não existe "o nó da torre", e
+   isso vale para qualquer modelo vindo de OBJ → Sketchfab, que é a maior parte do
+   acervo militar disponível.
+
+   **E não confunda com animação de parte:** POI leva a câmera **até** a torre; não
+   a **gira**. Girar exige `gltf.animations`, hoje descartado em
+   `three-assets.ts:47`, e um modelo com a torre como nó separado.
+
+2. **Resolução acima do tamanho da janela.** Hoje o frame sai no tamanho do
    viewport, e o H.264 exige dimensão par — 1227×643 vira 1226×642. É o gatilho
    declarado no [ADR-013](adr/ADR-013-export-frame-composition.md) para voltar à
    janela de render oculta.
-2. **Motion blur, checkpoint e retomada.**
+3. **Motion blur, checkpoint e retomada.**
+
+### O palco virou painel próprio (ADR-014), e o que isso ensinou
+
+**Fechado em 2026-07-28, quatro etapas, todas provadas.** O dono encontrou o preço
+do ADR-012 mexendo no Inspector: baixar a opacidade do nó do palco reacendia o mapa
+por baixo, porque o avaliador deriva `visible` de `opacity > 0`
+(`packages/animation/src/evaluate.ts:151`) e o palco existia como CSS sobre o
+Viewport. O veredito dele: _"quero que esse palco seja um ambiente à parte, numa aba
+à parte, e não uma sobreposição."_
+
+O [ADR-014](adr/ADR-014-studio-own-panel.md) emenda o ADR-012 e substitui a tabela
+de superfícies do ADR-013. Estado: painel `studio` como aba irmã do Viewport, com
+palco 3D e overlay Pixi próprios; `verify:phase8` 7/7, `phase8-video` 6/6,
+`phase7e3` 5/5.
+
+**O mesmo defeito apareceu três vezes com roupas diferentes, e a lição vale além
+dele: sinal do painel errado.** O dockview **só monta o painel ativo** — as
+superfícies da aba inativa não existem no DOM, e não é `visibility`, é montagem.
+Isso quebrou, em sequência, o `settle` do export (`.maplibregl-canvas ausente` nos
+três critérios), o `atFrame` do verificador (esperava um overlay desmontado) e o
+critério 4 do 7E.3 (lia o layout do outro painel). Quando algo não aparece, a
+primeira pergunta é qual aba está na frente.
+
+Três consequências práticas para quem continuar:
+
+- **O export detecta o modo** pela pilha montada (`detectExportMode` em
+  `frame-composer.ts`), em vez de carregar uma lista fixa. Você exporta o que está
+  vendo, e falha com mensagem clara em vez de escrever frame vazio.
+- **O dockview escuta pointer.** `element.click()` **não** troca de aba; precisa de
+  `Input.dispatchMouseEvent` por coordenada — e nem isso funcionou de forma
+  confiável em toda tentativa. `activateStudioTab` no `verify-phase7e3.mjs` sai na
+  hora se o palco já está montado, justamente por isso. **Pendência conhecida**, não
+  resolvida.
+- **Painel novo era invisível para quem já tinha layout salvo.** `fromJSON` restaura
+  só o que está no arquivo, com sucesso — não é layout inválido, então o `catch` de
+  fallback não pega. `adoptMissingPanels` em `useWorkspaceLayout.ts` conserta para
+  **qualquer** painel futuro, não só o palco.
+
+E dois defeitos de produto que os verificadores acharam, não a leitura de código:
+
+- **O `near` recortava o chão.** O ajuste que corrigiu o z-fighting derivava `near`
+  do raio da cena, e chão é **infinito** e começa embaixo da câmera. Com palco vazio
+  o raio é o mínimo de 1 m, `near` ia a 38,4 m com a câmera a 40, e o piso todo
+  desaparecia. O verificador relatou "transições por linha 0/0/0" — e a leitura certa
+  era "o chão sumiu", não "a grade sumiu". `near` agora é limitado a metade da altura
+  da câmera sobre o piso.
+- **Critério de fase que se pula não prova nada.** O critério 2 do 7E.3 dependia de
+  `data/library-roots.json`, configuração **de máquina**, e o relatório dizia
+  "pulado" enquanto o placar contava falha sem explicar a causa. Ganhou recuo para o
+  GLB do repositório (`apps/editor/public/models/fa-18f.glb`) e roda em qualquer
+  clone.
 
 ### O `settle` 3D foi fechado e provado
 
