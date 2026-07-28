@@ -1,4 +1,4 @@
-import { EASE_PRESETS, evaluateBezierEase, lerp } from "@theatrum/core-math";
+import { EASE_PRESETS, evaluateBezierEase, lerp, lerpOklabHex } from "@theatrum/core-math";
 import type { AnimatableProperty, EasingHandle, Keyframe } from "@theatrum/schema";
 import { hasSpatialCurvature, interpolateSpatial, isVec2Value } from "./spatial.js";
 
@@ -85,7 +85,8 @@ export function interpolateKeyframes<T>(
 
 /**
  * Interpolação mínima comum da Fase 4: números e vetores numéricos.
- * Valores discretos permanecem no valor esquerdo até a fronteira.
+ * Cores hex interpolam em OkLab (7B); as demais strings e valores discretos
+ * permanecem no valor esquerdo até a fronteira.
  */
 export function interpolateValue<T>(left: T, right: T, progress: number): T {
   if (typeof left === "number" && typeof right === "number") {
@@ -99,6 +100,10 @@ export function interpolateValue<T>(left: T, right: T, progress: number): T {
     right.every((value) => typeof value === "number")
   ) {
     return left.map((value, index) => lerp(value, right[index] as number, progress)) as T;
+  }
+  if (typeof left === "string" && typeof right === "string") {
+    const color = lerpOklabHex(left, right, progress);
+    if (color !== null) return color as T;
   }
   return cloneValue(progress >= 1 ? right : left);
 }

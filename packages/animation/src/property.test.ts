@@ -51,6 +51,28 @@ describe("avaliação de propriedades", () => {
     expect(evaluateProperty(discrete, 5)).toBe("a");
   });
 
+  it("interpola cores hex em OkLab, com extremos exatos e scrub reversível", () => {
+    const fill = property("#ff0000", [
+      keyframe("kf_a", 0, "#ff0000"),
+      keyframe("kf_b", 10, "#0000ff"),
+    ]);
+    expect(evaluateProperty(fill, 0)).toBe("#ff0000");
+    expect(evaluateProperty(fill, 10)).toBe("#0000ff");
+
+    const middle = evaluateProperty(fill, 5);
+    expect(middle).not.toBe("#ff0000");
+    expect(middle).not.toBe("#0000ff");
+
+    // Reavaliar — inclusive depois de percorrer o trilho inteiro — dá o
+    // mesmo valor: é a garantia de scrub frente/trás sem deriva.
+    for (let frame = 0; frame <= 10; frame++) evaluateProperty(fill, frame);
+    expect(evaluateProperty(fill, 5)).toBe(middle);
+
+    // Strings que não são cor continuam discretas.
+    const discrete = property("a", [keyframe("kf_a", 0, "a"), keyframe("kf_b", 10, "b")]);
+    expect(evaluateProperty(discrete, 5)).toBe("a");
+  });
+
   it("avalia bezier deterministicamente e independente da ordem", () => {
     const eased = applyEasingPreset(
       property(0, [keyframe("kf_a", 0, 0), keyframe("kf_b", 100, 1)]),

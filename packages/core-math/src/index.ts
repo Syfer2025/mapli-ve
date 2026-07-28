@@ -31,6 +31,8 @@ export {
 
 export { type Vec2, type Vec3, type Rect, VEC2_ZERO, VEC2_ONE, vec2, vec3, rect } from "./vec.js";
 
+export { parseHexColor, formatHexColor, srgbToOklab, oklabToSrgb, lerpOklabHex } from "./color.js";
+
 export {
   type Mat2D,
   type Transform2D,
