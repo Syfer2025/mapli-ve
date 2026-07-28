@@ -12,13 +12,14 @@ morde, e como não repetir erro já cometido.
 
 ## 1. Onde parou
 
-Último commit: `6415855`. Cadeia do `pnpm check` verde — 858 testes em 89
-arquivos, 290 módulos, 759 dependências, sem violação de camada; build
+Último commit: `8ea54a9`. Cadeia do `pnpm check` verde — 870 testes em 91
+arquivos, 294 módulos, 773 dependências, sem violação de camada; build
 electron-vite ok; `data:verify` (13 assets) e `geo:verify` (4 camadas) íntegros.
 
 Fases 0–6 concluídas. Blocos 7A e 7A+ concluídos. **Bloco 7B concluído** — os
 quatro critérios verificados no Electron real por `tools/verify-phase7b.mjs`
-(`pnpm verify:phase7b`), duas rodadas consecutivas idênticas.
+(`pnpm verify:phase7b`), duas rodadas consecutivas idênticas. **Bloco 7E pela
+metade** — ver seção 2.
 
 Entregue no 7B, em cinco commits:
 
@@ -48,10 +49,36 @@ E o fechamento do 7B, em dois commits:
 | `535c0ac` | Interpolação de cor hex em OkLab no avaliador de keyframes (`core-math/color.ts`)  |
 | `6415855` | `tools/verify-phase7b.mjs` — os quatro critérios provados, com guarda de documento |
 
-## 2. Depois do 7B
+## 2. Bloco 7E — o que está feito e o que falta
 
-Nada ficou para trás no bloco. A ordem do roteiro é **7C** (rotas e setas 2D) →
-**7D** (textos no mapa) → **Fase 7** (ações) → **Fase 8** (exportação).
+O dono pediu quatro coisas a partir de capturas do canal AiTelly. Duas entregues
+nesta sessão, duas não. Detalhe completo em
+[08-ROADMAP § 7E](08-ROADMAP.md#7e--apresentação-e-contexto-visual).
+
+| Commit    | O quê                                                             |
+| --------- | ----------------------------------------------------------------- |
+| `5d2e989` | Fecha o 7B: script do verificador, roteiro e continuidade         |
+| `6315d3b` | 7E.1 — camada de satélite por raiz nomeada, sem quebrar o offline |
+| `8ea54a9` | 7E.2 — rótulo com caixa e guia que acompanha objeto ou rota       |
+
+**7E.3, cenário de estúdio: a fazer.** Chão infinito com grade, câmera orbital
+animável, iluminação de estúdio, anotações presas a pontos do modelo. A decisão
+que trava o começo — segunda cena Three no mesmo canvas ou canvas próprio —
+precisa de ADR **com medição**, porque a Fase 6 mostrou que dois contextos WebGL
+no mesmo aplicativo custam caro.
+
+**7E.4, VFX volumétrico: bloqueado por ferramenta, não por decisão.** Os 7,6 GB
+de VDB da JangaFX que o dono deixou não rodam em WebGL — é formato de volume para
+renderizador offline. O caminho certo é converter em flipbook num passo de
+bootstrap, e isso exige Blender, Houdini ou uma biblioteca OpenVDB. **Verificado
+que nenhum existe nesta máquina**: sem `blender`, `ffmpeg`, `magick` nem Python
+real no PATH. Instalar um deles destrava; a alternativa de custo zero é usar o
+vídeo de preview como textura, com qualidade menor.
+
+## 3. Depois do 7B e do 7E
+
+A ordem do roteiro é **7C** (rotas e setas 2D) → **7D** (textos no mapa) →
+**Fase 7** (ações) → **Fase 8** (exportação).
 
 Uma observação em aberto, que a Fase 8 vai cobrar se for real: numa rodada do
 verificador com **dois nós geo na cena** (região + estradas, ambas pintando),
@@ -62,11 +89,11 @@ com filtros, não o render ao vivo. O verificador do 7B roda o critério de
 filtros sem estradas na cena exatamente para não misturar as duas coisas.
 Vale uma investigação focada antes da Fase 8, que exporta por esse caminho.
 
-## 3. Armadilhas desta base de código
+## 4. Armadilhas desta base de código
 
 Cada uma custou tempo real. Ler antes de tocar no código.
 
-### 3.1 Backtick e barra invertida em string de shell
+### 4.1 Backtick e barra invertida em string de shell
 
 `node -e "..."` e heredoc **comem** backtick e barra invertida. Já quebrou código
 injetado silenciosamente quatro vezes nesta sessão, incluindo um caminho de
@@ -76,7 +103,7 @@ Use as ferramentas de escrita e edição de arquivo. Quando precisar de caminho
 Windows em JSON, use **barra normal** — `path.isAbsolute("C:/x")` é verdadeiro no
 Windows e não há o que escapar.
 
-### 3.2 O servidor de desenvolvimento não reinicia sozinho
+### 4.2 O servidor de desenvolvimento não reinicia sozinho
 
 `pnpm dev` falha com "Port 5273 is already in use" se já houver instância. Pior:
 mudança no **processo principal** (`apps/shell`) não entra por HMR. Sintoma
@@ -92,29 +119,29 @@ Get-Process electron | Stop-Process -Force
 E o Pixi **cacheia programas GL compilados por código-fonte**: mudança de shader
 exige recarregar a página, não só HMR.
 
-### 3.3 Fim de linha
+### 4.3 Fim de linha
 
 O repositório é LF, imposto por `.gitattributes`. O Git do Windows instala
 `core.autocrlf=true` por padrão e, sem o arquivo, `pnpm check` falha em todo
 arquivo num clone limpo. Se acontecer, o conserto é `core.autocrlf=false` mais
 `rm .git/index && git reset --hard`.
 
-### 3.4 O protocolo local recusa junção — de propósito
+### 4.4 O protocolo local recusa junção — de propósito
 
 `theatrum-data://` resolve `realpath` e barra o que escapa da raiz. Não
 enfraqueça. Para servir pasta de fora, declare uma raiz nomeada em
-`data/library-roots.json` (formato na seção 5).
+`data/library-roots.json` (formato na seção 6).
 
-### 3.5 Cuidado com afirmação vinda de captura de tela
+### 4.5 Cuidado com afirmação vinda de captura de tela
 
 Duas vezes nesta sessão eu li errado uma captura: uma vez achei que havia
 preenchimento vazando (não havia — era o mapa base), outra achei que estava certo
 quando faltava um país inteiro. **Meça o pixel.** `__theatrumPhase4.captureExport()`
 devolve o overlay isolado; projete a coordenada conhecida com `map.project()` e
 leia o alfa. O padrão está em `scratchpad/pixel-geo.mjs` da sessão anterior e
-descrito na seção 4.
+descrito na seção 5.
 
-### 3.6 O antimeridiano estraga caixa envolvente
+### 4.6 O antimeridiano estraga caixa envolvente
 
 Rússia, Estados Unidos e Fiji têm caixa de −180 a 180 porque parte do território
 cruza o antimeridiano. Consequências que já mordi:
@@ -127,12 +154,12 @@ cruza o antimeridiano. Consequências que já mordi:
 Qualquer código novo que use `feature.bounds` para decidir visibilidade herda o
 problema.
 
-### 3.7 Pixi 8: `fill()` consome os caminhos pendentes
+### 4.7 Pixi 8: `fill()` consome os caminhos pendentes
 
 Acumular vários anéis antes de preencher funde ilhas num polígono só — a Crimeia
 gruda no continente por uma linha reta. Preencha e trace **por anel**.
 
-### 3.8 Precisão de shader
+### 4.8 Precisão de shader
 
 O Pixi injeta `precision highp float` no vertex e `mediump` no fragment quando o
 código não declara. Uniform declarado nos dois estágios não liga o programa, e o
@@ -141,7 +168,7 @@ filtro simplesmente não pinta — sem erro visível. Todo fragmento próprio ab
 pré-processador testa os nove primeiros caracteres. Coberto por
 `packages/renderer/src/filter-shaders.test.ts`.
 
-### 3.9 Sutherland–Hodgman pinta área que não existe
+### 4.9 Sutherland–Hodgman pinta área que não existe
 
 Em anel concavo que sai da vista e volta a entrar, ele devolve um só anel ligando
 os pedaços pela borda do recorte. `clipRing` conta entradas e recusa acima de uma,
@@ -149,7 +176,7 @@ devolvendo −1; o chamador então projeta o anel inteiro. Conta entrada **por
 aresta**, não por vértice — uma aresta longa atravessa a caixa entre dois vértices
 ambos externos.
 
-### 3.10 Medir traço fino pede detector de proporção, e a âncora tem pivot
+### 4.10 Medir traço fino pede detector de proporção, e a âncora tem pivot
 
 Duas mordidas da prova do `geo.roads`, na mesma sessão:
 
@@ -164,7 +191,7 @@ Duas mordidas da prova do `geo.roads`, na mesma sessão:
    `geo-nodes.ts`; a prova geométrica com vários vértices é o que pega essa
    classe de defeito — um vértice só pode casar com a estrada vizinha errada.
 
-## 4. Como verificar de verdade
+## 5. Como verificar de verdade
 
 Cada fase tem um verificador que dirige o **Electron real** por CDP na porta 9222.
 Isso não é opcional neste projeto: teste unitário não pega defeito de projeção,
@@ -187,7 +214,7 @@ Pausar antes de amostrar: `actions.pause()`. Um demo deixa a composição tocand
 loop, e sem pausar cada amostra lê um frame ao acaso. Isso já produziu uma tabela
 inteira de números sem sentido.
 
-## 5. Configuração local desta máquina
+## 6. Configuração local desta máquina
 
 Não versionada. Recriar se sumir.
 
@@ -211,7 +238,7 @@ O `.gitignore` cobre `data/library-roots.json` e `data/models-index.json`.
 Malha geográfica: `pnpm data:fetch` baixa as origens fixadas por hash e
 `pnpm geo:build` compila. As duas verificações entram no `pnpm check`.
 
-## 6. Depois do 7B
+## 7. Fases seguintes
 
 Ordem do roteiro: **7C** (rotas e setas 2D) → **7D** (textos no mapa) →
 **Fase 7** (ações) → **Fase 8** (exportação) → 9, 10, 11.
@@ -230,7 +257,7 @@ duas vezes e obter arquivos idênticos byte a byte — é descrito no roteiro co
 mais importante de todos, e é a conta que toda a disciplina de determinismo das
 fases anteriores existe para pagar.
 
-## 7. Estilo de trabalho combinado com o dono
+## 8. Estilo de trabalho combinado com o dono
 
 - **Entrega em blocos.** Parar no fim de cada bloco, relatar, e só então seguir.
   Nunca despejar blocos grandes de código.

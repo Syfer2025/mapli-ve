@@ -241,6 +241,95 @@ Escopo:
 4. Um `geo.region` aparece no Inspector gerado e aceita os filtros existentes
    (outline, glow).
 
+### 7E — Apresentação e contexto visual
+
+> 🚧 **Em curso.** Pedido do dono do projeto a partir de capturas do canal
+> AiTelly: satélite ao fundo, rótulos que grudam nos objetos, palco de estúdio
+> para apresentar equipamento, e VFX volumétrico.
+
+**Objetivo.** Sair do mapa esquemático e chegar no vocabulário visual de
+documentário: contexto de terreno, anotação que acompanha o que nomeia, e um
+palco para falar de um equipamento fora do mapa.
+
+#### 7E.1 — Camada de satélite ✅
+
+Entregue. A imagem **não vem embutida**, e isso é decisão, não omissão: o projeto
+é offline e fixa origem por hash ([ADR-006](adr/ADR-006-maplibre.md)), e satélite
+de resolução útil não é redistribuível — a do Natural Earth para em ~500 m/pixel e
+o que presta tem licença que proíbe. Chamar servidor de tiles em runtime quebraria
+as duas coisas que sustentam o editor: funcionar sem rede e exportar de forma
+determinística.
+
+A imagem é do usuário, declarada como raiz nomeada em `data/library-roots.json`, o
+mesmo mecanismo da biblioteca 3D. Aceita PMTiles raster ou pirâmide de tiles. Dois
+estilos por imagem — satélite puro e satélite com rótulos, reaproveitando as
+camadas de rótulo do estilo vetorial. Máquina sem imagem não vê as opções.
+
+#### 7E.2 — Rótulo com guia ✅
+
+Entregue. Nó `label.callout` que gruda em outro nó por `targetId`, ou num ponto de
+caminho por `pathId` mais `progress` animável — a anotação que corre sobre o
+tracejado da rota.
+
+Primitiva única em vez de três nós, porque caixa, texto e guia têm de ficar
+coerentes: a caixa dimensiona pelo texto **medido**, e a guia sai da **borda**, não
+do centro. O passe resolve **depois do layout**, no mesmo frame — o alvo pode ser
+um `model3d` movido por comportamento, e a resposta depende da câmera daquele
+frame. Rótulo que arrasta atrás do objeto nasce de ler estado velho; há teste
+contra isso.
+
+#### 7E.3 — Cenário de estúdio ⏭️
+
+A fazer. Modo de composição alternativo ao mapa: chão infinito com grade, câmera
+orbital animável por keyframe (alvo, distância, azimute, elevação), iluminação de
+estúdio, e anotações ancoradas a **pontos do modelo** em espaço local — girar a
+câmera tem de girar a anotação junto com a peça apontada.
+
+**Decisão pendente, e ela precisa de ADR com medição.** Hoje o `model3d` desenha
+numa camada custom do MapLibre, presa ao mapa. O estúdio precisa da mesma cena
+Three.js **sem** o mapa por baixo: segunda cena no mesmo canvas, ou canvas
+próprio? A Fase 6 mostrou que dois contextos WebGL no mesmo aplicativo custam
+caro. Medir antes de escolher.
+
+#### 7E.4 — VFX volumétrico ⛔ bloqueado por ferramenta
+
+O dono deixou 7,6 GB de VFX da JangaFX/EmberGen, licença CC0, na pasta
+`explosoes` da Área de Trabalho: uma sequência de 131 arquivos VDB extraída, uma
+segunda pasta só com preview em vídeo, e dois arquivos comprimidos somando 4,2 GB
+ainda fechados.
+
+**VDB não roda em WebGL.** É formato de volume esparso para renderizador offline —
+Blender, Houdini, Octane. O caminho correto é converter cada sequência num
+flipbook (atlas de quadros em textura) num passo de bootstrap, e no runtime usar
+billboard voltado para a câmera com shader de flipbook. O sistema de partículas da
+Fase 6 resolve o **espalhamento**; o flipbook resolve o **volume** — são
+complementares, não concorrentes.
+
+**O bloqueio é concreto e foi verificado:** a conversão exige Blender, Houdini ou
+uma biblioteca OpenVDB, e nenhum está nesta máquina — não há `blender`, `ffmpeg`,
+`magick` nem Python real no PATH. Sem uma dessas ferramentas não há como
+transformar VDB em textura, e fingir que há seria pior do que registrar o
+bloqueio.
+
+Alternativa declarada, custo quase zero e qualidade menor: usar o vídeo de preview
+como textura. Serve para validar o caminho de billboard e mistura enquanto a
+conversão não existe.
+
+Seja qual for o caminho, vale a invariante do [ADR-003](adr/ADR-003-determinism.md):
+o quadro do flipbook tem de ser **função pura do frame**, senão o export deixa de
+ser determinístico.
+
+**Critério de saída do bloco.**
+
+1. Trocar para satélite muda o fundo sem recarregar o mapa, e os nós `geo.*`
+   continuam alinhados sobre ele.
+2. Um rótulo preso a um `model3d` em movimento acompanha o objeto sem atraso de um
+   frame; um rótulo de rota no meio do caminho cai no meio do caminho.
+3. Importar um GLB, entrar em estúdio, orbitar 360° por keyframe e exportar: o
+   modelo fica legível em todos os ângulos e as anotações seguem os pontos dele.
+4. Uma explosão sobre o mapa e outra no estúdio, com o quadro certo em cada frame,
+   scrub para trás idêntico, e custo dentro do orçamento de 8 ms do overlay.
+
 ### 7C — Rotas e setas
 
 **Objetivo.** O instrumento clássico de mapa de guerra: a seta de avanço.
