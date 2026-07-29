@@ -80,24 +80,41 @@ export function withStudioProjection(
   models: readonly StudioModelState[],
   studio: StudioSceneRuntime,
   size: Vec2,
+  /**
+   * Os pontos de interesse do frame, com a ancoragem já resolvida.
+   *
+   * **É isto que faz um rótulo apontar para o míssil em vez do avião inteiro.** Antes
+   * só `model3d` entrava no layout, então `label.callout` só conseguia mirar a âncora do
+   * objeto todo — e o pedido do dono é anotar a **peça**: _"marcar o míssil do avião e
+   * uma animação de textbox aparecer"_. Um POI é exatamente "um lugar do objeto com
+   * nome", e ele já existe no documento desde o ADR-015.
+   *
+   * Nenhuma linha nova do lado do rótulo: ele procura o alvo em `layout.layouts` por id,
+   * e agora encontra o id de um ponto.
+   */
+  pois: readonly { readonly id: string; readonly point: readonly [number, number, number] }[] = [],
 ): LayoutScreenScene {
-  if (models.length === 0) return layout;
+  if (models.length === 0 && pois.length === 0) return layout;
   const layouts = new Map(layout.layouts);
-  for (const model of models) {
-    const current = layouts.get(model.id);
-    if (current === undefined) continue;
-    const screen = studio.project(model.position, size[0], size[1]);
+  const place = (id: string, position: readonly [number, number, number]): void => {
+    const current = layouts.get(id);
+    if (current === undefined) return;
+    const screen = studio.project(position, size[0], size[1]);
     if (screen === null) {
-      layouts.set(model.id, { ...current, culled: true });
-      continue;
+      layouts.set(id, { ...current, culled: true });
+      return;
     }
-    layouts.set(model.id, {
+    layouts.set(id, {
       ...current,
       matrix: mat2d.translate(screen[0], screen[1]),
       anchorPx: screen,
       bounds: { x: screen[0], y: screen[1], width: 0, height: 0 },
       culled: false,
     });
-  }
+  };
+  for (const model of models) place(model.id, model.position);
+  // Depois dos modelos, de propósito: se um id coincidisse, o ponto é a resposta mais
+  // específica, e mais específico vence.
+  for (const poi of pois) place(poi.id, poi.point);
   return { ...layout, layouts };
 }

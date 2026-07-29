@@ -64,6 +64,9 @@ uniform float uSpacing;
 uniform float uOpacity;
 uniform float uFade;
 uniform float uTexture;
+/* Névoa junto ao horizonte: 0 desliga. */
+uniform float uHaze;
+uniform vec3 uHazeColor;
 
 uniform sampler2D uShadowMap;
 /* projection * view da camera de cima: leva mundo direto em UV da silhueta. */
@@ -209,11 +212,41 @@ float silhouetteShadow(vec3 world) {
   return clamp(pow(mask, 0.72), 0.0, 1.0) * uShadowStrength;
 }
 
+/**
+ * A cor do fundo numa direção do olhar.
+ *
+ * Dois problemas que o dono relatou de uma vez: "metade da tela do palco parece
+ * cortada, não dá sensação de espaço" e "a linha de transição da base com o fundo está
+ * esquisita". Eram o mesmo defeito visto de dois lados. O céu era **uma cor lisa** — sem
+ * gradiente não há profundidade, e o olho lê a metade de cima como um bloco chapado — e o
+ * piso nunca alcançava essa cor, porque a mistura tinha um piso de 0,08: sobrava sempre
+ * 8% de cor de chão no infinito, e é isso que desenhava a aresta.
+ *
+ * Agora os dois lados do horizonte pedem a cor à **mesma** função, avaliada na mesma
+ * direção. Eles se encontram no mesmo valor por construção, e não por ajuste fino de
+ * dois números que alguém teria de manter iguais.
+ *
+ * A névoa é mais densa rente ao horizonte e rareia subindo. **Ela nunca cobre o objeto**
+ * — o pedido explícito do dono — e não por cuidado de quem escreveu: este passe é um quad
+ * de tela cheia com depthTest desligado e renderOrder −1, então tudo o que é geometria
+ * desenha depois, em cima. Névoa volumétrica de verdade (THREE.Fog) faria o oposto: ela é
+ * por profundidade e lavaria o modelo junto.
+ *
+ * (Sem acento grave neste comentário: ele vive dentro de um template literal, e um
+ * backtick aqui fecharia a string do shader. Prima da armadilha 4.1 do 09-CONTINUIDADE.)
+ */
+vec3 skyTone(vec3 dir) {
+  float above = clamp(dir.y / 0.30, 0.0, 1.0);
+  float haze = uHaze * pow(1.0 - above, 2.0);
+  return mix(uHorizonColor, uHazeColor, haze);
+}
+
 void main() {
   // Dois pontos do mesmo raio: perto e longe do plano de recorte.
   vec3 near = unproject(vClip, -1.0);
   vec3 far = unproject(vClip, 1.0);
   vec3 direction = far - near;
+  vec3 viewDir = normalize(direction);
 
   // Onde o raio cruza y = 0. Raio subindo ou paralelo ao chão nunca cruza:
   // esse é o céu, e é o que dá o horizonte de graça.
@@ -224,7 +257,7 @@ void main() {
 
   float t = -near.y / direction.y;
   if (direction.y >= 0.0 || t < 0.0 || t > 1.0) {
-    finalColor = vec4(linearToSrgb(uHorizonColor * vignette), 1.0);
+    finalColor = vec4(linearToSrgb(skyTone(viewDir) * vignette), 1.0);
     return;
   }
 
@@ -258,7 +291,10 @@ void main() {
   // A sombra escurece o piso e as linhas juntos: sombra que apaga o chão e deixa
   // a grade acesa por baixo denuncia o truque na hora.
   vec3 color = mix(floorTone * (1.0 - shade * 0.86), uGridColor * (1.0 - shade * 0.74), coverage);
-  color = mix(uHorizonColor, color, clamp(fade * 1.6 + 0.08, 0.0, 1.0));
+  // Sem o antigo + 0.08: era ele que impedia o piso de chegar à cor do fundo e
+  // deixava a aresta no horizonte. O piso agora dissolve por completo, e no valor
+  // exato que o céu tem naquela mesma direção.
+  color = mix(skyTone(viewDir), color, clamp(fade * 1.6, 0.0, 1.0));
   finalColor = vec4(linearToSrgb(color * vignette), 1.0);
 }
 `;
@@ -277,6 +313,12 @@ export interface StudioGridAppearance {
   readonly shadowStrength: number;
   /** Gradiente radial que fecha a cena em preto. */
   readonly vignette: number;
+  /**
+   * Névoa junto ao horizonte, 0..1. É ela que dissolve a costura entre piso e fundo e
+   * dá profundidade ao vazio — e, por viver no passe de fundo, nunca cobre o objeto.
+   */
+  readonly haze: number;
+  readonly hazeColor: THREE.ColorRepresentation;
 }
 
 export interface StudioGrid {
@@ -303,6 +345,8 @@ export function createStudioGrid(): StudioGrid {
     uShadowSoftness: { value: 8 },
     uShadowValid: { value: 0 },
     uVignette: { value: 0.55 },
+    uHaze: { value: 0.55 },
+    uHazeColor: { value: new THREE.Color("#8fa6bd") },
   };
   const material = new THREE.RawShaderMaterial({
     vertexShader: VERTEX,
@@ -337,6 +381,8 @@ export function createStudioGrid(): StudioGrid {
       // o conjunto não deve apagar a grade toda.
       uniforms.uFade.value = Math.max(10, camera.position.length() * 2.5);
       uniforms.uVignette.value = Math.max(0, Math.min(1, appearance.vignette));
+      uniforms.uHaze.value = Math.max(0, Math.min(1, appearance.haze));
+      uniforms.uHazeColor.value.set(appearance.hazeColor);
 
       const shadow = appearance.shadow;
       if (shadow === null) {

@@ -4,7 +4,18 @@ import { layoutStudioMarkers, markerAt, MARKER_HIT_RADIUS_PX } from "./studio-ma
 import type { StudioPoiState } from "./studio-scene.js";
 
 function poi(id: string, name: string, point: readonly [number, number, number]): StudioPoiState {
-  return { id, name, point, distanceMeters: 12, azimuthDeg: 35, elevationDeg: 18 };
+  // `point` aqui já é mundo: o marcador nunca vê o espaço do objeto, porque
+  // `collectStudioPois` resolve a ancoragem antes de entregar (ADR-016).
+  return {
+    id,
+    name,
+    point,
+    distanceMeters: 12,
+    azimuthDeg: 35,
+    elevationDeg: 18,
+    ownerId: "",
+    orphan: false,
+  };
 }
 
 describe("marcadores de ponto de interesse do palco", () => {

@@ -72,6 +72,30 @@ describe("collectStudioStage", () => {
     expect(stage?.gridSpacingMeters).toBe(5);
   });
 
+  /**
+   * A névoa do horizonte nasce ligada.
+   *
+   * Padrão zero deixaria a costura dura entre piso e fundo que o dono relatou como
+   * "metade da tela cortada" — e ninguém descobre uma prop que precisa ser ligada para o
+   * palco parecer certo. Quem quiser o corte seco põe zero de propósito.
+   */
+  it("a névoa do horizonte tem padrão ligado e cor clara", () => {
+    const stage = collectStudioStage(evaluated([["p", { type: "studio.stage", props: {} }]]));
+    expect(stage?.horizonHaze).toBeGreaterThan(0);
+    expect(stage?.hazeColor).toMatch(/^#[0-9a-f]{6,8}$/i);
+  });
+
+  it("limita a névoa a 0..1 como as outras intensidades unitárias", () => {
+    const acima = collectStudioStage(
+      evaluated([["p", { type: "studio.stage", props: { horizonHaze: 5 } }]]),
+    );
+    const abaixo = collectStudioStage(
+      evaluated([["p", { type: "studio.stage", props: { horizonHaze: -2 } }]]),
+    );
+    expect(acima?.horizonHaze).toBe(1);
+    expect(abaixo?.horizonHaze).toBe(0);
+  });
+
   it("limita campo de visão, grade e intensidades a valores desenháveis", () => {
     const stage = collectStudioStage(
       evaluated([
@@ -192,8 +216,92 @@ describe("collectStudioPois", () => {
         distanceMeters: 6,
         azimuthDeg: 120,
         elevationDeg: 25,
+        // Sem `ownerId`, o ponto é metros de palco e passa direto: é a leitura de
+        // todo ponto marcado antes do ADR-016, e o que garante que projeto antigo
+        // abre igual.
+        ownerId: "",
+        orphan: false,
       },
     ]);
+  });
+
+  /**
+   * **O critério do ADR-016**, do lado de quem lê a cena: com dono resolvido, o
+   * ponto guardado é o espaço normalizado do modelo e o que sai é mundo.
+   *
+   * O caso é escolhido para ser aritmética verificável à mão: modelo de 10 m de vão
+   * na origem, base em −0,5 normalizado (logo o centro a 5 m do chão), rumo 180° —
+   * que é `Ry(0)`, sem rotação — e o ponto uma décima de vão a leste e ao alto.
+   */
+  it("resolve o ponto pelo quadro do dono quando há ownerId", () => {
+    const pois = collectStudioPois(
+      evaluated([
+        [
+          "p1",
+          { type: "studio.poi", props: { ownerId: "aviao", pointX: 0.1, pointY: 0.1, pointZ: 0 } },
+        ],
+      ]),
+      () => ({ position: [0, 0, 0], headingDeg: 180, sizeMeters: 10, bottom: -0.5 }),
+    );
+    expect(pois[0]?.ownerId).toBe("aviao");
+    expect(pois[0]?.orphan).toBe(false);
+    expect(pois[0]?.point[0]).toBeCloseTo(1, 9);
+    expect(pois[0]?.point[1]).toBeCloseTo(6, 9);
+    expect(pois[0]?.point[2]).toBeCloseTo(0, 9);
+  });
+
+  /**
+   * Dobrar o vão do modelo tem de dobrar o afastamento do ponto em relação ao
+   * centro — é a diferença entre "o ponto está no míssil" e "o ponto está no lugar
+   * onde o míssil estava antes de o avião crescer", que foi o defeito relatado.
+   */
+  it("o ponto acompanha a escala do dono", () => {
+    const scene = evaluated([
+      [
+        "p1",
+        { type: "studio.poi", props: { ownerId: "aviao", pointX: 0.2, pointY: 0, pointZ: 0 } },
+      ],
+    ]);
+    const at = (sizeMeters: number) =>
+      collectStudioPois(scene, () => ({
+        position: [0, 0, 0],
+        headingDeg: 180,
+        sizeMeters,
+        bottom: 0,
+      }))[0]?.point[0] ?? Number.NaN;
+    expect(at(10)).toBeCloseTo(2, 9);
+    expect(at(20)).toBeCloseTo(4, 9);
+  });
+
+  /**
+   * Dono declarado que não responde é **órfão**, e o ponto continua desenhando na
+   * posição crua.
+   *
+   * Desenhar em vez de esconder é deliberado: um marcador que desaparece deixa o
+   * dono sem pista do que aconteceu, e o aviso do painel é o que explica. Era o
+   * pedaço que o ADR-015 tinha deixado para a interface — e que só agora tem como
+   * estar certo, porque "órfão" virou pergunta objetiva.
+   */
+  it("marca como órfão o ponto cujo dono não responde", () => {
+    const pois = collectStudioPois(
+      evaluated([
+        [
+          "p1",
+          { type: "studio.poi", props: { ownerId: "sumiu", pointX: 3, pointY: 1, pointZ: 0 } },
+        ],
+      ]),
+      () => null,
+    );
+    expect(pois[0]?.orphan).toBe(true);
+    expect(pois[0]?.point).toEqual([3, 1, 0]);
+  });
+
+  /** Sem resolvedor nenhum, ponto com dono também é órfão — e não silenciosamente mundo. */
+  it("é órfão quando ninguém pode resolver a ancoragem", () => {
+    const pois = collectStudioPois(
+      evaluated([["p1", { type: "studio.poi", props: { ownerId: "aviao" } }]]),
+    );
+    expect(pois[0]?.orphan).toBe(true);
   });
 
   it("preenche os padrões do tipo quando as props faltam", () => {

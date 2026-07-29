@@ -173,17 +173,61 @@ describe("builtin node type registry", () => {
   });
 
   /**
+   * O look do palco é decisão visual do dono, e este teste é o que a protege.
+   *
+   * Os nove valores abaixo foram compostos por ele no Inspector, com o palco na tela, e
+   * promovidos a padrão a pedido dele em 2026-07-28. Eles não têm defesa em tipo nem em
+   * schema: qualquer um passa por "número plausível", e trocar `environmentIntensity` de
+   * 0,2 para 0,75 "porque parece pouco" desfaz uma decisão tomada olhando o resultado —
+   * sem quebrar nada e sem deixar rastro.
+   *
+   * Se este teste ficar vermelho, a pergunta certa não é "qual número atualizo": é
+   * **quem mudou o look do palco, e mediu?**
+   */
+  it("o palco nasce com o look que o dono compôs", () => {
+    const props = createBuiltinNodeTypeRegistry().createDefaultProps("studio.stage") as Record<
+      string,
+      { value: unknown }
+    >;
+    const valores = Object.fromEntries(
+      Object.entries(props).map(([key, property]) => [key, property.value]),
+    );
+    expect(valores).toMatchObject({
+      // Aparência composta pelo dono.
+      gridSpacingMeters: 0.05,
+      gridOpacity: 0.55,
+      keyIntensity: 2.8,
+      rimIntensity: 1.1,
+      environmentIntensity: 0.2,
+      floorTexture: 1,
+      shadowStrength: 1,
+      vignette: 0.7,
+      horizonHaze: 1,
+      hazeColor: "#3c4654ff",
+      // E o que ele **não** mudou, para a diferença ficar visível no diff.
+      background: "#0d1218ff",
+      floor: "#39424fff",
+      gridColor: "#5d6f84ff",
+      distanceMeters: 40,
+      azimuthDeg: 35,
+      elevationDeg: 14,
+      fovDeg: 38,
+    });
+  });
+
+  /**
    * O ponto de interesse do palco (ADR-015) carrega metros e graus, e o roteiro
    * os copia para as props de câmera do `studio.stage`. Os nomes são contrato
    * entre os dois: renomear aqui e esquecer lá não quebra tipagem — a visita
    * simplesmente enquadra o lugar errado, que é o defeito silencioso que este
    * teste existe para transformar em vermelho.
    */
-  it("expõe studio.poi com ponto em metros e enquadramento absoluto", () => {
+  it("expõe studio.poi com dono, ponto e enquadramento absoluto", () => {
     const registry = createBuiltinNodeTypeRegistry();
     const definition = registry.get("studio.poi");
     expect(definition?.label).toBe("Ponto do palco");
     expect(definition?.properties.map((descriptor) => descriptor.path)).toEqual([
+      "props.ownerId",
       "props.pointX",
       "props.pointY",
       "props.pointZ",
@@ -191,12 +235,31 @@ describe("builtin node type registry", () => {
       "props.azimuthDeg",
       "props.elevationDeg",
     ]);
+    /**
+     * A unidade de `pointX/Y/Z` **depende** de `ownerId` (ADR-016): metros de palco
+     * sem dono, fração do vão do modelo com dono. Declarar `unit: "meters"` faria o
+     * Inspector afirmar metros na metade dos casos em que não são — e rótulo de
+     * unidade errado é como se marca um ponto no lugar errado com total confiança.
+     */
+    for (const path of ["props.pointX", "props.pointY", "props.pointZ"]) {
+      expect(definition?.properties.find((descriptor) => descriptor.path === path)?.unit).toBe(
+        undefined,
+      );
+    }
+    // O dono é referência a outro nó, e não se anima: um ponto que troca de objeto
+    // no meio do vídeo teria o mesmo triplo lido em dois espaços diferentes.
+    expect(
+      definition?.properties.find((descriptor) => descriptor.path === "props.ownerId")?.animatable,
+    ).toBe(false);
     // O nome do ponto é o nome do NÓ. Uma `props.name` aqui seria um segundo
     // campo "nome" para a mesma coisa, e os dois divergiriam no primeiro rename.
     expect(definition?.properties.some((descriptor) => descriptor.path === "props.name")).toBe(
       false,
     );
     expect(registry.createDefaultProps("studio.poi")).toEqual({
+      // Nasce solto: um nó criado pelo menu não veio de clique em superfície
+      // nenhuma, então não há objeto a que ancorá-lo.
+      ownerId: { value: "", keyframes: [], expression: null },
       pointX: { value: 0, keyframes: [], expression: null },
       pointY: { value: 0, keyframes: [], expression: null },
       pointZ: { value: 0, keyframes: [], expression: null },

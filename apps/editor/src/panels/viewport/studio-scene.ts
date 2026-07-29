@@ -27,6 +27,7 @@ import {
   type LightRig,
   type ModelTemplate,
 } from "./three-assets.js";
+import { anchorToWorld, type AnchorFrame } from "./studio-anchor.js";
 import { createStudioGrid, type StudioGrid } from "./studio-grid.js";
 import {
   createStudioShadowProjector,
@@ -56,6 +57,18 @@ export interface StudioStageState {
   readonly shadowStrength: number;
   /** Gradiente radial ao preto nas bordas: a sensacao de infinito. */
   readonly vignette: number;
+  /**
+   * Névoa junto ao horizonte, 0..1.
+   *
+   * Dissolve a costura entre o piso e o fundo — que o dono descreveu como "metade da
+   * tela cortada" — e dá profundidade ao vazio. Mora no passe de fundo, então **nunca**
+   * cobre o objeto, que era a condição do pedido.
+   */
+  readonly horizonHaze: number;
+  readonly hazeColor: string;
+  /** Direcao da luz principal, e da sombra que ela projeta. */
+  readonly keyAzimuthDeg: number;
+  readonly keyElevationDeg: number;
 }
 
 /** Um `model3d` posicionado no palco em vez de no globo. */
@@ -73,9 +86,14 @@ export interface StudioModelState {
 /**
  * Um ponto de interesse do palco no frame, já avaliado ([ADR-015](../../../../../docs/adr/ADR-015-studio-points-of-interest.md)).
  *
- * `point` está em metros de mundo do palco — o mesmo espaço do `pick` e do alvo
- * da câmera — e o enquadramento é absoluto, os mesmos três números que o
- * `studio.stage` anima. Visitar o ponto é copiá-los.
+ * `point` está **sempre** em metros de mundo do palco — o mesmo espaço do `pick` e
+ * do alvo da câmera — mesmo quando o documento guardou o ponto no espaço do objeto
+ * ([ADR-016](../../../../../docs/adr/ADR-016-poi-anchored-to-object.md)). Resolver
+ * aqui, uma vez, é o que mantém marcador, projeção e roteiro lendo um número só:
+ * se cada consumidor convertesse por conta, cada um poderia converter diferente.
+ *
+ * O enquadramento continua absoluto, os mesmos três números que o `studio.stage`
+ * anima. Visitar o ponto é copiá-los.
  */
 export interface StudioPoiState {
   readonly id: string;
@@ -85,7 +103,18 @@ export interface StudioPoiState {
   readonly distanceMeters: number;
   readonly azimuthDeg: number;
   readonly elevationDeg: number;
+  /** Id do `model3d` a que o ponto pertence, ou `""` se é ponto solto do palco. */
+  readonly ownerId: string;
+  /**
+   * Tem dono declarado e o dono não respondeu: nó apagado, tipo trocado, asset
+   * removido, ou GLB ainda em parse. O ponto desenha na posição crua para não
+   * desaparecer sem explicação, e quem mostra interface avisa.
+   */
+  readonly orphan: boolean;
 }
+
+/** Quem sabe a pose de um modelo do palco. O painel implementa lendo o runtime. */
+export type AnchorResolver = (ownerId: string) => AnchorFrame | null;
 
 export interface StudioScene {
   readonly stage: StudioStageState | null;
@@ -122,6 +151,10 @@ export function collectStudioStage(evaluated: EvaluatedScene): StudioStageState 
       floorTexture: clamp01(num(props, "floorTexture", 0.35)),
       shadowStrength: clamp01(num(props, "shadowStrength", 0.75)),
       vignette: clamp01(num(props, "vignette", 0.55)),
+      horizonHaze: clamp01(num(props, "horizonHaze", 0.55)),
+      hazeColor: str(props, "hazeColor", "#8fa6bdff"),
+      keyAzimuthDeg: num(props, "keyAzimuthDeg", 138),
+      keyElevationDeg: Math.max(0, Math.min(90, num(props, "keyElevationDeg", 24))),
     };
   }
   return null;
@@ -164,21 +197,83 @@ export function collectStudioModels(evaluated: EvaluatedScene): readonly StudioM
  * lendo o documento, não um frame, senão a câmera do frame 300 dependeria de
  * quais nós estavam visíveis no frame em que alguém clicou "compilar".
  */
-export function collectStudioPois(evaluated: EvaluatedScene): readonly StudioPoiState[] {
+export function collectStudioPois(
+  evaluated: EvaluatedScene,
+  resolveAnchor?: AnchorResolver,
+): readonly StudioPoiState[] {
   const result: StudioPoiState[] = [];
   for (const [id, node] of evaluated.nodes) {
     if (node.type !== "studio.poi" || node.visible === false) continue;
     const props = node.props as Readonly<Record<string, unknown>>;
+    const stored: readonly [number, number, number] = [
+      num(props, "pointX", 0),
+      num(props, "pointY", 0),
+      num(props, "pointZ", 0),
+    ];
+    const ownerId = str(props, "ownerId", "");
+    const anchor = ownerId === "" ? null : (resolveAnchor?.(ownerId) ?? null);
     result.push({
       id,
       name: node.name,
-      point: [num(props, "pointX", 0), num(props, "pointY", 0), num(props, "pointZ", 0)],
+      // Sem dono o valor guardado já é mundo. Com dono resolvido, é o espaço
+      // normalizado do modelo e passa pela matriz dele. Com dono NÃO resolvido
+      // sobra o valor cru: errado no lugar, mas visível — e o aviso de órfão diz
+      // por quê. Esconder o marcador aqui deixaria o dono sem pista do que houve.
+      point: anchor === null ? stored : anchorToWorld(stored, anchor),
       distanceMeters: Math.max(0.01, num(props, "distanceMeters", 12)),
       azimuthDeg: num(props, "azimuthDeg", 35),
       elevationDeg: Math.max(-89, Math.min(89, num(props, "elevationDeg", 18))),
+      ownerId,
+      orphan: ownerId !== "" && anchor === null,
     });
   }
   return result;
+}
+
+/**
+ * Um `model3d` do palco pelo id, **sem** filtrar por visibilidade.
+ *
+ * Existe para o resolvedor de ancoragem, e a diferença em relação a
+ * `collectStudioModels` é deliberada: a pose de um modelo continua bem definida
+ * quando ele está invisível, e um ponto de interesse cujo dono foi ocultado num
+ * frame não deve virar órfão por causa disso — órfão é o dono que **não existe**,
+ * não o dono que não está aparecendo.
+ */
+export function collectStudioModel(
+  evaluated: EvaluatedScene,
+  modelId: string,
+): StudioModelState | null {
+  const node = evaluated.nodes.get(modelId);
+  if (node === undefined || node.type !== "model3d") return null;
+  const props = node.props as Readonly<Record<string, unknown>>;
+  const assetSrc = str(props, "assetId", "");
+  if (assetSrc === "") return null;
+  return {
+    id: modelId,
+    assetSrc,
+    position: [num(props, "stageX", 0), num(props, "altitudeMeters", 0), num(props, "stageZ", 0)],
+    headingDeg: num(props, "headingOffset", 0) + node.transform.rotation,
+    sizeMeters: Math.max(0.1, Math.min(MAX_STAGE_SIZE_METERS, num(props, "scaleMeters", 18))),
+    opacity: clamp01(node.transform.opacity),
+  };
+}
+
+/**
+ * Direção da luz principal a partir de azimute e elevação, **da cena para a luz**.
+ *
+ * A mesma convenção de eixos da câmera orbital: azimute medido do sul (+Z) girando para o
+ * leste (+X), elevação acima do horizonte. Assim os dois controles do palco — onde a câmera
+ * está e de onde a luz vem — se leem com a mesma régua, em vez de um em graus e o outro num
+ * vetor que só quem escreveu entende.
+ */
+export function keyLightDirection(
+  azimuthDeg: number,
+  elevationDeg: number,
+): readonly [number, number, number] {
+  const azimuth = (azimuthDeg * Math.PI) / 180;
+  const elevation = (Math.max(0, Math.min(90, elevationDeg)) * Math.PI) / 180;
+  const horizontal = Math.cos(elevation);
+  return [horizontal * Math.sin(azimuth), Math.sin(elevation), horizontal * Math.cos(azimuth)];
 }
 
 /**
@@ -365,6 +460,18 @@ export class StudioSceneRuntime {
     }
     // A silhueta é pintada ANTES do frame: ela usa o mesmo renderer, e trocar de
     // render target no meio do desenho da cena deixaria o palco pela metade.
+    /**
+     * A luz principal é aimada pelo documento, e a sombra sai da mesma direção.
+     *
+     * Antes o rig tinha a direção fixa no código e o projetor assumia luz **vertical** —
+     * duas verdades diferentes sobre onde está a luz, e por isso a sombra era uma mancha
+     * embaixo do objeto em vez de cair para um lado. Uma fonte só para as duas.
+     */
+    const lightDirection = keyLightDirection(
+      scene.stage.keyAzimuthDeg,
+      scene.stage.keyElevationDeg,
+    );
+    this.rig.key.position.set(lightDirection[0], lightDirection[1], lightDirection[2]);
     const shadow =
       scene.stage.shadowStrength > 0
         ? this.shadowProjector.update(
@@ -372,6 +479,7 @@ export class StudioSceneRuntime {
             this.scene,
             [this.grid.mesh],
             this.shadowSubjects(scene.models),
+            lightDirection,
           )
         : null;
     this.grid.update(this.camera, {
@@ -384,6 +492,8 @@ export class StudioSceneRuntime {
       shadow,
       shadowStrength: scene.stage.shadowStrength,
       vignette: scene.stage.vignette,
+      haze: scene.stage.horizonHaze,
+      hazeColor: stripAlpha(scene.stage.hazeColor),
     });
     this.renderer.setSize(width, height, false);
     this.renderer.render(this.scene, this.camera);
@@ -506,6 +616,49 @@ export class StudioSceneRuntime {
     const model = this.models.find((candidate) => candidate.id === id);
     if (instance === undefined || model === undefined) return null;
     return instance.radius * model.sizeMeters;
+  }
+
+  /**
+   * A base do modelo normalizado, em unidades normalizadas ([ADR-016](../../../../../docs/adr/ADR-016-poi-anchored-to-object.md)).
+   *
+   * É o único número da matriz de ancoragem que **não** vem do documento: ele sai
+   * da caixa envolvente do GLB, medida uma vez em `normalizeModel`. Por isso a
+   * conversão de ponto exige o modelo carregado, e por isso ela vive aqui e não
+   * numa função pura sobre o documento.
+   *
+   * `null` quando o GLB ainda está em parse ou falhou — e quem chama trata isso
+   * como órfão temporário em vez de assumir zero, que poria o ponto meio metro
+   * fora do lugar sem avisar.
+   */
+  modelBottom(id: string): number | null {
+    return this.instances.get(id)?.footprint.bottom ?? null;
+  }
+
+  /**
+   * O quadro de ancoragem completo do modelo **neste** frame.
+   *
+   * Combina o que vem do documento (pose e escala do último `render`) com o que
+   * vem da geometria (base e raio normalizados). É o atalho para quem converte no
+   * frame corrente — marcar um ponto, anexar um ponto existente. Quem precisa de
+   * outro frame monta o quadro à mão, com `collectStudioModel` mais `modelBottom`:
+   * a pose de um objeto animado no frame 300 não está aqui.
+   */
+  anchorFrame(id: string): (AnchorFrame & { readonly normalizedRadius: number }) | null {
+    const instance = this.instances.get(id);
+    const model = this.models.find((candidate) => candidate.id === id);
+    if (instance === undefined || model === undefined) return null;
+    return {
+      position: model.position,
+      headingDeg: model.headingDeg,
+      sizeMeters: model.sizeMeters,
+      bottom: instance.footprint.bottom,
+      normalizedRadius: instance.radius,
+    };
+  }
+
+  /** Ids dos modelos com geometria carregada, na ordem do último frame. */
+  loadedModelIds(): readonly string[] {
+    return this.models.filter((model) => this.instances.has(model.id)).map((model) => model.id);
   }
 
   private applyStage(stage: StudioStageState, width: number, height: number): void {

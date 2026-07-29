@@ -26,10 +26,43 @@
 import { shortestAngleDelta } from "@theatrum/core-math";
 import { topologicalOrder } from "@theatrum/scene-graph";
 import type { AnimatableProperty, Composition, Keyframe, Node } from "@theatrum/schema";
-import type { StudioPoiState } from "./studio-scene.js";
 
 /** Uma parada do roteiro. É um `studio.poi` lido do documento. */
-export type TourStop = StudioPoiState;
+export interface TourStop {
+  readonly id: string;
+  readonly name: string;
+  /**
+   * O ponto **como está no documento**, que não é necessariamente mundo.
+   *
+   * Com `ownerId` vazio são metros de palco; com dono é o espaço normalizado do
+   * modelo ([ADR-016](../../../../../docs/adr/ADR-016-poi-anchored-to-object.md)).
+   * Quem transforma é o resolvedor, porque converter exige a caixa do GLB — dado
+   * que não está no documento e que este módulo, sendo puro, não tem como buscar.
+   */
+  readonly point: readonly [number, number, number];
+  /** `model3d` a que o ponto pertence, ou `""` para ponto solto do palco. */
+  readonly ownerId: string;
+  readonly distanceMeters: number;
+  readonly azimuthDeg: number;
+  readonly elevationDeg: number;
+}
+
+/**
+ * Onde a parada está, em metros de palco, no frame em que a câmera chega nela.
+ *
+ * **Por que recebe o frame.** Um ponto ancorado num objeto animado se move: o
+ * míssil no frame 300 não está onde estava no frame 0. Resolver no frame de
+ * chegada mantém a compilação função pura de `(documento, tempos)` — o que o
+ * `baseValue` protegia era a dependência de onde o **playhead** estava, e o frame
+ * de chegada não é isso: ele sai da própria aritmética do roteiro.
+ *
+ * `null` significa que o dono não respondeu, e a parada sai do roteiro com
+ * diagnóstico em vez de virar um ponto perto da origem do palco.
+ */
+export type StopPointResolver = (
+  stop: TourStop,
+  frame: number,
+) => readonly [number, number, number] | null;
 
 export interface TourTiming {
   /** Frame em que a câmera já está na primeira parada. */
@@ -50,7 +83,10 @@ export interface CompiledTour {
   readonly writes: readonly TourPropertyWrite[];
   /** Frame do fim da última pausa. */
   readonly endFrame: number;
+  /** Paradas que entraram no roteiro. */
   readonly stops: number;
+  /** Paradas descartadas por dono ausente ([ADR-016](../../../../../docs/adr/ADR-016-poi-anchored-to-object.md)). */
+  readonly skipped: number;
   readonly diagnostics: readonly string[];
 }
 
@@ -67,18 +103,51 @@ const CAMERA_PATHS = Object.freeze([
   "props.elevationDeg",
 ] as const);
 
-/** Aceleração e desaceleração do voo. Câmera que parte e chega em velocidade
- * constante parece um trilho de câmera de segurança, não uma apresentação. */
-const EASE_OUT_HANDLE: readonly [number, number] = [0.42, 0];
-const EASE_IN_HANDLE: readonly [number, number] = [0.58, 1];
+/**
+ * Aceleração e desaceleração do voo.
+ *
+ * Câmera que parte e chega em velocidade constante parece trilho de câmera de segurança,
+ * não apresentação. As alças foram abertas de `0,42/0,58` para `0,25/0,75` a pedido do
+ * dono — _"passagens mais suaves"_: quanto mais perto de 0 e 1, mais longa a rampa de
+ * aceleração e mais curto o trecho em velocidade plena, e é isso que tira o "arranque" da
+ * partida e da chegada.
+ */
+const EASE_OUT_HANDLE: readonly [number, number] = [0.25, 0];
+const EASE_IN_HANDLE: readonly [number, number] = [0.75, 1];
 
 export const MIN_TRAVEL_FRAMES = 1;
 export const MIN_HOLD_FRAMES = 0;
+
+/**
+ * Passo de amostragem do alvo, em frames, quando o objeto se mexe.
+ *
+ * Seis frames é um quinto de segundo a 30 fps. Não é o intervalo entre keyframes — é o
+ * intervalo em que a **necessidade** de um keyframe é checada. Objeto parado não gera
+ * nenhum; objeto em movimento gera só onde a reta entre os vizinhos já não descreve o
+ * caminho.
+ */
+const TRACK_SAMPLE_FRAMES = 6;
+
+/**
+ * Desvio tolerado entre o alvo real e a reta que liga dois keyframes, em metros.
+ *
+ * Vinte centímetros é menos que a espessura de um míssil, então o espectador não vê a
+ * diferença — e é grande o bastante para um objeto praticamente parado não encher a
+ * trilha de keyframes. Este número é o que troca tamanho de documento por precisão de
+ * enquadramento, e por isso está aqui e não espalhado.
+ */
+const TRACK_TOLERANCE_METERS = 0.2;
 
 function baseValue(props: Node["props"], key: string, fallback: number): number {
   const property = props[key] as AnimatableProperty<unknown> | undefined;
   const value = property?.value;
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function baseString(props: Node["props"], key: string): string {
+  const property = props[key] as AnimatableProperty<unknown> | undefined;
+  const value = property?.value;
+  return typeof value === "string" ? value : "";
 }
 
 /**
@@ -114,6 +183,7 @@ export function documentStudioPois(composition: Composition): readonly TourStop[
         baseValue(node.props, "pointY", 0),
         baseValue(node.props, "pointZ", 0),
       ],
+      ownerId: baseString(node.props, "ownerId"),
       distanceMeters: Math.max(0.01, baseValue(node.props, "distanceMeters", 12)),
       azimuthDeg: baseValue(node.props, "azimuthDeg", 35),
       elevationDeg: Math.max(-89, Math.min(89, baseValue(node.props, "elevationDeg", 18))),
@@ -169,45 +239,211 @@ export function documentStudioTourTiming(
   };
 }
 
+/** De caminho de prop para índice do eixo, para os três que acompanham o objeto. */
+const TARGET_AXIS: Readonly<Record<string, number | undefined>> = Object.freeze({
+  "props.targetX": 0,
+  "props.targetY": 1,
+  "props.targetZ": 2,
+});
+
+interface TrackSample {
+  readonly frame: number;
+  readonly point: readonly [number, number, number];
+}
+
+/**
+ * Os frames **intermediários** que a pausa precisa para o alvo acompanhar o objeto.
+ *
+ * Amostra a pausa de `TRACK_SAMPLE_FRAMES` em `TRACK_SAMPLE_FRAMES` e devolve só os
+ * frames onde a interpolação entre os vizinhos **já guardados** erra por mais de
+ * `TRACK_TOLERANCE_METERS`. É Douglas–Peucker sobre uma série temporal de pontos: a
+ * amostra de maior desvio entra, e a checagem recomeça, até nenhuma passar da tolerância.
+ *
+ * Duas propriedades que valem por si:
+ *
+ * - **objeto parado devolve lista vazia.** Todos os desvios são zero, e o roteiro sai
+ *   idêntico ao de antes deste recurso — nenhum documento estático cresce;
+ * - **o resultado não depende da ordem em que as amostras foram vistas**, porque quem
+ *   decide é sempre o maior desvio restante. Um laço incremental "guarda quando desviar"
+ *   daria listas diferentes para o mesmo movimento conforme o passo, e ninguém entenderia
+ *   por que a mesma cena gera keyframes diferentes.
+ */
+function trackedTargetFrames(
+  stop: TourStop,
+  arrival: number,
+  departure: number,
+  resolve: StopPointResolver,
+): readonly TrackSample[] {
+  const samples: TrackSample[] = [];
+  for (let frame = arrival; frame <= departure; frame += TRACK_SAMPLE_FRAMES) {
+    const point = resolve(stop, frame);
+    if (point !== null) samples.push({ frame, point: [point[0], point[1], point[2]] });
+  }
+  // Os extremos já são keyframes por construção; menos de três amostras não tem meio.
+  if (samples.length < 3) return [];
+  const first = samples[0];
+  const last = samples[samples.length - 1];
+  if (first === undefined || last === undefined) return [];
+
+  const kept = new Set<number>([0, samples.length - 1]);
+  for (;;) {
+    const order = [...kept].sort((a, b) => a - b);
+    let worstIndex = -1;
+    let worstDeviation = TRACK_TOLERANCE_METERS;
+    for (let segment = 0; segment + 1 < order.length; segment += 1) {
+      const startIndex = order[segment];
+      const endIndex = order[segment + 1];
+      if (startIndex === undefined || endIndex === undefined) continue;
+      const a = samples[startIndex];
+      const b = samples[endIndex];
+      if (a === undefined || b === undefined) continue;
+      const span = b.frame - a.frame;
+      for (let i = startIndex + 1; i < endIndex; i += 1) {
+        const sample = samples[i];
+        if (sample === undefined) continue;
+        const t = span === 0 ? 0 : (sample.frame - a.frame) / span;
+        const deviation = Math.hypot(
+          a.point[0] + (b.point[0] - a.point[0]) * t - sample.point[0],
+          a.point[1] + (b.point[1] - a.point[1]) * t - sample.point[1],
+          a.point[2] + (b.point[2] - a.point[2]) * t - sample.point[2],
+        );
+        if (deviation > worstDeviation) {
+          worstDeviation = deviation;
+          worstIndex = i;
+        }
+      }
+    }
+    if (worstIndex < 0) break;
+    kept.add(worstIndex);
+  }
+
+  // Só o meio: chegada e partida são emitidas pelo chamador, com as curvas delas.
+  return [...kept]
+    .sort((a, b) => a - b)
+    .slice(1, -1)
+    .map((index) => samples[index])
+    .filter((sample): sample is TrackSample => sample !== undefined);
+}
+
+/**
+ * Resolvedor padrão, para quem compila sem passar um.
+ *
+ * Ponto solto já está em metros de palco e resolve para si mesmo. Ponto com dono
+ * **não** resolve: sem a caixa do GLB não há como convertê-lo, e devolver o valor
+ * cru poria a câmera perto da origem do palco olhando o vazio — plausível, errado
+ * e silencioso. Devolver `null` faz a parada sair com diagnóstico.
+ */
+const IDENTITY_RESOLVER: StopPointResolver = (stop) => (stop.ownerId === "" ? stop.point : null);
+
 /**
  * Compila o roteiro.
  *
  * Cada parada recebe **dois** keyframes por prop: um na chegada e um na partida,
  * com o mesmo valor. É o par que produz a pausa — com um keyframe só, a câmera
  * chegaria e já começaria a sair, e não haveria tempo de falar do míssil.
+ *
+ * **Duas passagens sobre as paradas, e a razão é circular por natureza.** O frame
+ * de chegada de uma parada depende de quantas paradas vêm antes dela; quais vêm
+ * antes depende de quais resolvem. A primeira passagem pergunta apenas "este dono
+ * existe?", que não depende de frame, e com isso fixa a lista e os tempos; a
+ * segunda resolve cada ponto no frame de chegada dele, que é onde a pose do objeto
+ * animado importa.
  */
-export function compileStudioTour(stops: readonly TourStop[], timing: TourTiming): CompiledTour {
+export function compileStudioTour(
+  stops: readonly TourStop[],
+  timing: TourTiming,
+  resolve: StopPointResolver = IDENTITY_RESOLVER,
+): CompiledTour {
   const diagnostics: string[] = [];
-  if (stops.length === 0) {
-    return Object.freeze({
-      writes: Object.freeze([]),
-      endFrame: Math.max(0, Math.round(timing.startFrame)),
-      stops: 0,
-      diagnostics: Object.freeze(["Nenhum ponto de interesse na composição."]),
-    });
-  }
-  if (stops.length === 1) {
-    diagnostics.push("Um ponto só: a câmera fica parada nele, sem voo.");
-  }
-
   const start = Math.max(0, Math.round(timing.startFrame));
   const travel = Math.max(MIN_TRAVEL_FRAMES, Math.round(timing.travelFrames));
   const hold = Math.max(MIN_HOLD_FRAMES, Math.round(timing.holdFrames));
-  const azimuths = unwrapAzimuths(stops.map((stop) => stop.azimuthDeg));
+
+  if (stops.length === 0) {
+    return Object.freeze({
+      writes: Object.freeze([]),
+      endFrame: start,
+      stops: 0,
+      skipped: 0,
+      diagnostics: Object.freeze(["Nenhum ponto de interesse na composição."]),
+    });
+  }
+
+  // Passagem 1: quem tem dono que responde. O frame de sondagem é o início do
+  // roteiro, e serve só para separar "dono existe" de "dono não existe" — a pose
+  // que vale é a da passagem 2.
+  const visited: { readonly stop: TourStop; readonly probe: readonly [number, number, number] }[] =
+    [];
+  let skipped = 0;
+  for (const stop of stops) {
+    const probe = resolve(stop, start);
+    if (probe === null) {
+      skipped += 1;
+      diagnostics.push(
+        `"${stop.name}" ficou de fora: o objeto a que ele está ancorado não foi encontrado.`,
+      );
+      continue;
+    }
+    visited.push({ stop, probe: [probe[0], probe[1], probe[2]] });
+  }
+
+  if (visited.length === 0) {
+    return Object.freeze({
+      writes: Object.freeze([]),
+      endFrame: start,
+      stops: 0,
+      skipped,
+      diagnostics: Object.freeze([
+        ...diagnostics,
+        "Nenhuma parada pôde ser localizada: o roteiro não foi compilado.",
+      ]),
+    });
+  }
+  if (visited.length === 1) {
+    diagnostics.push("Um ponto só: a câmera fica parada nele, sem voo.");
+  }
+
+  const azimuths = unwrapAzimuths(visited.map((entry) => entry.stop.azimuthDeg));
 
   const columns = new Map<string, Keyframe<number>[]>(CAMERA_PATHS.map((path) => [path, []]));
 
-  stops.forEach((stop, index) => {
+  visited.forEach((entry, index) => {
+    const { stop } = entry;
     const arrival = start + index * (hold + travel);
     const departure = arrival + hold;
+    // Passagem 2. O recuo para a sondagem cobre o resolvedor que responde num
+    // frame e não noutro; hoje não acontece, porque a existência do dono não
+    // depende do tempo, e é recuo em vez de erro para não transformar uma
+    // mudança futura do resolvedor em keyframe `NaN`.
+    const point = resolve(stop, arrival) ?? entry.probe;
+    const departurePoint = hold === 0 ? point : (resolve(stop, departure) ?? point);
     const values: Readonly<Record<(typeof CAMERA_PATHS)[number], number>> = {
-      "props.targetX": stop.point[0],
-      "props.targetY": stop.point[1],
-      "props.targetZ": stop.point[2],
+      "props.targetX": point[0],
+      "props.targetY": point[1],
+      "props.targetZ": point[2],
       "props.distanceMeters": stop.distanceMeters,
       "props.azimuthDeg": azimuths[index] ?? stop.azimuthDeg,
       "props.elevationDeg": stop.elevationDeg,
     };
+    /**
+     * O alvo acompanha objeto que se mexe durante a pausa.
+     *
+     * Era o limite declarado do [ADR-016](../../../../../docs/adr/ADR-016-poi-anchored-to-object.md):
+     * com o dono animado, o ponto se move e o alvo da câmera era um par de keyframes
+     * parado, então a câmera escorregava do míssil justamente enquanto o narrador falava
+     * dele. Agora a pausa é amostrada e os frames onde a reta já não descreve o caminho
+     * ganham keyframe.
+     *
+     * **Objeto parado não paga nada.** Todos os desvios dão zero, nada é inserido, e a
+     * saída é keyframe por keyframe igual à de antes — o que mantém o roteiro de uma cena
+     * estática byte a byte onde estava.
+     *
+     * O acompanhamento cobre a **pausa**, não o voo entre paradas. No voo a câmera está
+     * em movimento e os extremos já são corretos; amostrar ali brigaria com a curva de
+     * aceleração e trocaria suavidade por uma precisão que ninguém vê.
+     */
+    const tracked = hold === 0 ? [] : trackedTargetFrames(stop, arrival, departure, resolve);
+
     for (const path of CAMERA_PATHS) {
       const column = columns.get(path);
       if (column === undefined) continue;
@@ -223,10 +459,42 @@ export function compileStudioTour(stops: readonly TourStop[], timing: TourTiming
       // Sem pausa, chegada e partida cairiam no mesmo frame e o segundo keyframe
       // sobrescreveria o primeiro — dois ids no mesmo frame é documento inválido.
       if (hold === 0) continue;
+
+      const axis = TARGET_AXIS[path];
+      if (axis !== undefined) {
+        for (const sample of tracked) {
+          // O eixo vem de uma tabela fechada de três, e a amostra é uma tupla de três —
+          // mas o compilador não sabe disso, e escrever `!` aqui esconderia um `NaN`
+          // no keyframe se a tabela algum dia crescer.
+          const coordinate = sample.point[axis];
+          if (coordinate === undefined) continue;
+          column.push({
+            id: `tour:${String(index)}:${path}:track:${String(sample.frame)}`,
+            frame: sample.frame,
+            value: coordinate,
+            /**
+             * **Linear nos dois lados, e isto não é economia.** Bézier passando por
+             * pontos amostrados de um objeto em movimento ultrapassa entre amostras: a
+             * câmera oscilaria em torno do alvo em vez de acompanhá-lo, e o defeito
+             * apareceria como um tremor sutil que ninguém liga à curva.
+             */
+            in: { kind: "linear" },
+            out: { kind: "linear" },
+          });
+        }
+      }
+
+      // Na partida o alvo é onde o objeto está **naquele** frame, não onde estava na
+      // chegada: senão a câmera daria um pulo para trás no instante de sair.
+      let departureValue = values[path];
+      if (axis !== undefined) {
+        const coordinate = departurePoint[axis];
+        if (coordinate !== undefined) departureValue = coordinate;
+      }
       column.push({
         id: `tour:${String(index)}:${path}:out`,
         frame: departure,
-        value: values[path],
+        value: departureValue,
         in: { kind: "linear" },
         out: { kind: "bezier", handle: [...EASE_OUT_HANDLE] },
       });
@@ -240,8 +508,11 @@ export function compileStudioTour(stops: readonly TourStop[], timing: TourTiming
 
   return Object.freeze({
     writes: Object.freeze(writes),
-    endFrame: start + (stops.length - 1) * (hold + travel) + hold,
-    stops: stops.length,
+    // Sobre as paradas que entraram, não sobre as que existiam: um ponto órfão não
+    // reserva tempo de vídeo para uma visita que a câmera não faz.
+    endFrame: start + (visited.length - 1) * (hold + travel) + hold,
+    stops: visited.length,
+    skipped,
     diagnostics: Object.freeze(diagnostics),
   });
 }

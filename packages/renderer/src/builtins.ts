@@ -164,6 +164,12 @@ const calloutVisual: VisualEvaluator<Props> = (node) => {
     leader: leader[0] ?? null,
     leaderColor: stringProp(node.props, "leaderColor", "#7dd3fcff"),
     leaderWidth: nonNegativeProp(node.props, "leaderWidth", 1.5),
+    dotRadius: nonNegativeProp(node.props, "dotRadius", 4),
+    dotColor: stringProp(node.props, "dotColor", "#7dd3fcff"),
+    // Padrão 1 nos dois: um rótulo criado à mão aparece inteiro. A revelação é
+    // animação, e animação é keyframe — não estado inicial escondido.
+    leaderProgress: unitProp(node.props, "leaderProgress", 1),
+    textReveal: unitProp(node.props, "textReveal", 1),
   };
 };
 

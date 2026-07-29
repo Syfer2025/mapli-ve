@@ -227,6 +227,32 @@ export interface CalloutPrimitive {
   readonly leader: Vec2 | null;
   readonly leaderColor: string;
   readonly leaderWidth: number;
+  /**
+   * Disco no **alvo** da guia. 0 esconde.
+   *
+   * É a "bolinha colorida" pedida pelo dono: o que marca o míssil na imagem, enquanto a
+   * caixa fica afastada para não cobrir o que ela nomeia. Desenhado aqui, e não como um
+   * nó `circle` separado, pela mesma razão de a caixa e a linha estarem juntas — os três
+   * têm de concordar sobre onde o alvo está, e alvo em dois nós divergiria na primeira
+   * animação.
+   */
+  readonly dotRadius: number;
+  readonly dotColor: string;
+  /**
+   * Quanto da guia está desenhada, de 0 a 1, medido **a partir do alvo**.
+   *
+   * A revelação nasce na bolinha e cresce até a caixa, que é a ordem que o dono descreveu:
+   * a bolinha aparece, a linha sai dela, a caixa se afasta e o texto surge.
+   */
+  readonly leaderProgress: number;
+  /**
+   * Fração do texto visível, de 0 a 1. Revela por caractere.
+   *
+   * A caixa é dimensionada pelo texto **completo** em qualquer valor: revelar redimensiona
+   * a caixa, e caixa que cresce arrasta a borda de onde a guia sai — a linha ficaria
+   * dançando durante a digitação.
+   */
+  readonly textReveal: number;
 }
 
 export interface CirclePrimitive {

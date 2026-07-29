@@ -388,6 +388,33 @@ const StudioStagePropsSchema = z
     /** Gradiente radial ao preto nas bordas: a sensacao de cenario infinito. */
     vignette: UnitNumberPropertySchema,
     /**
+     * Nevoa junto ao horizonte, e a cor dela.
+     *
+     * O pedido do dono: uma nevoa clara SEMPRE ao fundo do objeto, nunca sobrepondo.
+     * Ela mora no passe de fundo do piso, que desenha antes de toda geometria com
+     * teste de profundidade desligado — entao "nunca sobrepoe" e propriedade da
+     * construcao, nao promessa de quem escreveu. Nevoa volumetrica de verdade seria o
+     * oposto: por profundidade, lavaria o modelo junto.
+     *
+     * Ela tambem e o que dissolve a costura entre piso e fundo, que o dono descreveu
+     * como "metade da tela cortada".
+     */
+    horizonHaze: UnitNumberPropertySchema,
+    hazeColor: ColorPropertySchema,
+    /**
+     * Direcao da luz principal, e com ela a direcao da sombra.
+     *
+     * A sombra do palco e a silhueta do objeto projetada, e ela era calculada com a luz
+     * assumida **vertical** — o que da uma mancha embaixo do objeto, nao uma sombra que
+     * se estica. Com a luz aimavel a sombra passa a cair para um lado, que e metade da
+     * composicao de um plano de apresentacao.
+     *
+     * Elevacao baixa demais faz a sombra tender ao infinito, e o projetor recua para a
+     * projecao vertical em vez de cortar a silhueta.
+     */
+    keyAzimuthDeg: NumberPropertySchema,
+    keyElevationDeg: NumberPropertySchema,
+    /**
      * Tempos do roteiro de visitas (ADR-015). Não são animáveis: são parâmetros
      * de **compilação**, e o que eles produzem — os keyframes das seis props de
      * câmera acima — é que é a animação. Moram no palco porque é o palco que dona
@@ -419,6 +446,18 @@ const StudioStagePropsSchema = z
  */
 const StudioPoiPropsSchema = z
   .object({
+    /**
+     * Objeto a que o ponto pertence ([ADR-016](../../../docs/adr/ADR-016-poi-anchored-to-object.md)).
+     *
+     * Vazio: `pointX/Y/Z` são metros de palco, e o ponto fica onde está
+     * independentemente do que o objeto faça — que é a leitura de todo ponto
+     * marcado antes do ADR-016, e um uso legítimo para enquadramento amplo.
+     *
+     * Preenchido com o id de um `model3d`: `pointX/Y/Z` passam a ser o **espaço
+     * normalizado** daquele modelo, e o ponto acompanha posição, altitude, rumo e
+     * escala. É o que faz o ponto continuar no míssil quando o avião cresce.
+     */
+    ownerId: StringPropertySchema,
     pointX: NumberPropertySchema,
     pointY: NumberPropertySchema,
     pointZ: NumberPropertySchema,
@@ -529,6 +568,21 @@ const CalloutPropsSchema = z
     cornerRadius: NonNegativeNumberPropertySchema,
     leaderWidth: NonNegativeNumberPropertySchema,
     leaderColor: ColorPropertySchema,
+    /**
+     * A bolinha no alvo, e a revelacao animada da anotacao.
+     *
+     * Pedido do dono, na ordem dele: "marcar o missil do aviao e uma animacao de
+     * textbox aparecer uma bolinha uma linha ate o text box se afastando do aviao e o
+     * texto aparecendo falando sobre o missel".
+     *
+     * As tres pecas da revelacao sao props animaveis, nao um player: o roteiro compila
+     * para keyframes, do mesmo jeito que a camera do ADR-015. Assim a timeline mostra,
+     * o editor de curvas ajusta, o Ctrl+Z desfaz e o export reproduz.
+     */
+    dotRadius: NonNegativeNumberPropertySchema,
+    dotColor: ColorPropertySchema,
+    leaderProgress: UnitNumberPropertySchema,
+    textReveal: UnitNumberPropertySchema,
   })
   .passthrough();
 
@@ -1358,14 +1412,39 @@ export const STUDIO_STAGE_NODE_TYPE = defineNodeType({
     // o objeto se apoia, e precisa de tom para a sombra assentar nele.
     floor: animatable("#39424fff"),
     gridColor: animatable("#5d6f84ff"),
-    gridSpacingMeters: animatable(5),
+    /**
+     * Os nove valores abaixo são o **look que o dono compôs** no palco em 2026-07-28,
+     * lido do documento vivo e promovido a padrão a pedido dele.
+     *
+     * Não são chute nem herança: cada um foi ajustado no Inspector com o palco na tela.
+     * Mudar qualquer um deles "porque parece melhor" desfaz uma decisão visual tomada
+     * olhando o resultado — se for preciso mexer, meça e pergunte.
+     *
+     * Isto muda só o que um palco **novo** traz. Documento salvo carrega os próprios
+     * valores e não é afetado.
+     */
+    // 5 cm. Com o filtro de Nyquist do shader a grade fina desaparece em quase toda
+    // distância e o que se lê é a de dez em dez (50 cm) — grade como textura de
+    // superfície, não como régua.
+    gridSpacingMeters: animatable(0.05),
     gridOpacity: animatable(0.55),
-    keyIntensity: animatable(2.6),
-    rimIntensity: animatable(1.8),
-    environmentIntensity: animatable(0.75),
-    floorTexture: animatable(0.35),
-    shadowStrength: animatable(0.75),
-    vignette: animatable(0.55),
+    keyIntensity: animatable(2.8),
+    // Contraluz mais baixo que o padrão antigo: com a névoa do horizonte no máximo, o
+    // halo de separação vinha do fundo e o rim em 1,8 estourava a borda do objeto.
+    rimIntensity: animatable(1.1),
+    // Ambiente baixo é o que deixa a luz principal desenhar forma. Em 0,75 o IBL
+    // preenchia as sombras próprias do modelo e ele lia como maquete de plástico.
+    environmentIntensity: animatable(0.2),
+    floorTexture: animatable(1),
+    shadowStrength: animatable(1),
+    vignette: animatable(0.7),
+    // Névoa no máximo, e numa cor bem mais escura que o cinza-azulado inicial: com
+    // #8fa6bd o horizonte clareava até parecer céu de dia, e o palco é uma vitrine
+    // fechada. #3c4654 dissolve a costura sem acender o fundo.
+    horizonHaze: animatable(1),
+    hazeColor: animatable("#3c4654ff"),
+    keyAzimuthDeg: animatable(138),
+    keyElevationDeg: animatable(24),
     // 30 frames de voo e 60 de pausa a 30 fps: um segundo indo, dois segundos
     // parado. Dois segundos é pouco para narrar um míssil, e é de propósito — o
     // padrão existe para o primeiro clique produzir algo que se vê inteiro sem
@@ -1569,6 +1648,48 @@ export const STUDIO_STAGE_NODE_TYPE = defineNodeType({
       max: 1,
       step: 0.05,
       unit: "percent",
+    }),
+    property({
+      path: "props.keyAzimuthDeg",
+      label: "Luz · azimute",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      step: 5,
+      unit: "degrees",
+    }),
+    property({
+      path: "props.keyElevationDeg",
+      label: "Luz · elevação",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      max: 90,
+      step: 2,
+      unit: "degrees",
+    }),
+    property({
+      path: "props.horizonHaze",
+      label: "Névoa no horizonte",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      max: 1,
+      step: 0.05,
+      unit: "percent",
+    }),
+    property({
+      path: "props.hazeColor",
+      label: "Cor da névoa",
+      kind: "color",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
     }),
     // Os três do roteiro (ADR-015). `animatable: false` de propósito: são a
     // entrada do compilador, não a animação. Uma trilha de "duração da pausa"
@@ -1799,6 +1920,13 @@ export const LABEL_CALLOUT_NODE_TYPE = defineNodeType({
     cornerRadius: animatable(4),
     leaderWidth: animatable(1.5),
     leaderColor: animatable("#7dd3fcff"),
+    dotRadius: animatable(4),
+    dotColor: animatable("#7dd3fcff"),
+    // 1 nos dois: rotulo criado a mao aparece inteiro. Esconder por padrao faria o
+    // primeiro clique produzir um no invisivel, e ninguem descobre prop que precisa
+    // ser ligada para o que acabou de criar aparecer.
+    leaderProgress: animatable(1),
+    textReveal: animatable(1),
   },
   propertySchema: CalloutPropsSchema,
   properties: [
@@ -1946,6 +2074,49 @@ export const LABEL_CALLOUT_NODE_TYPE = defineNodeType({
       group: "appearance",
       binding: "animatable",
       animatable: true,
+    }),
+    property({
+      path: "props.dotRadius",
+      label: "Bolinha · raio",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      step: 0.5,
+      unit: "px",
+    }),
+    property({
+      path: "props.dotColor",
+      label: "Bolinha · cor",
+      kind: "color",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+    }),
+    property({
+      path: "props.leaderProgress",
+      label: "Guia · revelação",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      max: 1,
+      step: 0.05,
+      unit: "percent",
+    }),
+    property({
+      path: "props.textReveal",
+      label: "Texto · revelação",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      max: 1,
+      step: 0.05,
+      unit: "percent",
     }),
   ],
   supportsChildren: false,
@@ -2155,6 +2326,10 @@ export const STUDIO_POI_NODE_TYPE = defineNodeType({
   label: "Ponto do palco",
   icon: "map-pin",
   defaultProps: {
+    // Nasce sem dono: um ponto criado pelo botão "Adicionar nó" não veio de clique
+    // em superfície nenhuma, então não há a que ancorá-lo. Quem marca no palco
+    // preenche isto no mesmo comando que grava o ponto.
+    ownerId: animatable(""),
     pointX: animatable(0),
     pointY: animatable(0),
     pointZ: animatable(0),
@@ -2168,6 +2343,22 @@ export const STUDIO_POI_NODE_TYPE = defineNodeType({
   propertySchema: StudioPoiPropsSchema,
   properties: [
     property({
+      path: "props.ownerId",
+      label: "Ancorado em · vazio = metros de palco",
+      kind: "text",
+      group: "layout",
+      binding: "animatable",
+      animatable: false,
+    }),
+    /**
+     * Sem `unit`, e não por esquecimento: a unidade destes três **depende** de
+     * `ownerId`. Sem dono são metros de palco; com dono são frações do vão do
+     * modelo. Um rótulo fixo dizendo "metros" mentiria na metade dos casos, e
+     * mentira em rótulo de unidade é como se marca um ponto no lugar errado com
+     * total confiança. O painel do palco mostra o valor em metros na barra de
+     * estado, onde ele é lido durante a marcação.
+     */
+    property({
       path: "props.pointX",
       label: "Ponto · leste",
       kind: "number",
@@ -2175,7 +2366,6 @@ export const STUDIO_POI_NODE_TYPE = defineNodeType({
       binding: "animatable",
       animatable: true,
       step: 0.1,
-      unit: "meters",
     }),
     property({
       path: "props.pointY",
@@ -2185,7 +2375,6 @@ export const STUDIO_POI_NODE_TYPE = defineNodeType({
       binding: "animatable",
       animatable: true,
       step: 0.1,
-      unit: "meters",
     }),
     property({
       path: "props.pointZ",
@@ -2195,7 +2384,6 @@ export const STUDIO_POI_NODE_TYPE = defineNodeType({
       binding: "animatable",
       animatable: true,
       step: 0.1,
-      unit: "meters",
     }),
     property({
       path: "props.distanceMeters",

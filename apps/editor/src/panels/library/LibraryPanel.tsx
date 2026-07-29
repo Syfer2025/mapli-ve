@@ -31,6 +31,7 @@ import {
 } from "../../assets/local-models.js";
 import { useEditorSession } from "../../document/useEditorSession.js";
 import { Button, Panel } from "../../ui/index.js";
+import { encodeStudioDrop, STUDIO_DROP_MIME } from "../viewport/studio-drop.js";
 import "./LibraryPanel.css";
 
 interface EditingState {
@@ -273,8 +274,22 @@ function LocalModelsSection({ query }: { readonly query: string }): ReactNode {
                   <button
                     type="button"
                     disabled={busy !== null}
-                    title={`${model.file} · ${formatAssetSize(model.bytes)}`}
+                    title={`${model.file} · ${formatAssetSize(model.bytes)} · clique importa, arraste solta no Palco 3D`}
                     onClick={() => void bringIn(model)}
+                    /*
+                      Arrastar para o Palco 3D importa e cria o nó onde soltou. O clique
+                      continua só importando: são gestos diferentes com resultados
+                      diferentes, e nenhum dos dois substitui o outro — importar sem
+                      compor cena é uso legítimo.
+                    */
+                    draggable
+                    onDragStart={(event) => {
+                      event.dataTransfer.setData(
+                        STUDIO_DROP_MIME,
+                        encodeStudioDrop({ kind: "local", file: model.file }),
+                      );
+                      event.dataTransfer.effectAllowed = "copy";
+                    }}
                   >
                     <span>{localModelLabel(model)}</span>
                     <small>
@@ -320,7 +335,29 @@ function AssetCard({
   };
 
   return (
-    <div className="library-card" role="listitem" data-kind={asset.kind}>
+    <div
+      className="library-card"
+      role="listitem"
+      data-kind={asset.kind}
+      /*
+        Só modelo é arrastável para o palco: soltar uma imagem lá não significa nada, e
+        um arraste que "funciona" e não faz nada é pior que um que não começa.
+        O transporte leva o `src`, não o `id` — é o `src` que `props.assetId` guarda.
+      */
+      draggable={isModel}
+      onDragStart={
+        isModel
+          ? (event) => {
+              event.dataTransfer.setData(
+                STUDIO_DROP_MIME,
+                encodeStudioDrop({ kind: "asset", src: asset.src }),
+              );
+              event.dataTransfer.effectAllowed = "copy";
+            }
+          : undefined
+      }
+      title={isModel ? "Arraste para o Palco 3D para pôr na cena" : undefined}
+    >
       <div className="library-card__thumb">
         {thumbnail !== null ? (
           <img src={thumbnail} alt="" loading="lazy" draggable={false} />

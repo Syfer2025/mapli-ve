@@ -475,20 +475,35 @@ function updateVisual(
       const box = group.getChildAt(0) as Graphics;
       const text = group.getChildAt(1) as Text;
 
-      text.text = visual.text;
       text.style.fontFamily = visual.fontFamily;
       text.style.fontSize = visual.fontSize;
       text.style.fontWeight = visual.fontWeight;
       text.style.fill = visual.color;
 
+      /**
+       * A caixa é medida pelo texto **completo**, sempre — mesmo revelando.
+       *
+       * Medir pelo pedaço visível faria a caixa crescer letra a letra, e a guia sai da
+       * **borda** dela: a linha ficaria dançando durante a digitação, e o alvo pareceria
+       * se mexer. Duas medidas por frame são baratas; caixa instável não tem conserto
+       * depois.
+       */
+      text.text = visual.text;
       const width = text.width + visual.paddingX * 2;
       const height = text.height + visual.paddingY * 2;
+      if (visual.textReveal < 1) {
+        const shown = Math.max(
+          0,
+          Math.min(visual.text.length, Math.ceil(visual.text.length * visual.textReveal)),
+        );
+        text.text = visual.text.slice(0, shown);
+      }
       text.position.set(visual.paddingX, visual.paddingY);
 
       box.clear();
       // A linha-guia sai da **borda** da caixa, não do centro: ligada ao centro
       // ela atravessaria o texto por baixo e apareceria nas pontas.
-      if (visual.leader !== null && visual.leaderWidth > 0) {
+      if (visual.leader !== null && visual.leaderWidth > 0 && visual.leaderProgress > 0) {
         const [tx, ty] = visual.leader;
         const cx = width / 2;
         const cy = height / 2;
@@ -503,9 +518,25 @@ function updateVisual(
               );
         const edgeX = cx + dx * Math.min(1, scale);
         const edgeY = cy + dy * Math.min(1, scale);
-        box.moveTo(edgeX, edgeY);
-        box.lineTo(tx, ty);
+        /**
+         * A linha cresce **do alvo para a caixa**, não o contrário.
+         *
+         * É a ordem que o dono descreveu — a bolinha aparece no míssil, a linha sai dela e
+         * a caixa se afasta. Crescer da caixa para o alvo contaria a história ao
+         * contrário: o espectador veria a legenda antes de saber do que ela fala.
+         */
+        const progress = Math.min(1, visual.leaderProgress);
+        box.moveTo(tx, ty);
+        box.lineTo(tx + (edgeX - tx) * progress, ty + (edgeY - ty) * progress);
         box.stroke({ color: visual.leaderColor, width: visual.leaderWidth });
+      }
+      /**
+       * A bolinha vai **depois** da linha e antes da caixa, e a ordem é o que a faz
+       * cobrir a ponta do traço em vez de ser cortada por ele.
+       */
+      if (visual.leader !== null && visual.dotRadius > 0) {
+        box.circle(visual.leader[0], visual.leader[1], visual.dotRadius);
+        box.fill({ color: visual.dotColor, alpha: 1 });
       }
       if (visual.cornerRadius > 0) box.roundRect(0, 0, width, height, visual.cornerRadius);
       else box.rect(0, 0, width, height);

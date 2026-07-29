@@ -466,8 +466,12 @@ export const editorActions = Object.freeze({
    * Cria um ponto de interesse do palco onde o dono clicou ([ADR-015](../../../../docs/adr/ADR-015-studio-points-of-interest.md)).
    *
    * Mesma forma do `addGeoFeature`: um gesto do usuário, vários comandos, cada um
-   * no histórico separado. O ponto chega em metros de mundo do palco, já resolvido
-   * pelo raycast — esta camada não sabe raycast, e não deve saber.
+   * no histórico separado. Esta camada não sabe raycast nem matriz de modelo, e
+   * não deve saber: o ponto chega **no espaço em que vai ser guardado** e o
+   * `ownerId` diz qual espaço é esse
+   * ([ADR-016](../../../../docs/adr/ADR-016-poi-anchored-to-object.md)) — vazio para
+   * metros de palco, preenchido para o espaço normalizado daquele `model3d`. Quem
+   * converte é o painel, que é quem tem a caixa do GLB.
    *
    * O enquadramento também chega pronto, e é de propósito: quem sabe de que
    * ângulo a câmera estava olhando e qual o tamanho do modelo é o painel do palco.
@@ -482,6 +486,7 @@ export const editorActions = Object.freeze({
       readonly azimuthDeg: number;
       readonly elevationDeg: number;
     },
+    ownerId = "",
   ): string | null {
     const nodeId = this.addNodeOfType("studio.poi");
     if (nodeId === null) return null;
@@ -490,6 +495,7 @@ export const editorActions = Object.freeze({
     // POI cujo `pointX` já tenha keyframe ganharia mais um no playhead atual, e o
     // ponto marcado passaria a existir só naquele frame.
     const written =
+      this.setPropertyValue(nodeId, "props.ownerId", ownerId, false) &&
       this.setPropertyValue(nodeId, "props.pointX", point[0], false) &&
       this.setPropertyValue(nodeId, "props.pointY", point[1], false) &&
       this.setPropertyValue(nodeId, "props.pointZ", point[2], false) &&
@@ -497,6 +503,56 @@ export const editorActions = Object.freeze({
       this.setPropertyValue(nodeId, "props.azimuthDeg", framing.azimuthDeg, false) &&
       this.setPropertyValue(nodeId, "props.elevationDeg", framing.elevationDeg, false);
     return written ? nodeId : null;
+  },
+
+  /**
+   * Anexa um ponto que já existe a um objeto, ou o solta ([ADR-016](../../../../docs/adr/ADR-016-poi-anchored-to-object.md)).
+   *
+   * Dono e coordenadas mudam **juntos**, porque mudar um sem o outro deixa o
+   * documento momentaneamente mentindo: o mesmo triplo lido como metros de palco e
+   * como fração do vão do modelo são dois lugares diferentes, e o frame que cair
+   * entre os dois comandos desenha o ponto no segundo. São quatro comandos no
+   * histórico, como no resto desta camada, mas quem chama já traz o ponto
+   * convertido para o espaço de destino.
+   */
+  /**
+   * Grava o enquadramento da câmera de autoria nas props do palco ([ADR-017](../../../../docs/adr/ADR-017-studio-authoring-camera.md)).
+   *
+   * `keyframeWhenAnimated = false` em todas as seis: gravar um enquadramento é dizer
+   * "a câmera de repouso é esta", não "anime a câmera aqui". Com `true`, gravar depois
+   * de compilar um roteiro cravaria um keyframe no playhead e furaria a visita — o
+   * mesmo cuidado que o `addStudioPoi` toma.
+   */
+  writeStudioCamera(
+    stageNodeId: string,
+    camera: {
+      readonly target: readonly [number, number, number];
+      readonly distanceMeters: number;
+      readonly azimuthDeg: number;
+      readonly elevationDeg: number;
+    },
+  ): boolean {
+    return (
+      this.setPropertyValue(stageNodeId, "props.targetX", camera.target[0], false) &&
+      this.setPropertyValue(stageNodeId, "props.targetY", camera.target[1], false) &&
+      this.setPropertyValue(stageNodeId, "props.targetZ", camera.target[2], false) &&
+      this.setPropertyValue(stageNodeId, "props.distanceMeters", camera.distanceMeters, false) &&
+      this.setPropertyValue(stageNodeId, "props.azimuthDeg", camera.azimuthDeg, false) &&
+      this.setPropertyValue(stageNodeId, "props.elevationDeg", camera.elevationDeg, false)
+    );
+  },
+
+  attachStudioPoi(
+    nodeId: string,
+    ownerId: string,
+    point: readonly [number, number, number],
+  ): boolean {
+    return (
+      this.setPropertyValue(nodeId, "props.ownerId", ownerId, false) &&
+      this.setPropertyValue(nodeId, "props.pointX", point[0], false) &&
+      this.setPropertyValue(nodeId, "props.pointY", point[1], false) &&
+      this.setPropertyValue(nodeId, "props.pointZ", point[2], false)
+    );
   },
 
   /**
@@ -516,19 +572,51 @@ export const editorActions = Object.freeze({
     stageNodeId: string,
     writes: readonly { readonly path: string; readonly keyframes: readonly unknown[] }[],
   ): boolean {
+    return this.writeKeyframeTracks(stageNodeId, writes);
+  },
+
+  /**
+   * Substitui as trilhas de keyframe de um nó, uma prop por vez.
+   *
+   * É a operação genérica por trás de `writeStudioTour` e da revelação da anotação: um
+   * `keyframe.replace-all` por caminho, para **qualquer** nó. O nome do método do roteiro
+   * ficou porque o chamador dele fala de roteiro; quem precisa da operação crua chama
+   * esta, sem herdar um nome que mente sobre o escopo.
+   */
+  writeKeyframeTracks(
+    nodeId: string,
+    writes: readonly { readonly path: string; readonly keyframes: readonly unknown[] }[],
+  ): boolean {
     let ok = true;
     for (const write of writes) {
       ok =
         this.dispatch({
           type: "keyframe.replace-all",
           payload: {
-            ...propertyLocation(stageNodeId, write.path),
+            ...propertyLocation(nodeId, write.path),
             keyframes: [...write.keyframes],
           },
           source: "user",
         }) && ok;
     }
     return ok;
+  },
+
+  /**
+   * Cria uma anotação apontando para um nó — o ponto do palco, tipicamente.
+   *
+   * O alvo é gravado em `props.targetId`, que é onde `label.callout` já procura desde o
+   * 7E.2. O que mudou para isto funcionar num POI foi do outro lado: o passe de projeção
+   * do palco passou a pôr os pontos no layout, e o rótulo os encontra sem uma linha nova.
+   */
+  addCalloutFor(targetId: string, text: string): string | null {
+    const nodeId = this.addNodeOfType("label.callout");
+    if (nodeId === null) return null;
+    this.renameNode(nodeId, text);
+    const written =
+      this.setPropertyValue(nodeId, "props.targetId", targetId, false) &&
+      this.setPropertyValue(nodeId, "props.text", text, false);
+    return written ? nodeId : null;
   },
 
   renameNode(nodeId: string, name: string): void {
