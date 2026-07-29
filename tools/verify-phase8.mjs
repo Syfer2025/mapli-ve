@@ -321,10 +321,59 @@ const EXPORTAR = `(async () => {
   };
 })()`;
 
+/**
+ * Põe o Viewport na frente antes de medir.
+ *
+ * **Por que isto existe.** O dockview só monta o painel ativo, e o layout é
+ * **persistido** — rodar o `verify:phase7e3` deixa a aba do Palco na frente, e ela
+ * continua lá depois de reiniciar o app. Sem esta função, este verificador relata
+ * `.maplibregl-canvas ausente` em cinco critérios e a leitura errada é "o export
+ * quebrou". É o sinal do painel errado, pela quinta vez (09-CONTINUIDADE § 1).
+ *
+ * O gesto é `PointerEvent` despachado **no próprio elemento da aba**, com
+ * `bubbles`, `composed`, `pointerId` e `isPrimary` — não `element.click()`, que o
+ * dockview ignora, nem `Input.dispatchMouseEvent` por coordenada, que funciona só
+ * às vezes. É a conclusão registrada em 09-CONTINUIDADE, aplicada aqui.
+ */
+async function activateViewportTab(client) {
+  const mounted = () => client.evaluate(`Boolean(document.querySelector('.maplibregl-canvas'))`);
+  if ((await mounted()) === true) return;
+
+  const clicked = await client.evaluate(`(() => {
+    const tab = [...document.querySelectorAll('.dv-tab')].find((t) =>
+      t.textContent.includes('Viewport'),
+    );
+    if (tab === undefined) return false;
+    for (const type of ['pointerdown', 'pointerup']) {
+      tab.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          composed: true,
+          cancelable: true,
+          pointerId: 1,
+          isPrimary: true,
+          button: 0,
+        }),
+      );
+    }
+    return true;
+  })()`);
+  if (clicked !== true) {
+    throw new Error("aba 'Viewport' não existe. Layout salvo antigo? Use 'Restaurar layout'.");
+  }
+  const deadline = Date.now() + 6000;
+  for (;;) {
+    if ((await mounted()) === true) return;
+    if (Date.now() > deadline) throw new Error("Viewport não montou depois de ativar a aba");
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+}
+
 async function main() {
   const target = await pageTarget();
   const client = new CdpClient(target.webSocketDebuggerUrl);
   await client.connect();
+  await activateViewportTab(client);
 
   const baseline = await client.evaluate(
     `(async () => {

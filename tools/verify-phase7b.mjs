@@ -723,10 +723,56 @@ async function restoreSession(client, baseline) {
   })()`);
 }
 
+/**
+ * Põe o Viewport na frente antes de medir.
+ *
+ * O dockview só monta o painel ativo, e o layout é **persistido**: rodar o
+ * `verify:phase7e3` deixa a aba do Palco na frente, e ela continua lá depois de
+ * reiniciar o app. Sem isto este verificador morre em "overlay nao estabilizou" ou
+ * relata superfície ausente — o **sinal do painel errado**, que 09-CONTINUIDADE § 1
+ * registra como o mesmo defeito com roupas diferentes.
+ *
+ * O gesto é `PointerEvent` no **próprio elemento** da aba: `element.click()` o dockview
+ * ignora, e `Input.dispatchMouseEvent` por coordenada funciona só às vezes.
+ */
+async function activateViewportTab(client) {
+  const mounted = () => client.evaluate(`Boolean(document.querySelector('.maplibregl-canvas'))`);
+  if ((await mounted()) === true) return;
+  const clicked = await client.evaluate(`(() => {
+    const tab = [...document.querySelectorAll('.dv-tab')].find((t) =>
+      t.textContent.includes('Viewport'),
+    );
+    if (tab === undefined) return false;
+    for (const type of ['pointerdown', 'pointerup']) {
+      tab.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          composed: true,
+          cancelable: true,
+          pointerId: 1,
+          isPrimary: true,
+          button: 0,
+        }),
+      );
+    }
+    return true;
+  })()`);
+  if (clicked !== true) {
+    throw new Error("aba 'Viewport' não existe. Layout salvo antigo? Use 'Restaurar layout'.");
+  }
+  const deadline = Date.now() + 6000;
+  for (;;) {
+    if ((await mounted()) === true) return;
+    if (Date.now() > deadline) throw new Error("Viewport não montou depois de ativar a aba");
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+}
+
 async function main() {
   const page = await pageTarget();
   const client = new CdpClient(page.webSocketDebuggerUrl);
   await client.connect();
+  await activateViewportTab(client);
   let baseline;
   try {
     await client.request("Page.bringToFront");

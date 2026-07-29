@@ -769,19 +769,79 @@ async function main() {
           await atFrame(0);
           const botao = studioTool('Marcar pontos');
           if (botao === null) throw new Error('botão "Marcar pontos" ausente na barra do palco');
-          // Botão HTML comum: aqui click() basta. Foi a ABA do dockview que
-          // exigiu evento de ponteiro por coordenada (ADR-014), não isto.
-          botao.click();
-          await wait(200);
+          /*
+           * GARANTE o modo ligado, em vez de alternar.
+           *
+           * Alternar assumia que ele começa desligado, e isso é falso na segunda rodada
+           * seguida do verificador: os critérios 8 e 10 ligam a marcação e não desligam, e
+           * o modo é estado do PAINEL — o undo do documento no fim não o desfaz. Resultado:
+           * a segunda rodada desligava a marcação aqui e criava zero pontos, com a mesma
+           * mensagem de "clique errou a geometria". É a irmã da falsa aprovação do critério
+           * 10: critério que herda estado de outra rodada não mede o que o nome dele diz.
+           *
+           * Botão HTML comum: aqui click() basta. Foi a ABA do dockview que exigiu evento
+           * de ponteiro por coordenada (ADR-014), não isto.
+           *
+           * (Sem acento grave neste comentário: ele vive dentro de um template literal.)
+           */
+          if (botao.getAttribute('aria-pressed') !== 'true') {
+            botao.click();
+            await wait(200);
+          }
           const canvas = studioCanvas().getBoundingClientRect();
-          // Dois pontos do modelo, afastados na tela para não caírem no mesmo
-          // marcador — e o clique tem de acertar geometria, então saem da
-          // projeção do próprio modelo, não de um palpite de coordenada.
-          const pontos = [[6, 0, 0], [6, 1.2, 0]].map((p) => window.__theatrumStudio.project(p));
+          /**
+           * Dois pixels que o raycast REALMENTE acerta, achados por varredura.
+           *
+           * Antes eram duas coordenadas de mundo fixas — \`[6,0,0]\` e \`[6,1.2,0]\` —
+           * escolhidas para a silhueta do F/A-18. Numa máquina cuja
+           * \`library-roots.json\` serve outro modelo, o primeiro cai no vão embaixo
+           * do veículo: o clique erra a geometria, só um ponto nasce, e a ida e
+           * volta passa a comparar esse ponto com o pixel do clique que ERROU —
+           * reprovando o critério por causa do arquivo instalado, não do código.
+           * Foi assim que ele estava vermelho nesta máquina antes do ADR-016.
+           *
+           * A varredura não presume silhueta nenhuma. É a mesma correção que o
+           * critério 2 recebeu ao ganhar recuo para o GLB do repositório: critério
+           * de fase não pode depender de configuração de máquina.
+           */
+          const acertos = [];
+          const passo = 32;
+          for (let y = Math.round(canvas.height * 0.15); y < canvas.height * 0.9; y += passo) {
+            for (let x = Math.round(canvas.width * 0.15); x < canvas.width * 0.85; x += passo) {
+              if (window.__theatrumStudio.pick(x, y) !== null) acertos.push([x, y]);
+            }
+          }
+          if (acertos.length < 2) {
+            throw new Error('varredura não achou dois pixels de geometria no palco');
+          }
+          const primeiro = acertos[0];
+          // O mais distante do primeiro: os dois marcadores não podem cair dentro
+          // do mesmo raio de acerto (16 px), senão o segundo clique SELECIONA o
+          // marcador do primeiro em vez de criar um ponto novo.
+          let segundo = primeiro;
+          let maior = -1;
+          for (const candidato of acertos) {
+            const d = Math.hypot(candidato[0] - primeiro[0], candidato[1] - primeiro[1]);
+            if (d > maior) {
+              maior = d;
+              segundo = candidato;
+            }
+          }
           return {
             canvas: [canvas.left, canvas.top, canvas.width, canvas.height],
-            pontos,
+            pontos: [primeiro, segundo],
+            separacaoPx: maior,
+            acertos: acertos.length,
             marcandoAntes: markerInk(),
+            // Ligou de fato ao clicar no botão? Distingue "nunca ligou" de "algo desligou".
+            ligouAoClicar: studioTool('Marcar pontos')?.getAttribute('aria-pressed') === 'true',
+            // E onde está a barra de ferramentas, para saber se um clique pode acertá-la.
+            toolbar: (() => {
+              const tools = document.querySelector('.studio-viewport__tools');
+              if (tools === null) return null;
+              const r = tools.getBoundingClientRect();
+              return [Math.round(r.top), Math.round(r.bottom)];
+            })(),
           };
         })()`,
       );
@@ -810,31 +870,44 @@ async function main() {
           await wait(250);
           const pois = nodesOfType('studio.poi');
           const cliques = ${JSON.stringify(cliques)};
+          /**
+           * O ponto **resolvido**, não o triplo cru do documento ([ADR-016](../docs/adr/ADR-016-poi-anchored-to-object.md)).
+           *
+           * Com dono, \`props.pointX\` é o espaço normalizado do modelo — projetá-lo
+           * como se fosse metros de palco põe o alvo perto da origem e mede o lugar
+           * errado com total confiança. \`__theatrumStudio.pois()\` entrega o que o
+           * palco de fato usa.
+           */
+          const resolvidos = window.__theatrumStudio.pois();
           // Ida e volta: onde cada ponto marcado projeta agora.
-          const roundTrip = pois.map((poi, index) => {
-            const ponto = [
-              poi.props.pointX.value,
-              poi.props.pointY.value,
-              poi.props.pointZ.value,
-            ];
-            const tela = window.__theatrumStudio.project(ponto);
+          const roundTrip = resolvidos.map((poi, index) => {
+            const tela = window.__theatrumStudio.project(poi.point);
             const clique = cliques[index];
             return tela === null || clique === undefined
               ? null
               : Math.hypot(tela[0] - clique[0], tela[1] - clique[1]);
           });
           // O ponto tem de estar na SUPERFÍCIE do modelo, não no chão nem no
-          // vazio: o F/A-18 tem 18 m de vão, então nada legítimo cai a mais de
-          // 12 m do centro dele.
-          const distanciasAoModelo = pois.map((poi) =>
-            Math.hypot(
-              poi.props.pointX.value - 6,
-              poi.props.pointY.value,
-              poi.props.pointZ.value,
-            ),
+          // vazio. O modelo está em stageX = 6, e nada legítimo cai a mais de 12 m
+          // do centro de um objeto de 18 m de vão.
+          const distanciasAoModelo = resolvidos.map((poi) =>
+            Math.hypot(poi.point[0] - 6, poi.point[1], poi.point[2]),
           );
+          // E cada ponto nasceu ANCORADO no objeto, não solto no palco: é o que o
+          // ADR-016 decidiu, e é o que faz o ponto sobreviver ao objeto se mexer.
+          const ancorados = resolvidos.filter((poi) => poi.ownerId !== '' && !poi.orphan).length;
           const tintaMarcando = markerInk();
           const marcadores = window.__theatrumStudio.markers();
+          /**
+           * A barra de estado do painel, no relatório.
+           *
+           * Sem ela, "0 pontos criados" não distingue clique que errou a geometria, modo de
+           * marcação desligado, modelo ainda carregando e falha ao gravar a prop — quatro
+           * causas com o mesmo sintoma. O painel já sabe qual foi; era só perguntar.
+           */
+          const estado = document.querySelector('.studio-viewport__status')?.textContent ?? '';
+          const marcandoLigado =
+            studioTool('Marcar pontos')?.getAttribute('aria-pressed') === 'true';
 
           // Compilar. O aviso de substituição é window.confirm, o mesmo padrão
           // que o resto do editor usa para ação destrutiva; aqui ele é respondido
@@ -860,19 +933,19 @@ async function main() {
 
           return {
             pois: pois.length,
+            estado,
+            marcandoLigado,
             roundTrip,
             distanciasAoModelo,
+            ancorados,
             tintaMarcando,
             marcadores: marcadores.length,
             ordinais: marcadores.map((m) => m.ordinal),
             compilou,
             trilhas,
             chegadaSegunda: palco.props.targetX.keyframes.map((k) => k.frame),
-            pontoSegunda: pois.length < 2 ? null : [
-              pois[1].props.pointX.value,
-              pois[1].props.pointY.value,
-              pois[1].props.pointZ.value,
-            ],
+            // Resolvido, pela mesma razão da ida e volta.
+            pontoSegunda: resolvidos.length < 2 ? null : resolvidos[1].point,
           };
         })()`,
       );
@@ -919,19 +992,802 @@ async function main() {
         report.pois === 2 &&
           roundTripOk &&
           superficieOk &&
+          // Os dois pontos nasceram ancorados no objeto (ADR-016), não soltos.
+          report.ancorados === 2 &&
           report.tintaMarcando > 200 &&
           report.marcadores === 2 &&
           report.compilou &&
           trilhasOk &&
           centradoOk &&
           apagou === 0,
-        `${report.pois} ponto(s) criados por clique, ida e volta ` +
+        `${report.pois} ponto(s) criados por clique, ${report.ancorados} ancorado(s) no objeto, ` +
+          `ida e volta ` +
           `${report.roundTrip.map((d) => (d === null ? "—" : d.toFixed(2))).join("/")} px, ` +
           `distância ao modelo ${report.distanciasAoModelo.map((d) => d.toFixed(1)).join("/")} m, ` +
           `marcadores ${report.ordinais.join("/")} com ${report.tintaMarcando} px de tinta ` +
           `(${apagou} depois de desligar), ` +
           `keyframes por trilha ${report.trilhas.join("/")}, ` +
-          `ponto centrado a ${centragem === null ? "—" : centragem.toFixed(2)} px do centro`,
+          `ponto centrado a ${centragem === null ? "—" : centragem.toFixed(2)} px do centro ` +
+          `· marcação ligou ao clicar: ${String(alvos.ligouAoClicar)}, no fim: ${String(report.marcandoLigado)}, ` +
+          `toolbar em y ${JSON.stringify(alvos.toolbar)}, cliques em ${JSON.stringify(cliques)}, ` +
+          `painel diz "${report.estado}" ` +
+          `· sondagem achou ${String(alvos.acertos)} pixels de geometria, ` +
+          `separação ${alvos.separacaoPx.toFixed(0)} px`,
+      );
+
+      // ── 7. Ponto ancorado sobrevive a mover, girar e escalar o objeto ────────
+      //
+      // O critério do [ADR-016](../docs/adr/ADR-016-poi-anchored-to-object.md), e
+      // o relato do dono que o motivou: _"se o avião mudar de escala os objetos
+      // ficam travados no limbo e não no objeto"_.
+      //
+      // **A reprodução do defeito e a correção convivem no mesmo run.** Dois
+      // pontos nascem no mesmo lugar do palco: um ancorado no objeto (o clique
+      // grava o dono) e um solto, que é exatamente o comportamento de antes deste
+      // ADR. Depois o objeto muda de lugar, de rumo e de vão. O ancorado tem de
+      // acompanhar e continuar projetando sobre a silhueta; o solto tem de ficar
+      // onde estava — e o pixel dele deixa de acertar geometria alguma. É a
+      // diferença entre "no míssil" e "no vazio", medida em pixel.
+      const ancoragem = await client.evaluate(
+        `(async () => {
+          await atFrame(0);
+          const stageId = ${JSON.stringify(stageId)};
+          const modelId = ${JSON.stringify(modelId)};
+          const actions = session().actions;
+
+          // A câmera compilada pelo critério 5 sai de cena: este critério mede o
+          // PONTO, e câmera animada mudaria o enquadramento junto com a escala,
+          // misturando duas causas num número só.
+          actions.writeStudioTour(stageId, [
+            'props.targetX', 'props.targetY', 'props.targetZ',
+            'props.distanceMeters', 'props.azimuthDeg', 'props.elevationDeg',
+          ].map((path) => ({ path, keyframes: [] })));
+          // Enquadramento largo que cobre o objeto ANTES e DEPOIS de ele andar.
+          for (const [path, value] of [
+            ['props.targetX', 13], ['props.targetY', 2], ['props.targetZ', 0],
+            ['props.distanceMeters', 70], ['props.azimuthDeg', 35], ['props.elevationDeg', 14],
+          ]) actions.setPropertyValue(stageId, path, value, false);
+          for (const [path, value] of [
+            ['props.stageX', 6], ['props.scaleMeters', 18], ['props.headingOffset', 0],
+          ]) actions.setPropertyValue(modelId, path, value, false);
+          await wait(300);
+
+          // Marca um ponto novo na superfície, por clique de verdade — o dono vem
+          // do \`pick\`, como no critério 5.
+          if (studioTool('Marcar pontos').getAttribute('aria-pressed') !== 'true') {
+            studioTool('Marcar pontos').click();
+            await wait(200);
+          }
+          const canvas = studioCanvas().getBoundingClientRect();
+          let alvo = null;
+          for (let y = Math.round(canvas.height * 0.2); y < canvas.height * 0.85 && alvo === null; y += 16) {
+            for (let x = Math.round(canvas.width * 0.2); x < canvas.width * 0.8; x += 16) {
+              if (window.__theatrumStudio.pick(x, y) !== null) { alvo = [x, y]; break; }
+            }
+          }
+          if (alvo === null) throw new Error('nenhum pixel de geometria para o critério 7');
+          return { canvas: [canvas.left, canvas.top], alvo };
+        })()`,
+      );
+
+      const alvoX = Math.round(ancoragem.canvas[0] + ancoragem.alvo[0]);
+      const alvoY = Math.round(ancoragem.canvas[1] + ancoragem.alvo[1]);
+      await client.request("Input.dispatchMouseEvent", { type: "mouseMoved", x: alvoX, y: alvoY });
+      for (const type of ["mousePressed", "mouseReleased"]) {
+        await client.request("Input.dispatchMouseEvent", {
+          type,
+          x: alvoX,
+          y: alvoY,
+          button: "left",
+          clickCount: 1,
+        });
+      }
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      const invariancia = await client.evaluate(
+        `(async () => {
+          await wait(250);
+          const modelId = ${JSON.stringify(modelId)};
+          const actions = session().actions;
+          const antes = window.__theatrumStudio.pois();
+          const ancorado = antes.find((poi) => poi.ownerId === modelId);
+          if (ancorado === undefined) throw new Error('o clique do critério 7 não ancorou o ponto');
+
+          // O controle: mesmo lugar do palco, SEM dono. É o comportamento de antes
+          // do ADR-016, montado de propósito para poder ser medido ao lado.
+          const controleId = actions.addStudioPoi(
+            ancorado.point, 'Controle solto', { distanceMeters: 12, azimuthDeg: 35, elevationDeg: 18 }, '',
+          );
+          await wait(250);
+          const w1 = ancorado.point;
+
+          // Agora o objeto anda 14 m, cresce de 18 para 30 m de vão e gira 55°.
+          for (const [path, value] of [
+            ['props.stageX', 20], ['props.scaleMeters', 30], ['props.headingOffset', 55],
+          ]) actions.setPropertyValue(modelId, path, value, false);
+          await wait(400);
+
+          const depois = window.__theatrumStudio.pois();
+          const ancoradoDepois = depois.find((poi) => poi.id === ancorado.id);
+          const controleDepois = depois.find((poi) => poi.id === controleId);
+          if (ancoradoDepois === undefined || controleDepois === undefined) {
+            throw new Error('ponto desapareceu entre as duas leituras');
+          }
+          const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+          const telaAncorado = window.__theatrumStudio.project(ancoradoDepois.point);
+          const telaControle = window.__theatrumStudio.project(controleDepois.point);
+          return {
+            andouAncorado: dist(ancoradoDepois.point, w1),
+            andouControle: dist(controleDepois.point, w1),
+            // Cada ponto projeta sobre geometria, ou sobre o vazio?
+            acertaAncorado:
+              telaAncorado === null
+                ? null
+                : (window.__theatrumStudio.pick(telaAncorado[0], telaAncorado[1])?.modelId ?? null),
+            acertaControle:
+              telaControle === null
+                ? null
+                : (window.__theatrumStudio.pick(telaControle[0], telaControle[1])?.modelId ?? null),
+            orfaoAncorado: ancoradoDepois.orphan,
+          };
+        })()`,
+      );
+
+      record(
+        "7 · ponto ancorado acompanha mover, girar e escalar o objeto",
+        // O ancorado andou junto com o objeto...
+        invariancia.andouAncorado > 5 &&
+          // ...e continua sobre a superfície DELE, medido em pixel pelo raycast.
+          invariancia.acertaAncorado === modelId &&
+          !invariancia.orfaoAncorado &&
+          // O controle solto ficou exatamente onde estava — é o defeito relatado...
+          invariancia.andouControle < 1e-9 &&
+          // ...e o pixel dele não acerta geometria alguma: o limbo, medido.
+          invariancia.acertaControle === null,
+        `ancorado andou ${invariancia.andouAncorado.toFixed(2)} m e ainda acerta ` +
+          `${invariancia.acertaAncorado === modelId ? "o objeto" : String(invariancia.acertaAncorado)}; ` +
+          `controle solto andou ${invariancia.andouControle.toFixed(2)} m e acerta ` +
+          `${invariancia.acertaControle === null ? "o vazio" : "geometria"}`,
+      );
+
+      // ── 8. Câmera de autoria move a imagem sem mover o documento ─────────────
+      //
+      // O critério do [ADR-017](../docs/adr/ADR-017-studio-authoring-camera.md), e as
+      // três afirmações que ele exige:
+      //
+      // 1. arrastar o mouse **muda a imagem** e **não muda uma vírgula** das props do
+      //    palco — é o que garante que o export continua sendo o documento;
+      // 2. o enquadramento que um POI grava é o da câmera **solta**, não o do
+      //    documento. Era a lacuna que o ADR-015 descrevia sem poder cumprir, porque
+      //    não havia como girar o palco com o mouse;
+      // 3. "Gravar enquadramento" leva as seis props **exatamente** para os valores
+      //    compostos — exato por construção, porque as duas câmeras vivem no mesmo
+      //    espaço de parâmetros. É o argumento que derrubou a câmera de voo livre.
+      const seisProps = [
+        "targetX",
+        "targetY",
+        "targetZ",
+        "distanceMeters",
+        "azimuthDeg",
+        "elevationDeg",
+      ];
+      const antesDoArrasto = await client.evaluate(
+        `(async () => {
+          await atFrame(0);
+          // Marcação ligada de propósito: o pedido do dono é mover o cenário
+          // livremente COM o modo de marcação ativo, e é essa combinação que o
+          // limiar de arrasto tem de resolver.
+          if (studioTool('Marcar pontos').getAttribute('aria-pressed') !== 'true') {
+            studioTool('Marcar pontos').click();
+            await wait(200);
+          }
+          const canvas = studioCanvas().getBoundingClientRect();
+          const palco = composition().nodes[${JSON.stringify(stageId)}];
+          const image = studioPixels();
+          return {
+            canvas: [canvas.left, canvas.top, canvas.width, canvas.height],
+            props: ${JSON.stringify(seisProps)}.map((key) => palco.props[key].value),
+            camera: window.__theatrumStudio.camera(),
+            soma: [...image.data].reduce((total, value) => total + value, 0),
+          };
+        })()`,
+      );
+
+      // Arrasto de verdade: press, vários move, release. Um único `mouseMoved` de 200 px
+      // passaria pelo limiar mas não parece com o gesto humano que o produto recebe.
+      const arrastoX = Math.round(antesDoArrasto.canvas[0] + antesDoArrasto.canvas[2] * 0.5);
+      const arrastoY = Math.round(antesDoArrasto.canvas[1] + antesDoArrasto.canvas[3] * 0.5);
+      await client.request("Input.dispatchMouseEvent", {
+        type: "mousePressed",
+        x: arrastoX,
+        y: arrastoY,
+        button: "left",
+        clickCount: 1,
+      });
+      for (let step = 1; step <= 10; step += 1) {
+        await client.request("Input.dispatchMouseEvent", {
+          type: "mouseMoved",
+          x: arrastoX + step * 18,
+          y: arrastoY + step * 4,
+          button: "left",
+          buttons: 1,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 30));
+      }
+      await client.request("Input.dispatchMouseEvent", {
+        type: "mouseReleased",
+        x: arrastoX + 180,
+        y: arrastoY + 40,
+        button: "left",
+        clickCount: 1,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 350));
+
+      const autoria = await client.evaluate(
+        `(async () => {
+          await wait(200);
+          const stageId = ${JSON.stringify(stageId)};
+          const chaves = ${JSON.stringify(seisProps)};
+          const depoisDoArrasto = studioPixels();
+          const palcoDepois = composition().nodes[stageId];
+          const cameraSolta = window.__theatrumStudio.camera();
+          const poisAntes = window.__theatrumStudio.pois().length;
+
+          // Um ponto marcado AGORA tem de gravar o azimute da câmera solta.
+          let alvo = null;
+          const canvas = studioCanvas().getBoundingClientRect();
+          for (let y = Math.round(canvas.height * 0.2); y < canvas.height * 0.85 && alvo === null; y += 16) {
+            for (let x = Math.round(canvas.width * 0.2); x < canvas.width * 0.8; x += 16) {
+              if (window.__theatrumStudio.pick(x, y) !== null) { alvo = [x, y]; break; }
+            }
+          }
+          return {
+            somaDepois: [...depoisDoArrasto.data].reduce((total, value) => total + value, 0),
+            propsDepois: chaves.map((key) => palcoDepois.props[key].value),
+            cameraSolta,
+            poisAntes,
+            alvo,
+            canvas: [canvas.left, canvas.top],
+          };
+        })()`,
+      );
+
+      // Marca com a câmera solta, e depois grava o enquadramento.
+      let enquadramento = null;
+      if (Array.isArray(autoria.alvo)) {
+        const mx = Math.round(autoria.canvas[0] + autoria.alvo[0]);
+        const my = Math.round(autoria.canvas[1] + autoria.alvo[1]);
+        await client.request("Input.dispatchMouseEvent", { type: "mouseMoved", x: mx, y: my });
+        for (const type of ["mousePressed", "mouseReleased"]) {
+          await client.request("Input.dispatchMouseEvent", {
+            type,
+            x: mx,
+            y: my,
+            button: "left",
+            clickCount: 1,
+          });
+        }
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        enquadramento = await client.evaluate(
+          `(async () => {
+            await wait(200);
+            const chaves = ${JSON.stringify(seisProps)};
+            const pontos = nodesOfType('studio.poi');
+            const ultimo = pontos[pontos.length - 1];
+            const camera = window.__theatrumStudio.camera();
+            // Gravar: as seis props do palco têm de virar exatamente o que se compôs.
+            const confirmOriginal = window.confirm;
+            window.confirm = () => true;
+            try {
+              studioTool('Gravar enquadramento').click();
+            } finally {
+              window.confirm = confirmOriginal;
+            }
+            await wait(300);
+            const palco = composition().nodes[${JSON.stringify(stageId)}];
+            return {
+              azimutePonto: ultimo === undefined ? null : ultimo.props.azimuthDeg.value,
+              azimuteCamera: camera === null ? null : camera.azimuthDeg,
+              gravado: chaves.map((key) => palco.props[key].value),
+              alvoComposto: camera === null ? null : [
+                camera.target[0], camera.target[1], camera.target[2],
+                camera.distanceMeters, camera.azimuthDeg, camera.elevationDeg,
+              ],
+              soltaDepoisDeGravar: window.__theatrumStudio.camera()?.authoring ?? null,
+            };
+          })()`,
+        );
+      }
+
+      const documentoIntacto =
+        JSON.stringify(antesDoArrasto.props) === JSON.stringify(autoria.propsDepois);
+      const imagemMudou = autoria.somaDepois !== antesDoArrasto.soma;
+      const soltou = autoria.cameraSolta?.authoring === true;
+      const girou =
+        autoria.cameraSolta !== null &&
+        antesDoArrasto.camera !== null &&
+        Math.abs(autoria.cameraSolta.azimuthDeg - antesDoArrasto.camera.azimuthDeg) > 1;
+      // O ponto gravou o ângulo da câmera solta, não o do documento.
+      const pontoSeguiuACamera =
+        enquadramento !== null &&
+        enquadramento.azimutePonto !== null &&
+        enquadramento.azimuteCamera !== null &&
+        Math.abs(enquadramento.azimutePonto - enquadramento.azimuteCamera) < 0.01;
+      // E gravar foi exato: nenhuma conversão, nenhum salto.
+      const gravouExato =
+        enquadramento !== null &&
+        enquadramento.alvoComposto !== null &&
+        enquadramento.gravado.every(
+          (value, index) => Math.abs(value - enquadramento.alvoComposto[index]) < 1e-9,
+        );
+
+      record(
+        "8 · câmera de autoria move a imagem sem mover o documento",
+        soltou &&
+          girou &&
+          imagemMudou &&
+          documentoIntacto &&
+          pontoSeguiuACamera &&
+          gravouExato &&
+          // Gravar devolve a câmera ao documento: o desvio deixou de existir porque
+          // agora ele É o documento.
+          enquadramento.soltaDepoisDeGravar === false,
+        `arrasto girou o azimute de ${antesDoArrasto.camera?.azimuthDeg.toFixed(1)}° para ` +
+          `${autoria.cameraSolta?.azimuthDeg.toFixed(1)}°, imagem ${imagemMudou ? "mudou" : "NÃO mudou"}, ` +
+          `props do palco ${documentoIntacto ? "intactas" : "ALTERADAS"}; ` +
+          `ponto marcado gravou ${enquadramento?.azimutePonto?.toFixed(1) ?? "—"}° ` +
+          `contra ${enquadramento?.azimuteCamera?.toFixed(1) ?? "—"}° da câmera; ` +
+          `gravar foi ${gravouExato ? "exato nas seis props" : "INEXATO"}`,
+      );
+
+      // ── 9. O horizonte dissolve em vez de terminar numa aresta ───────────────
+      //
+      // A queixa do dono, palavra por palavra: _"parece que metade da tela do palco
+      // está cortada... não dá sensação de espaço... está esquisita essa linha de
+      // transição da base com o fundo"_.
+      //
+      // Isso se mede. Uma coluna de pixels atravessando o horizonte tem de variar
+      // **suavemente**: o maior salto entre dois pixels vizinhos é a altura da aresta.
+      // Com a névoa desligada o salto reaparece — e o critério afirma os dois lados,
+      // senão ele passaria com um palco chapado, que também não tem aresta.
+      const horizonte = await client.evaluate(
+        `(async () => {
+          const stageId = ${JSON.stringify(stageId)};
+          const actions = session().actions;
+          // Câmera rasante: é o enquadramento em que o horizonte cruza a tela e a
+          // costura, se existir, fica bem no meio.
+          //
+          // **Grade e textura desligadas durante a medição.** Linha de grade é uma
+          // aresta nítida DE PROPÓSITO, e com ela ligada o maior salto da coluna é
+          // sempre uma linha da grade — foi assim que a primeira versão deste critério
+          // mediu 14,6 com e sem névoa e concluiu nada. Sem elas, a única estrutura
+          // vertical que sobra é a transição piso → fundo, que é justamente o assunto.
+          for (const [path, value] of [
+            ['props.targetY', 0], ['props.distanceMeters', 60], ['props.elevationDeg', 8],
+            ['props.gridOpacity', 0], ['props.floorTexture', 0], ['props.vignette', 0],
+          ]) actions.setPropertyValue(stageId, path, value, false);
+
+          // Uma coluna no centro, longe do modelo, medida em luminância.
+          const coluna = () => {
+            const image = studioPixels();
+            const x = Math.floor(image.width * 0.12);
+            const valores = [];
+            for (let y = 0; y < image.height; y += 1) {
+              const i = (y * image.width + x) * 4;
+              valores.push(
+                0.2126 * image.data[i] + 0.7152 * image.data[i + 1] + 0.0722 * image.data[i + 2],
+              );
+            }
+            return valores;
+          };
+          const maiorSalto = (valores) => {
+            let maior = 0;
+            let onde = 0;
+            for (let i = 1; i < valores.length; i += 1) {
+              const salto = Math.abs(valores[i] - valores[i - 1]);
+              if (salto > maior) {
+                maior = salto;
+                onde = i;
+              }
+            }
+            return { maior, onde };
+          };
+
+          actions.setPropertyValue(stageId, 'props.horizonHaze', 0.55, false);
+          await wait(450);
+          const comNevoa = coluna();
+          actions.setPropertyValue(stageId, 'props.horizonHaze', 0, false);
+          await wait(450);
+          const semNevoa = coluna();
+          actions.setPropertyValue(stageId, 'props.horizonHaze', 0.55, false);
+          await wait(300);
+
+          const com = maiorSalto(comNevoa);
+          const sem = maiorSalto(semNevoa);
+          return {
+            saltoComNevoa: com.maior,
+            saltoSemNevoa: sem.maior,
+            linhaComNevoa: com.onde,
+            altura: comNevoa.length,
+            // E a cena não pode ter ficado chapada: sem variação nenhuma não há
+            // espaço, só uma parede de uma cor.
+            amplitude: Math.max(...comNevoa) - Math.min(...comNevoa),
+          };
+        })()`,
+      );
+
+      record(
+        "9 · o horizonte dissolve em vez de terminar numa aresta",
+        // Salto pequeno com névoa...
+        horizonte.saltoComNevoa < 12 &&
+          // ...e menor do que sem ela, senão a névoa não está fazendo o trabalho...
+          horizonte.saltoComNevoa < horizonte.saltoSemNevoa &&
+          // ...e a imagem continua tendo profundidade em vez de virar uma parede.
+          horizonte.amplitude > 20,
+        `maior salto entre pixels vizinhos: ${horizonte.saltoComNevoa.toFixed(1)} com névoa ` +
+          `(linha ${String(horizonte.linhaComNevoa)} de ${String(horizonte.altura)}), ` +
+          `${horizonte.saltoSemNevoa.toFixed(1)} sem; amplitude da coluna ` +
+          `${horizonte.amplitude.toFixed(1)}`,
+      );
+
+      // ── 10. O alvo acompanha objeto animado durante a pausa ──────────────────
+      //
+      // O limite que o [ADR-016](../docs/adr/ADR-016-poi-anchored-to-object.md) declarou
+      // e não corrigiu: com o dono animado, o alvo da câmera era um par de keyframes
+      // parado, então a câmera escorregava do míssil justamente enquanto o narrador
+      // falava dele.
+      //
+      // A medição é em pixel e cobre os dois instantes que importam: **na chegada** e no
+      // **meio da pausa**. Antes do acompanhamento só o primeiro centrava — e é por isso
+      // que o critério afirma os dois, senão passaria com a versão antiga.
+      const acompanha = await client.evaluate(
+        `(async () => {
+          const stageId = ${JSON.stringify(stageId)};
+          const modelId = ${JSON.stringify(modelId)};
+          const actions = session().actions;
+
+          /**
+           * **Os pontos das etapas anteriores saem de cena.**
+           *
+           * A primeira versão deste critério não os removia, e passou por acidente: com
+           * seis paradas acumuladas, a minha era a última — chegada no frame 450 — e a
+           * medição olhava os frames 0, 30 e 60, que são a **primeira** parada, de um
+           * objeto parado. Deu 0,00 px nos três e o placar disse verde sem ter testado
+           * nada. Falso verde é pior que critério ausente, e a causa era escopo: um
+           * critério que mede "a parada" precisa de exatamente uma.
+           */
+          for (const poi of nodesOfType('studio.poi')) actions.deleteNode(poi.id);
+          await wait(250);
+
+          // Palco num enquadramento neutro e objeto de volta ao começo.
+          for (const [path, value] of [
+            ['props.gridOpacity', 0.55], ['props.floorTexture', 0.35], ['props.vignette', 0.55],
+            ['props.elevationDeg', 14], ['props.tourStartFrame', 0],
+            ['props.tourTravelFrames', 30], ['props.tourHoldFrames', 60],
+          ]) actions.setPropertyValue(stageId, path, value, false);
+          for (const [path, value] of [
+            ['props.stageX', 0], ['props.scaleMeters', 18], ['props.headingOffset', 0],
+          ]) actions.setPropertyValue(modelId, path, value, false);
+          await wait(350);
+
+          /**
+           * O objeto vai e **volta**: stageX 0 → 40 → 0 entre os frames 0, 30 e 60.
+           *
+           * O caminho tem de ser curvo, e isto custou uma rodada. A primeira versão movia
+           * o objeto em **linha reta** de 0 a 40, e o critério deu desvio 0,00 px nos três
+           * frames com zero keyframe de acompanhamento — parecendo defeito e não sendo.
+           * Movimento linear é descrito **exatamente** pela reta entre os dois extremos,
+           * então a redução corretamente não insere nada e a câmera já acompanha de graça.
+           * Só caminho que se afasta da reta exige keyframe no meio. O teste de unidade
+           * deste recurso usa uma parábola pelo mesmo motivo, e o comentário lá já dizia
+           * isto — eu repeti o erro aqui de todo modo.
+           *
+           * \`writeStudioTour\` é usada fora do roteiro de propósito: o que ela faz é um
+           * \`keyframe.replace-all\` por caminho de prop, para qualquer nó.
+           */
+          actions.writeStudioTour(modelId, [{
+            path: 'props.stageX',
+            keyframes: [
+              { id: 'mov:0', frame: 0, value: 0, in: { kind: 'linear' }, out: { kind: 'linear' } },
+              { id: 'mov:1', frame: 30, value: 40, in: { kind: 'linear' }, out: { kind: 'linear' } },
+              { id: 'mov:2', frame: 60, value: 0, in: { kind: 'linear' }, out: { kind: 'linear' } },
+            ],
+          }]);
+          await wait(300);
+
+          // Um ponto novo na superfície, ancorado no objeto — por clique, como sempre.
+          if (studioTool('Marcar pontos').getAttribute('aria-pressed') !== 'true') {
+            studioTool('Marcar pontos').click();
+            await wait(200);
+          }
+          await atFrame(0);
+          const canvas = studioCanvas().getBoundingClientRect();
+          let alvo = null;
+          for (let y = Math.round(canvas.height * 0.2); y < canvas.height * 0.85 && alvo === null; y += 16) {
+            for (let x = Math.round(canvas.width * 0.2); x < canvas.width * 0.8; x += 16) {
+              if (window.__theatrumStudio.pick(x, y) !== null) { alvo = [x, y]; break; }
+            }
+          }
+          if (alvo === null) throw new Error('nenhum pixel de geometria para o critério 10');
+          // Leitura de volta: sem ela, uma falha adiante não distingue "o objeto não
+          // animou" de "o alvo não acompanhou", e as duas causas ficam misturadas.
+          const modelo = composition().nodes[modelId];
+          return {
+            canvas: [canvas.left, canvas.top],
+            alvo,
+            keyframesDoModelo: modelo.props.stageX.keyframes.length,
+            stageXBase: modelo.props.stageX.value,
+          };
+        })()`,
+      );
+
+      const seguirX = Math.round(acompanha.canvas[0] + acompanha.alvo[0]);
+      const seguirY = Math.round(acompanha.canvas[1] + acompanha.alvo[1]);
+      await client.request("Input.dispatchMouseEvent", {
+        type: "mouseMoved",
+        x: seguirX,
+        y: seguirY,
+      });
+      for (const type of ["mousePressed", "mouseReleased"]) {
+        await client.request("Input.dispatchMouseEvent", {
+          type,
+          x: seguirX,
+          y: seguirY,
+          button: "left",
+          clickCount: 1,
+        });
+      }
+      await new Promise((resolve) => setTimeout(resolve, 350));
+
+      const seguimento = await client.evaluate(
+        `(async () => {
+          await wait(200);
+          const confirmOriginal = window.confirm;
+          window.confirm = () => true;
+          try {
+            studioTool('Compilar roteiro').click();
+          } finally {
+            window.confirm = confirmOriginal;
+          }
+          await wait(400);
+
+          const palco = composition().nodes[${JSON.stringify(stageId)}];
+          const alvoX = palco.props.targetX.keyframes;
+          const pontos = nodesOfType('studio.poi');
+
+          // A que distância do centro da tela o ponto projeta, num frame dado.
+          const desvio = async (frame) => {
+            await atFrame(frame);
+            const canvas = studioCanvas().getBoundingClientRect();
+            const resolvidos = window.__theatrumStudio.pois();
+            const ponto = resolvidos.find((poi) => poi.ownerId !== '');
+            if (ponto === undefined) return null;
+            const tela = window.__theatrumStudio.project(ponto.point);
+            return tela === null
+              ? null
+              : Math.hypot(tela[0] - canvas.width / 2, tela[1] - canvas.height / 2);
+          };
+
+          // O ponto de fato se move no palco entre a chegada e o meio da pausa? Sem isto,
+          // "centrado nos três frames" também descreve um objeto parado.
+          await atFrame(0);
+          const em0 = window.__theatrumStudio.pois()[0]?.point ?? null;
+          await atFrame(30);
+          const em30 = window.__theatrumStudio.pois()[0]?.point ?? null;
+          const andou =
+            em0 === null || em30 === null
+              ? null
+              : Math.hypot(em30[0] - em0[0], em30[1] - em0[1], em30[2] - em0[2]);
+
+          return {
+            // Com uma parada só, a pausa é [0, 60] e não há ambiguidade de janela.
+            pontos: pontos.length,
+            andou,
+            keyframesDeAlvo: alvoX.length,
+            framesDeAlvo: alvoX.map((k) => k.frame),
+            // Os keyframes ESTRITAMENTE dentro da pausa: é isto que prova o
+            // acompanhamento, e não a contagem total, que cresce com o número de paradas.
+            dentroDaPausa: alvoX.filter((k) => k.frame > 0 && k.frame < 60).length,
+            naChegada: await desvio(0),
+            noMeio: await desvio(30),
+            noFim: await desvio(60),
+          };
+        })()`,
+      );
+
+      record(
+        "10 · o alvo acompanha objeto animado durante a pausa",
+        // Uma parada só, para a janela da pausa não ser ambígua...
+        seguimento.pontos === 1 &&
+          // ...o objeto de fato se mexendo, senão o resto não prova nada...
+          (seguimento.andou ?? 0) > 5 &&
+          // ...com keyframe DENTRO da pausa: é isto que é o acompanhamento...
+          seguimento.dentroDaPausa > 0 &&
+          // ...e o ponto centrado nos três instantes, não só na chegada.
+          seguimento.naChegada !== null &&
+          seguimento.noMeio !== null &&
+          seguimento.noFim !== null &&
+          seguimento.naChegada < 6 &&
+          seguimento.noMeio < 6 &&
+          seguimento.noFim < 6,
+        `${String(seguimento.pontos)} parada; ${String(acompanha.keyframesDoModelo)} keyframes ` +
+          `no stageX do modelo; o ponto andou ${seguimento.andou?.toFixed(2) ?? "—"} m ` +
+          `entre a chegada e o meio; ${String(seguimento.keyframesDeAlvo)} keyframes ` +
+          `de alvo em ${JSON.stringify(seguimento.framesDeAlvo)}, ` +
+          `${String(seguimento.dentroDaPausa)} dentro da pausa; desvio do centro: ` +
+          `${seguimento.naChegada?.toFixed(2) ?? "—"} px na chegada, ` +
+          `${seguimento.noMeio?.toFixed(2) ?? "—"} px no meio da pausa, ` +
+          `${seguimento.noFim?.toFixed(2) ?? "—"} px na partida`,
+      );
+
+      // ── 11. Anotação aponta para o PONTO, e revela em fases ──────────────────
+      //
+      // O pedido do dono: _"marcar o míssil do avião e uma animação de textbox aparecer
+      // uma bolinha uma linha até o text box se afastando do avião e o texto aparecendo"_.
+      //
+      // Duas afirmações, e a primeira é a que estava bloqueada: a guia do rótulo tem de
+      // apontar para o **ponto**, não para a âncora do objeto inteiro. Antes só `model3d`
+      // entrava no layout do palco, então era impossível anotar a peça. A segunda é a
+      // revelação: a tinta do overlay tem de **crescer** ao longo das fases, em vez de
+      // aparecer inteira no primeiro frame.
+      const anotacao = await client.evaluate(
+        `(async () => {
+          const pontos = nodesOfType('studio.poi');
+          const poi = pontos[0];
+          if (poi === undefined) throw new Error('nenhum ponto para anotar no critério 11');
+          session().actions.selectNode(session().getSnapshot().selectedCompositionId, poi.id);
+          await atFrame(0);
+          await wait(200);
+
+          const botao = studioTool('Anotar ponto');
+          if (botao === null) throw new Error('botão "Anotar ponto" ausente na barra do palco');
+          botao.click();
+          await wait(350);
+
+          const rotulos = nodesOfType('label.callout');
+          const rotulo = rotulos[rotulos.length - 1];
+          if (rotulo === undefined) throw new Error('a anotação não foi criada');
+
+          // Tinta do overlay Pixi do palco, que é onde o rótulo desenha.
+          const tinta = () => {
+            const canvas = document.querySelector('.studio-viewport__pixi');
+            const ctx = canvas.getContext('webgl2') ?? null;
+            // Canvas WebGL: passa por um 2D intermediário, como o studioPixels().
+            const scratch = document.createElement('canvas');
+            scratch.width = canvas.width;
+            scratch.height = canvas.height;
+            const c2d = scratch.getContext('2d', { willReadFrequently: true });
+            c2d.drawImage(canvas, 0, 0);
+            const image = c2d.getImageData(0, 0, scratch.width, scratch.height);
+            let pintados = 0;
+            for (let i = 3; i < image.data.length; i += 4) {
+              if (image.data[i] > 8) pintados += 1;
+            }
+            return pintados;
+          };
+
+          // Três amostras ao longo da revelação: começo, meio e fim.
+          await atFrame(0);
+          const noComeco = tinta();
+          await atFrame(12);
+          const noMeio = tinta();
+          await atFrame(60);
+          const noFim = tinta();
+
+          return {
+            alvoDoRotulo: rotulo.props.targetId.value,
+            idDoPonto: poi.id,
+            keyframesDaRevelacao: [
+              'dotRadius', 'offsetX', 'offsetY', 'textReveal', 'leaderProgress',
+            ].map((key) => rotulo.props[key].keyframes.length),
+            noComeco,
+            noMeio,
+            noFim,
+          };
+        })()`,
+      );
+
+      record(
+        "11 · anotação aponta para o ponto e revela em fases",
+        // A guia mira o PONTO, que é o que estava impossível antes...
+        anotacao.alvoDoRotulo === anotacao.idDoPonto &&
+          // ...as cinco props da revelação têm par de keyframes...
+          anotacao.keyframesDaRevelacao.every((count) => count === 2) &&
+          // ...e a anotação CRESCE na tela em vez de aparecer inteira.
+          anotacao.noFim > anotacao.noMeio &&
+          anotacao.noMeio > anotacao.noComeco,
+        `alvo do rótulo ${anotacao.alvoDoRotulo === anotacao.idDoPonto ? "é o ponto" : "NÃO é o ponto"}; ` +
+          `keyframes por prop ${anotacao.keyframesDaRevelacao.join("/")}; ` +
+          `tinta do overlay ${String(anotacao.noComeco)} → ${String(anotacao.noMeio)} → ` +
+          `${String(anotacao.noFim)} px ao longo da revelação`,
+      );
+
+      // ── 12. A sombra cai para o lado da luz, e segue a luz ───────────────────
+      //
+      // O pedido do dono: _"quero uma melhora gráfica na renderização desse modo palco,
+      // quero efeitos de luz e sombra e reflexos melhorados"_.
+      //
+      // A sombra era calculada com a luz assumida **vertical**: uma mancha simétrica
+      // embaixo do objeto. Agora ela é projetada da direção da luz, então tem de sair
+      // **deslocada** da pegada — e girar a luz 180° tem de jogar a sombra para o lado
+      // oposto. Medido pelo centroide da tinta escura do piso, com a câmera de cima para
+      // a assimetria ser legível.
+      const sombra = await client.evaluate(
+        `(async () => {
+          const stageId = ${JSON.stringify(stageId)};
+          const actions = session().actions;
+          // Câmera de cima, olhando o objeto: é o enquadramento em que "para que lado a
+          // sombra vai" é uma pergunta sobre pixels.
+          for (const [path, value] of [
+            ['props.targetX', 0], ['props.targetY', 0], ['props.targetZ', 0],
+            ['props.distanceMeters', 46], ['props.azimuthDeg', 0], ['props.elevationDeg', 62],
+            ['props.gridOpacity', 0], ['props.floorTexture', 0], ['props.vignette', 0],
+            ['props.horizonHaze', 0], ['props.shadowStrength', 1],
+            ['props.keyElevationDeg', 22],
+          ]) actions.setPropertyValue(stageId, path, value, false);
+          for (const [path, value] of [['props.stageX', 0], ['props.altitudeMeters', 0]]) {
+            actions.setPropertyValue(${JSON.stringify(modelId)}, path, value, false);
+          }
+          await wait(500);
+
+          /**
+           * Centroide dos pixels mais escuros da metade inferior do piso.
+           *
+           * Só a sombra escurece o chão nesta configuração — grade, textura e vinheta estão
+           * desligadas. O objeto em si é claro e fica no centro; a sombra é o que sobra de
+           * escuro em volta.
+           */
+          const centroide = () => {
+            const image = studioPixels();
+            let somaX = 0;
+            let somaY = 0;
+            let contagem = 0;
+            // Limiar relativo: a média do quadro serve de referência e sobrevive a
+            // mudança de cor do piso.
+            let total = 0;
+            for (let i = 0; i < image.data.length; i += 4) total += image.data[i];
+            const media = total / (image.data.length / 4);
+            for (let y = 0; y < image.height; y += 2) {
+              for (let x = 0; x < image.width; x += 2) {
+                const i = (y * image.width + x) * 4;
+                if (image.data[i] < media * 0.55) {
+                  somaX += x;
+                  somaY += y;
+                  contagem += 1;
+                }
+              }
+            }
+            return contagem === 0 ? null : { x: somaX / contagem, y: somaY / contagem, contagem };
+          };
+
+          actions.setPropertyValue(stageId, 'props.keyAzimuthDeg', 90, false);
+          await wait(500);
+          const leste = centroide();
+          actions.setPropertyValue(stageId, 'props.keyAzimuthDeg', 270, false);
+          await wait(500);
+          const oeste = centroide();
+          const canvas = studioCanvas().getBoundingClientRect();
+          return { leste, oeste, largura: canvas.width };
+        })()`,
+      );
+
+      const desviouLados =
+        sombra.leste !== null &&
+        sombra.oeste !== null &&
+        // Girar a luz meia volta joga a sombra para o outro lado: o centroide troca de
+        // lado em x, e por uma distância que não é ruído.
+        Math.abs(sombra.leste.x - sombra.oeste.x) > 20;
+      record(
+        "12 · a sombra cai para o lado da luz e acompanha a luz",
+        desviouLados && (sombra.leste?.contagem ?? 0) > 200 && (sombra.oeste?.contagem ?? 0) > 200,
+        `centroide da sombra em x: ${sombra.leste?.x.toFixed(0) ?? "—"} com a luz a leste, ` +
+          `${sombra.oeste?.x.toFixed(0) ?? "—"} a oeste ` +
+          `(deslocamento ${
+            sombra.leste !== null && sombra.oeste !== null
+              ? Math.abs(sombra.leste.x - sombra.oeste.x).toFixed(0)
+              : "—"
+          } px de ${String(Math.round(sombra.largura))}); ` +
+          `pixels escuros ${String(sombra.leste?.contagem ?? 0)}/${String(sombra.oeste?.contagem ?? 0)}`,
       );
     }
   } finally {
