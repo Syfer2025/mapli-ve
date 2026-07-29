@@ -876,6 +876,17 @@ interface EngineOptions {
 
 **Depende de.** L4, L3, L2, L1, L0.
 
+> **Estado real: esqueleto, e isso é decisão registrada, não pendência.** O
+> `apps/editor` importa L2 e L3 direto, divergindo desta página. A pergunta ficou
+> em aberto esperando "a janela de render isolada da Fase 8", que era o que
+> forçaria `createEngine`. Em 2026-07-29 a janela oculta foi **medida e recusada**
+> — [ADR-022](adr/ADR-022-export-resolution-from-composition.md) —, então o que
+> fecha a pergunta é o registro: o caminho de export não precisa da indireção de
+> L5, e introduzi-la agora seria refatorar o único caminho do projeto que já mediu
+> byte-idêntico. `createEngine` volta à mesa com o gatilho do ADR-022: editar
+> durante um export, ou exportar duas composições em paralelo. A descrição abaixo
+> é o alvo, não o presente.
+
 **Invariantes.**
 
 - Sem singleton. `createEngine` é chamado com `mode: "editor"` na janela do editor

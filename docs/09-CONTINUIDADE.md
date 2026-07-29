@@ -254,21 +254,88 @@ render target entre tamanhos e de estado de GL que o `finally` não devolve.
 
 Ordem que vem agora, conforme o prompt de passagem:
 
-1. **Timeline própria do modo palco.** É o próximo bloco real. `TimelinePanel.tsx`
-   e `timeline-model.ts` não têm referência a `studio.stage`. Decidir e documentar
-   antes do código se será painel separado ou o mesmo painel ciente do modo; a
-   segunda direção é mais consistente com o restante do editor. No palco importam
-   câmera, POIs e roteiro, não as camadas do mapa.
-2. **Contornos do mapa “meio grosseiros”.** Perguntar ao dono _onde_ antes de
+1. **Terminar a resolução escolhida.** O ADR está aceito e o núcleo puro entregue;
+   falta a ligação dos painéis. Detalhe em
+   [§ 3.1](#31-a-resolução-do-export-decidida-e-medida-ligação-pendente).
+2. **Timeline própria do modo palco.** `TimelinePanel.tsx` e `timeline-model.ts`
+   não têm referência a `studio.stage`. Decidir e documentar antes do código se
+   será painel separado ou o mesmo painel ciente do modo; a segunda direção é mais
+   consistente com o restante do editor. No palco importam câmera, POIs e roteiro,
+   não as camadas do mapa.
+3. **Contornos do mapa “meio grosseiros”.** Perguntar ao dono _onde_ antes de
    alterar: Viewport, export ou zoom específico. Quantização da malha, AA do Pixi,
-   largura HiDPI e recorte são apenas suspeitos a medir.
-3. **Fase 9 — Scene Script.** É a integração com qualquer IA por compilador; o
+   largura HiDPI e recorte são apenas suspeitos a medir. **Uma pista nova, e ela
+   corta na direção contrária:** o [ADR-023](adr/ADR-023-no-msaa-on-composed-surfaces.md)
+   desligou o MSAA, o que deixa a borda 1% mais dura. Se o dono reclamar agora,
+   perguntar se piorou hoje ou se já era — e a resposta provavelmente não é MSAA
+   de todo modo, porque o MapLibre suaviza preenchimento e traço no shader.
+4. **Fase 9 — Scene Script.** É a integração com qualquer IA por compilador; o
    editor continua sem chamar modelo.
-4. **Resolução acima do tamanho da janela.** Hoje o frame sai no tamanho do
-   viewport, e o H.264 exige dimensão par — 1227×643 vira 1226×642. É o gatilho
-   declarado no [ADR-013](adr/ADR-013-export-frame-composition.md) para voltar à
-   janela de render oculta.
-5. **Motion blur, checkpoint e retomada.**
+5. **Motion blur, checkpoint e retomada.** Não começado. O motion blur depende de
+   `evaluate` aceitar frame fracionário, que a assinatura já permite
+   ([ADR-004](adr/ADR-004-time-in-frames.md) e `subframe()` em `core-time`), e de
+   acumular N subframes por frame. É o que mais separa "parece jogo" de "parece
+   filmado", e é pré-requisito do palco de voo em
+   [11-VISAO-FUTURA § 2](11-VISAO-FUTURA.md).
+
+### 3.1 A resolução do export: decidida e medida, ligação pendente
+
+**2026-07-29.** O gatilho que o [ADR-013](adr/ADR-013-export-frame-composition.md)
+declarou — "quando alguém pedir export acima do tamanho da janela" — disparou. Foi
+medido no Electron real e virou dois ADRs. O que está feito e o que falta:
+
+| Peça                                                          | Estado       |
+| ------------------------------------------------------------- | ------------ |
+| [ADR-022](adr/ADR-022-export-resolution-from-composition.md)  | aceito       |
+| [ADR-023](adr/ADR-023-no-msaa-on-composed-surfaces.md)        | aceito       |
+| `packages/export/src/resolution.ts` — a conta pura, 14 testes | **entregue** |
+| `antialias: false` no mapa e no palco                         | **entregue** |
+| Conduzir as superfícies ao tamanho da composição              | **falta**    |
+| Seletor de escala no painel de fila                           | **falta**    |
+| Critérios novos no `verify:phase8` exportando acima de 2 MP   | **falta**    |
+| Guia de moldura da composição no canvas de gizmos             | **falta**    |
+
+**O achado que vale mais que o pedido.** Acima de ~2 MP, repintar o **mesmo
+estado** não devolve os mesmos bytes — e a causa é o MSAA:
+
+| Tamanho     | Mapa AA on  | Mapa AA off | Palco Three | Overlay Pixi |
+| ----------- | ----------- | ----------- | ----------- | ------------ |
+| 1248 × 566  | idêntico    | idêntico    | idêntico    | idêntico     |
+| 1920 × 1080 | idêntico    | idêntico    | idêntico    | idêntico     |
+| 2560 × 1440 | **diverge** | idêntico    | **diverge** | idêntico     |
+| 3840 × 2160 | **diverge** | idêntico    | **diverge** | idêntico     |
+
+Isto atacava o critério 2 da Fase 8 e ficou invisível porque **o frame de export
+saía do tamanho do painel — 1248×566 nesta máquina, 0,71 MP, abaixo do limiar.** O
+`verify:phase8` está 7/7 há sessões porque nunca exportou grande. Assim que a
+ligação entrar, ele passa a exportar acima de 2 MP e a afirmar `SAMPLES === 0`;
+sem esse critério, a decisão do ADR-023 se desfaz na primeira vez que alguém
+reintroduzir `antialias: true` por qualidade de imagem.
+
+Três coisas para lembrar antes de continuar a ligação:
+
+- **O teto não é a janela nem a GPU: é o `maxCanvasSize` do MapLibre.** Padrão
+  `[4096, 4096]`, opção de **construção**, sem setter público — e ele **baixa o
+  pixel ratio em silêncio**. Pedi 7680×4320 e recebi 4096×2304 sem erro nenhum. É
+  a mesma família da armadilha do `preserveDrawingBuffer` (4.11). `MAX_TEXTURE_SIZE`
+  medido é 16384, e canvas WebGL2 cru aloca e lê certo até 16384×8640 — 4K passa,
+  8K precisa da opção de construção. `planExportResolution` **recusa** acima do
+  teto em vez de cortar, exatamente porque cortar em silêncio foi o que custou uma
+  sonda inteira para descobrir.
+- **As três superfícies já seguem o container.** Mapa: container em 3840×2160 de
+  CSS → canvas 3840×2160. Palco: idem, e o Pixi de cada painel acompanha. Não é
+  preciso janela nova; é preciso um `override` do tamanho medido, aplicado como
+  **transação** (voltar em `finally`, como os passes offscreen do ADR-018).
+- **Sem nó `studio.stage` o palco nunca chama `setSize`** e o canvas fica no padrão
+  300×150. Uma sonda minha relatou "0,04 MP, idêntico" em quatro tamanhos
+  diferentes por causa disso, e o placar parecia verde. Critério que mede o palco
+  precisa criar o nó antes.
+
+**E uma armadilha nova, custou uma reinicialização:** criar vários contextos WebGL2
+de 4K/8K numa sonda **derruba o renderer do Electron**. O teto de dezesseis
+contextos do ADR-012 conta os da bancada junto com os do aplicativo. Sonda que
+precisa de teto de GPU lê `MAX_TEXTURE_SIZE` de um contexto que já existe, ou cria
+**um** por vez.
 
 ### Pontos de interesse do palco (ADR-015): entregue e provado
 
@@ -730,7 +797,10 @@ de tocar nele:
   export passar mais rápido e gravar frame incompleto em máquina lenta.
 - **`packages/engine` continua um esqueleto**, e `apps/editor` importa L2/L3
   direto. O export foi construído sem ele de propósito — introduzir a indireção
-  agora seria refatorar o caminho que acabou de ser provado.
+  agora seria refatorar o caminho que acabou de ser provado. **Fechado como
+  decisão em 2026-07-29** pelo [ADR-022](adr/ADR-022-export-resolution-from-composition.md):
+  a janela oculta que forçaria `createEngine` foi medida e recusada, e o gatilho
+  para reabrir está nomeado lá.
 
 ### A suspeita herdada dos filtros: resolvida no que importava
 

@@ -18,6 +18,16 @@ export {
 } from "./frame-plan.js";
 
 export {
+  type ExportResolutionInput,
+  type ExportResolution,
+  ExportResolutionError,
+  DEFAULT_MAX_DIMENSION,
+  EXPORT_SCALES,
+  describeExportResolution,
+  planExportResolution,
+} from "./resolution.js";
+
+export {
   type FfmpegExportFormat,
   type FfmpegPlanInput,
   type FfmpegPlan,

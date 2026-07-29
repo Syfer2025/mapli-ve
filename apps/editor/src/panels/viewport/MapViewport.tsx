@@ -302,7 +302,27 @@ export function MapViewport(): ReactNode {
        * chave antiga é ignorada **em silêncio**: o mapa sobe normal, o contexto
        * continua sem preservar, e só `getContextAttributes()` conta a verdade.
        */
-      canvasContextAttributes: { preserveDrawingBuffer: true, antialias: true },
+      /**
+       * `antialias: false` é decisão, não omissão — [ADR-023](../../../../../docs/adr/ADR-023-no-msaa-on-composed-surfaces.md).
+       *
+       * Medido: com MSAA (`SAMPLES = 4`) repintar o **mesmo estado** deixa de
+       * devolver os mesmos bytes acima de ~2 MP. Idêntico em 1248×566 e
+       * 1920×1080; divergente em 2560×1440, 3072×1728 e 3840×2160. Com
+       * `antialias: false` repete bit a bit em todos eles. A assinatura era de
+       * resolve: 42 px de 8.294.400, delta máximo 6, sobre preenchimento.
+       *
+       * Isso ataca o critério 2 da Fase 8 direto, e passou anos invisível porque
+       * o frame de export saía do tamanho do painel — abaixo do limiar. O
+       * ADR-022 tira o tamanho da janela, então o limiar passa a ser atingido
+       * sempre.
+       *
+       * O custo está medido e é pequeno: 1% mais degraus duros e 19% menos
+       * valores intermediários. O MapLibre já suaviza preenchimento e traço no
+       * shader dele; o MSAA só somava nas arestas de geometria. E `false` é o
+       * padrão do próprio MapLibre — o `true` daqui entrou de carona no
+       * `b12765d`, sem justificativa registrada.
+       */
+      canvasContextAttributes: { preserveDrawingBuffer: true, antialias: false },
     });
     mapRef.current = map;
     setMapInstance(map);

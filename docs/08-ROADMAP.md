@@ -1362,10 +1362,25 @@ Duas armadilhas que a medição encontrou, ambas silenciosas:
    num efeito de dependências vazias, e naquele instante o mapa ainda não existe.
    O export respondia "mapa indisponível" para sempre. Agora vem de uma ref.
 
-**Falta** (e nada disso ameaça o determinismo já provado): motion blur por
-sampling temporal, checkpoint e retomada, e resolução acima do tamanho da janela
-— que é quando o ADR-013 manda voltar à janela oculta. O painel de fila já
-existe, com seletor dos cinco formatos, progresso, ETA e relatório de settle.
+**Resolução escolhida: decidida, medida, parcialmente entregue.** O gatilho do
+ADR-013 disparou em 2026-07-29 e a resposta **não** foi a janela oculta — ver
+[ADR-022](adr/ADR-022-export-resolution-from-composition.md), que tira o tamanho do
+frame da janela e o põe na composição, e
+[ADR-023](adr/ADR-023-no-msaa-on-composed-surfaces.md). Entregues:
+`packages/export/src/resolution.ts` (conta pura, 14 testes) e `antialias: false` no
+mapa e no palco. Falta a ligação dos painéis, o seletor de escala e os critérios de
+verificação acima de 2 MP. Inventário em
+[09-CONTINUIDADE § 3.1](09-CONTINUIDADE.md#31-a-resolução-do-export-decidida-e-medida-ligação-pendente).
+
+**Uma ameaça real ao determinismo foi encontrada e fechada nesse caminho.** Acima
+de ~2 MP, repintar o mesmo estado não devolvia os mesmos bytes — MSAA. Ficou
+invisível porque o frame de export saía do tamanho do painel, 0,71 MP nesta
+máquina. O `verify:phase8` está 7/7 porque nunca exportou grande, e é por isso que
+o critério novo que exporta acima de 2 MP não é opcional.
+
+**Falta ainda**: motion blur por sampling temporal, checkpoint e retomada. O painel
+de fila já existe, com seletor dos cinco formatos, progresso, ETA e relatório de
+settle.
 
 **Objetivo original.** Arquivo de vídeo. A fase que prova o determinismo.
 

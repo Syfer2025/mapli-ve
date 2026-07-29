@@ -391,7 +391,20 @@ export class StudioSceneRuntime {
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({
       canvas,
-      antialias: true,
+      /**
+       * Desligado por decisão — [ADR-023](../../../../../docs/adr/ADR-023-no-msaa-on-composed-surfaces.md).
+       *
+       * O palco tem o mesmo defeito que o mapa, medido com o mesmo método:
+       * repintar o mesmo estado é bit-exato em 1248×566 e 1920×1080 e **diverge**
+       * em 2560×1440 e 3840×2160, com `SAMPLES = 4`. O overlay Pixi, que resolve
+       * o multiamostrado no render target dele antes de blitar, não sofre — é a
+       * etapa que estes dois entregavam ao driver.
+       *
+       * Este é o custo mais visível da decisão: aresta de modelo 3D é onde o MSAA
+       * fazia mais efeito. A mitigação, se o dono reclamar, é supersampling no
+       * nosso código — alternativa D do ADR-023, com ADR próprio.
+       */
+      antialias: false,
       alpha: false,
       // O buffer sobrevive ao fim do frame para poder ser LIDO. O export da
       // Fase 8 precisa disso — um estúdio que não pode ser capturado não serve
