@@ -47,7 +47,21 @@ export interface OverlayProbe {
 }
 
 export interface StartExportOptions {
-  readonly map: MapLibreMap;
+  /**
+   * O mapa, quando existe.
+   *
+   * **Opcional desde que o palco exporta.** O `studio` é um dos dois modos que o
+   * `frame-composer` detecta ([ADR-014](../../../../docs/adr/ADR-014-studio-own-panel.md)),
+   * e nele não há MapLibre nenhum: o painel do Viewport está desmontado. Exigir o
+   * mapa aqui era o que obrigava todo export a ser disparado de lá, e por isso os
+   * vídeos do palco vinham de captura de tela — com barra de botões e diagnóstico
+   * dentro da imagem, exatamente o que o critério 8 da Fase 8 proíbe.
+   *
+   * Ausente, `mapBusy` é sempre falso. Isso **não** afrouxa o `settle`: no palco
+   * não há tile para carregar, e o que segura o frame é o contador de repinturas
+   * do overlay mais os GLB pendentes, que continuam valendo por `probe`.
+   */
+  readonly map?: MapLibreMap;
   readonly probe: () => OverlayProbe;
   readonly onProgress?: (progress: ExportProgress) => void;
   readonly shouldAbort?: () => boolean;
@@ -171,7 +185,8 @@ async function renderPngFrames(
         // `isMoving` cobre animação de câmera; `areTilesLoaded` cobre o que ainda
         // está vindo do disco. Capturar com tile pendente grava o mapa pela
         // metade, e qual metade depende da velocidade do disco.
-        mapBusy: () => options.map.isMoving() || !options.map.areTilesLoaded(),
+        mapBusy: () =>
+          options.map !== undefined && (options.map.isMoving() || !options.map.areTilesLoaded()),
         // GLB em parse tem orçamento próprio no pump: pode legitimamente levar
         // mais que os 4 s do mapa sem autorizar tile/câmera presos por 30 s.
         assetsBusy: () => options.probe().pendingAssets > 0,
@@ -335,7 +350,8 @@ export async function startVideoExport(options: StartExportOptions): Promise<Sta
         seek: (frame) => editorActions.setPlayhead(frame),
         observe: options.probe,
         // Mesma trinca do caminho PNG acima: câmera, tiles e GLB pendente.
-        mapBusy: () => options.map.isMoving() || !options.map.areTilesLoaded(),
+        mapBusy: () =>
+          options.map !== undefined && (options.map.isMoving() || !options.map.areTilesLoaded()),
         assetsBusy: () => options.probe().pendingAssets > 0,
         compose: () => composer.compose(),
         writeFrame: async (_name, frame: ComposedFrame) => {

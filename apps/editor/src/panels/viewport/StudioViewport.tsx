@@ -49,6 +49,7 @@ import {
   type ReactNode,
   type WheelEvent as ReactWheelEvent,
 } from "react";
+import { startPngSequenceExport, startVideoExport } from "../../export/export-service.js";
 import { editorActions, getEditorSessionSnapshot } from "../../document/editor-session.js";
 import { useEditorSession } from "../../document/useEditorSession.js";
 import { importLocalModel, loadLocalModelIndex } from "../../assets/local-models.js";
@@ -190,6 +191,17 @@ interface StudioDebugWindow extends Window {
     /** Marcadores desenhados no último frame, para o critério do modo de marcação. */
     readonly markers: () => readonly { id: string; ordinal: number; screen: readonly number[] }[];
     /**
+     * Export disparado de dentro do palco (ver o comentário na implementação).
+     * Mesma assinatura do `__theatrumPhase4`, para o verificador não precisar
+     * saber de qual painel está falando.
+     */
+    readonly exportPngSequence: (options?: {
+      readonly range?: { readonly first: number; readonly last: number };
+      readonly outputFps?: number;
+      readonly directory?: string;
+      readonly format?: "png" | "mp4";
+    }) => Promise<{ readonly ok: boolean; readonly message?: string }>;
+    /**
      * Os pontos de interesse do último frame, com a ancoragem já resolvida ([ADR-016](../../../../../docs/adr/ADR-016-poi-anchored-to-object.md)).
      *
      * Existe porque `props.pointX` **deixou de ser** metros de palco quando o ponto
@@ -261,6 +273,15 @@ export function StudioViewport(): ReactNode {
   const poisRef = useRef<readonly StudioPoiState[]>([]);
   /** O palco do último frame, para o clique saber de que ângulo a câmera olhava. */
   const stageRef = useRef<ReturnType<typeof collectStudioStage>>(null);
+  /**
+   * O frame que o palco realmente desenhou por último.
+   *
+   * É o que o `settle` do export compara com o frame pedido. Vai por ref porque
+   * quem o lê é a sonda, chamada de fora do ciclo do React — e −1 antes do
+   * primeiro desenho, que nunca casa com um frame pedido e por isso segura o
+   * export em vez de deixá-lo capturar tela vazia.
+   */
+  const frameRef = useRef(-1);
   /** Ligado, o clique marca ponto em vez de não fazer nada. */
   const [marking, setMarking] = useState(false);
   /**
@@ -360,6 +381,38 @@ export function StudioViewport(): ReactNode {
             // do gesto — por ref, não por closure, pela armadilha 4.12.
             authoring: authoringCameraRef.current !== null,
           };
+        },
+        /**
+         * Export disparado **de dentro do palco**.
+         *
+         * Existia só no `__theatrumPhase4`, que vive no painel do Viewport — e o
+         * dockview desmonta o painel inativo, então com a aba do Palco na frente
+         * não havia como exportar o que se estava vendo. A saída era captura de
+         * tela, e ela traz a barra de botões e o diagnóstico para dentro da
+         * imagem: exatamente o que o critério 8 da Fase 8 proíbe.
+         *
+         * O `settle` continua inteiro. Ele espera o contador de repinturas do
+         * palco estabilizar e os GLB pendentes zerarem; o que não existe aqui é
+         * tile de mapa, e é por isso que `map` virou opcional em vez de o palco
+         * fingir um mapa parado.
+         */
+        exportPngSequence: (options?: {
+          readonly range?: { readonly first: number; readonly last: number };
+          readonly outputFps?: number;
+          readonly directory?: string;
+          readonly format?: "png" | "mp4";
+        }) => {
+          const executar = options?.format === "mp4" ? startVideoExport : startPngSequenceExport;
+          return executar({
+            probe: () => ({
+              frame: frameRef.current,
+              renders: runtime.status().renders,
+              pendingAssets: runtime.pendingModels(),
+            }),
+            ...(options?.range === undefined ? {} : { range: options.range }),
+            ...(options?.outputFps === undefined ? {} : { outputFps: options.outputFps }),
+            ...(options?.directory === undefined ? {} : { directory: options.directory }),
+          });
         },
         profile: {
           start: () => runtime.profileStart(),
@@ -468,6 +521,9 @@ export function StudioViewport(): ReactNode {
     const stage =
       documentStage === null ? null : effectiveStageCamera(documentStage, authoringCamera);
     stageRef.current = stage;
+    // Depois do passe, não antes: o número tem de significar "este frame já está
+    // na tela", senão o settle libera a captura de um frame que ainda não desenhou.
+    frameRef.current = session.playheadFrame;
     // O palco desenha ANTES do layout, porque é ele quem diz onde, em pixels,
     // está cada modelo: a projeção sai da câmera orbital DESTE frame.
     runtime.render({ stage, models }, size[0], size[1]);
