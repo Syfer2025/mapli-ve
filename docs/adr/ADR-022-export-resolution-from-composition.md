@@ -99,6 +99,25 @@ Em 3840 × 2160 com MSAA ligado a divergência era de **42 pixels em 8.294.400**
 (0,0005%), delta máximo 6 por canal, sobre preenchimento de terra. Amplitude de
 resolve, não de estado errado — e foi isso que apontou para o MSAA.
 
+### O pump de verdade, que é a prova que fecha
+
+As medições acima compõem o frame à mão, com espera escrita na sonda. O pump do
+export é mais estrito: exige `observed.frame === alvo`, contador de repinturas
+estável por 60 ms, mapa sem tile pendente e nenhum asset em parse. Rodando o
+`exportPngSequence` **real** duas vezes em cada tamanho, com o mecanismo desta
+decisão — layout no tamanho da composição, `pixelRatio` igual à escala:
+
+| Alvo                                      | Canvas      | MP   | Duas execuções | `settleFailed` | p99 de settle |
+| ----------------------------------------- | ----------- | ---- | -------------- | -------------- | ------------- |
+| painel, como era antes                    | 1082 × 529  | 0,57 | **idênticas**  | 0              | 82 ms         |
+| composição, escala 1                      | 1920 × 1080 | 2,07 | **idênticas**  | 0              | 85 ms         |
+| composição, escala 2 (`setPixelRatio(2)`) | 3840 × 2160 | 8,29 | **idênticas**  | 0              | 79 ms         |
+
+Cinco hashes distintos entre os cinco frames em todas as linhas, então não é
+export congelado. Sonda em `scratchpad/probe-export-real-pump.mjs`. É o critério 2
+da Fase 8 valendo em 4K, pelo caminho que esta decisão escolheu, com o
+[ADR-023](ADR-023-no-msaa-on-composed-surfaces.md) em vigor.
+
 ## Alternativas
 
 ### A. Janela de render oculta, com `engine` em `mode: "render"`

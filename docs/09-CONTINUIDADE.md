@@ -312,6 +312,22 @@ ligação entrar, ele passa a exportar acima de 2 MP e a afirmar `SAMPLES === 0`
 sem esse critério, a decisão do ADR-023 se desfaz na primeira vez que alguém
 reintroduzir `antialias: true` por qualidade de imagem.
 
+**O mecanismo está provado pelo pump de verdade, não só por sonda de bancada.**
+Rodando o `exportPngSequence` real duas vezes em cada tamanho, com layout no
+tamanho da composição e `pixelRatio` igual à escala:
+
+| Alvo                   | Canvas      | MP   | Duas execuções | `settleFailed` | p99   |
+| ---------------------- | ----------- | ---- | -------------- | -------------- | ----- |
+| painel, como era antes | 1082 × 529  | 0,57 | **idênticas**  | 0              | 82 ms |
+| composição, escala 1   | 1920 × 1080 | 2,07 | **idênticas**  | 0              | 85 ms |
+| composição, escala 2   | 3840 × 2160 | 8,29 | **idênticas**  | 0              | 79 ms |
+
+Cinco hashes distintos entre os cinco frames em todas as linhas — não é export
+congelado. Sonda em `scratchpad/probe-export-real-pump.mjs`. Ou seja: **a ligação
+que falta é encanamento, não risco.** O que ela tem de fazer é o que a sonda faz à
+mão — pôr o container no tamanho da composição, chamar `map.resize()` e
+`map.setPixelRatio(escala)`, e devolver tudo em `finally`.
+
 Três coisas para lembrar antes de continuar a ligação:
 
 - **O teto não é a janela nem a GPU: é o `maxCanvasSize` do MapLibre.** Padrão
