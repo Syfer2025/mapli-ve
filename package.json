@@ -23,6 +23,7 @@
     "satellite:hormuz:verify": "tsx tools/fetch-regional-satellite.ts --verify",
     "geo:build": "tsx tools/build-geo.ts",
     "geo:verify": "tsx tools/build-geo.ts --verify",
+    "models:textures": "node tools/extract-model-textures.ts",
     "models:index": "node tools/build-model-index.ts",
     "models:verify": "node tools/build-model-index.ts --verify",
     "schema:gen": "tsx tools/gen-schema.ts",
