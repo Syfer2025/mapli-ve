@@ -6,26 +6,27 @@ escolha, e as consequências aceitas.
 Um ADR não é revisado por opinião. É revisado quando o gatilho registrado nele
 dispara — geralmente uma medição, numa fase específica.
 
-| #                                                | Decisão                                              | Status                              | Revisar em                                                        |
-| ------------------------------------------------ | ---------------------------------------------------- | ----------------------------------- | ----------------------------------------------------------------- |
-| [001](ADR-001-shell-electron.md)                 | Electron em vez de Tauri                             | aceito                              | Fase 8                                                            |
-| [002](ADR-002-compositor.md)                     | Composição mapa + overlay por canvases empilhados    | aceito                              | Fase 11                                                           |
-| [003](ADR-003-determinism.md)                    | Determinismo como invariante do motor                | aceito                              | nunca                                                             |
-| [004](ADR-004-time-in-frames.md)                 | Frame inteiro como unidade canônica de tempo         | aceito                              | nunca                                                             |
-| [005](ADR-005-canvas-timeline.md)                | Timeline e graph editor em canvas                    | aceito                              | Fase 4                                                            |
-| [006](ADR-006-maplibre.md)                       | MapLibre GL JS + PMTiles                             | aceito                              | improvável                                                        |
-| [007](ADR-007-no-rust-yet.md)                    | Nenhum Rust por enquanto                             | aceito                              | Fases 8 e 11                                                      |
-| [008](ADR-008-flat-node-map.md)                  | Mapa plano de nós em vez de árvore aninhada          | aceito                              | improvável                                                        |
-| [009](ADR-009-geo-layers-overlay.md)             | Camadas geográficas desenhadas no overlay            | aceito                              | Fase 11                                                           |
-| [010](ADR-010-precompiled-geo-mesh.md)           | Malha geográfica pré-compilada em Int32              | aceito                              | improvável                                                        |
-| [011](ADR-011-roads-spatial-join.md)             | Estradas agrupadas por país via junção espacial      | aceito                              | Fase 11                                                           |
-| [012](ADR-012-studio-own-canvas.md)              | Modo estúdio em canvas próprio                       | aceito, emendado pelo 014           | Fase 8                                                            |
-| [013](ADR-013-export-frame-composition.md)       | Composição do frame de export ao vivo                | aceito, tabela substituída pelo 014 | Fase 8, ao entrar codec                                           |
-| [014](ADR-014-studio-own-panel.md)               | Palco 3D em painel próprio                           | aceito                              | Fase 9, se houver mais de um palco                                |
-| [015](ADR-015-studio-points-of-interest.md)      | POI do palco vem de clique, não do arquivo 3D        | aceito, emendado pelo 016           | quando entrar modelo com rig real                                 |
-| [016](ADR-016-poi-anchored-to-object.md)         | POI ancorado no objeto, em espaço normalizado        | aceito                              | quando entrar modelo com rig real, ou dono que não seja `model3d` |
-| [017](ADR-017-studio-authoring-camera.md)        | Câmera de autoria local ao painel do palco           | aceito                              | quando alguém pedir _roll_ ou câmera fora do eixo no palco        |
-| [018](ADR-018-studio-planar-floor-reflection.md) | Reflexo do piso por câmera espelhada e render target | aceito, condicionado                | vários planos, piso fora de `y = 0` ou custo acima do orçamento   |
+| #                                                | Decisão                                              | Status                              | Revisar em                                                         |
+| ------------------------------------------------ | ---------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------ |
+| [001](ADR-001-shell-electron.md)                 | Electron em vez de Tauri                             | aceito                              | Fase 8                                                             |
+| [002](ADR-002-compositor.md)                     | Composição mapa + overlay por canvases empilhados    | aceito                              | Fase 11                                                            |
+| [003](ADR-003-determinism.md)                    | Determinismo como invariante do motor                | aceito                              | nunca                                                              |
+| [004](ADR-004-time-in-frames.md)                 | Frame inteiro como unidade canônica de tempo         | aceito                              | nunca                                                              |
+| [005](ADR-005-canvas-timeline.md)                | Timeline e graph editor em canvas                    | aceito                              | Fase 4                                                             |
+| [006](ADR-006-maplibre.md)                       | MapLibre GL JS + PMTiles                             | aceito                              | improvável                                                         |
+| [007](ADR-007-no-rust-yet.md)                    | Nenhum Rust por enquanto                             | aceito                              | Fases 8 e 11                                                       |
+| [008](ADR-008-flat-node-map.md)                  | Mapa plano de nós em vez de árvore aninhada          | aceito                              | improvável                                                         |
+| [009](ADR-009-geo-layers-overlay.md)             | Camadas geográficas desenhadas no overlay            | aceito                              | Fase 11                                                            |
+| [010](ADR-010-precompiled-geo-mesh.md)           | Malha geográfica pré-compilada em Int32              | aceito                              | improvável                                                         |
+| [011](ADR-011-roads-spatial-join.md)             | Estradas agrupadas por país via junção espacial      | aceito                              | Fase 11                                                            |
+| [012](ADR-012-studio-own-canvas.md)              | Modo estúdio em canvas próprio                       | aceito, emendado pelo 014           | Fase 8                                                             |
+| [013](ADR-013-export-frame-composition.md)       | Composição do frame de export ao vivo                | aceito, tabela substituída pelo 014 | Fase 8, ao entrar codec                                            |
+| [014](ADR-014-studio-own-panel.md)               | Palco 3D em painel próprio                           | aceito                              | Fase 9, se houver mais de um palco                                 |
+| [015](ADR-015-studio-points-of-interest.md)      | POI do palco vem de clique, não do arquivo 3D        | aceito, emendado pelo 016           | quando entrar modelo com rig real                                  |
+| [016](ADR-016-poi-anchored-to-object.md)         | POI ancorado no objeto, em espaço normalizado        | aceito                              | quando entrar modelo com rig real, ou dono que não seja `model3d`  |
+| [017](ADR-017-studio-authoring-camera.md)        | Câmera de autoria local ao painel do palco           | aceito                              | quando alguém pedir _roll_ ou câmera fora do eixo no palco         |
+| [018](ADR-018-studio-planar-floor-reflection.md) | Reflexo do piso por câmera espelhada e render target | aceito                              | vários planos, piso fora de `y = 0` ou custo acima do orçamento    |
+| [019](ADR-019-studio-aware-timeline.md)          | Mesma Timeline projeta Mapa ou Palco                 | aceito                              | vários palcos, duas superfícies visíveis ou duração própria de POI |
 
 ## Formato
 
