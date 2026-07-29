@@ -208,7 +208,6 @@ export function createStudioShadowProjector(): StudioShadowProjector {
   // cobertura, e qualquer sombreamento aqui só sujaria a máscara.
   const mask = new THREE.MeshBasicMaterial({ color: 0xffffff });
   const matrix = new THREE.Matrix4();
-  let signature = "";
   let coverage = 0;
   let softnessTexels = 6;
 
@@ -232,10 +231,11 @@ export function createStudioShadowProjector(): StudioShadowProjector {
         maxX = Math.max(maxX, subject.center[0] + subject.halfX);
         minZ = Math.min(minZ, subject.center[1] - subject.halfZ);
         maxZ = Math.max(maxZ, subject.center[1] + subject.halfZ);
-        if (subject.opacity > strongest) {
-          strongest = subject.opacity;
-          height = subject.heightMeters;
-        }
+        strongest = Math.max(strongest, subject.opacity);
+        // O frustum precisa conter o MAIS ALTO, não o mais opaco. Misturar as
+        // duas decisões recortava um segundo objeto alto quando as opacidades
+        // empatavam ou quando o objeto baixo era ligeiramente mais forte.
+        height = Math.max(height, subject.heightMeters);
       }
       const spanX = Math.max(0.5, maxX - minX);
       const spanZ = Math.max(0.5, maxZ - minZ);
@@ -249,32 +249,18 @@ export function createStudioShadowProjector(): StudioShadowProjector {
       softnessTexels = 4 + lift * 26;
       coverage = strongest * (1 - lift * 0.45);
 
-      // Repinta só quando algo que muda a silhueta mudou. A câmera do palco não
-      // entra: sombra de luz vertical não depende de quem está olhando, e
-      // repintar 1024² por órbita seria desperdício puro.
       /**
-       * A direção da luz entra na assinatura.
+       * Sem cache por assinatura.
        *
-       * Sem isso, girar a luz não repintaria a textura e a sombra ficaria apontando para o
-       * lado antigo — um defeito que só apareceria quando alguém animasse a luz, muito
-       * depois, e sem pista da causa.
+       * A sombra é função do frame corrente. Uma chave que arredondava matrizes e
+       * ignorava identidade/revisão da geometria fazia B depender de A: trocar
+       * asset por outro com caixa parecida ou animar abaixo da quantização podia
+       * devolver a textura anterior. O passe custa menos que aceitar essa violação
+       * silenciosa; se voltar a haver cache, ele precisa ser exato e provado.
        */
       const basis = lightDirection === undefined ? null : lightBasis(lightDirection);
-      const next = visible
-        .map(
-          (subject) =>
-            `${subject.center[0].toFixed(3)},${subject.center[1].toFixed(3)},${subject.halfX.toFixed(3)},${subject.halfZ.toFixed(3)},${subject.heightMeters.toFixed(3)},${subject.root.matrix.elements.map((value) => value.toFixed(4)).join("")}`,
-        )
-        .join("|")
-        .concat(
-          basis === null
-            ? "|vertical"
-            : `|${basis.forward.map((value) => value.toFixed(4)).join(",")}`,
-        );
-      const changed = next !== signature;
-      signature = next;
 
-      if (changed) {
+      {
         // Alto o bastante para nada ficar atrás do plano próximo, e o far cobre
         // o objeto inteiro mesmo suspenso.
         const top = Math.max(10, height + half * 4);
@@ -331,19 +317,54 @@ export function createStudioShadowProjector(): StudioShadowProjector {
         // O chão e o que mais estiver na cena saem do caminho: a máscara é só dos
         // objetos. Com o chão dentro, a textura sairia inteira branca.
         const wasVisible = hidden.map((object) => object.visible);
-        for (const object of hidden) object.visible = false;
         const previousTarget = renderer.getRenderTarget();
+        const previousCubeFace = renderer.getActiveCubeFace();
+        const previousMipmapLevel = renderer.getActiveMipmapLevel();
         const previousOverride = scene.overrideMaterial;
-        scene.overrideMaterial = mask;
-        renderer.setRenderTarget(target);
-        renderer.setClearColor(0x000000, 1);
-        renderer.clear(true, true, false);
-        renderer.render(scene, camera);
-        renderer.setRenderTarget(previousTarget);
-        scene.overrideMaterial = previousOverride;
-        hidden.forEach((object, index) => {
-          object.visible = wasVisible[index] ?? true;
-        });
+        const previousBackground = scene.background;
+        const previousViewport = renderer.getViewport(new THREE.Vector4());
+        const previousScissor = renderer.getScissor(new THREE.Vector4());
+        const previousScissorTest = renderer.getScissorTest();
+        const previousClearColor = renderer.getClearColor(new THREE.Color()).clone();
+        const previousClearAlpha = renderer.getClearAlpha();
+        const previousXrEnabled = renderer.xr.enabled;
+        const previousShadowAutoUpdate = renderer.shadowMap.autoUpdate;
+        const context = renderer.getContext();
+        const previousDepthMask = Boolean(context.getParameter(context.DEPTH_WRITEMASK));
+        const colorMask = context.getParameter(context.COLOR_WRITEMASK) as
+          readonly boolean[] | boolean;
+        const previousColorMask = Array.isArray(colorMask) ? (colorMask[0] ?? true) : colorMask;
+        try {
+          for (const object of hidden) object.visible = false;
+          scene.background = null;
+          scene.overrideMaterial = mask;
+          renderer.xr.enabled = false;
+          renderer.shadowMap.autoUpdate = false;
+          renderer.setRenderTarget(target);
+          renderer.setClearColor(0x000000, 1);
+          // `clear()` respeita as máscaras de escrita do WebGL. Um material do
+          // passe anterior pode tê-las deixado desligadas; abra para limpar o
+          // target e devolva exatamente o estado observado no `finally`.
+          renderer.state.buffers.depth.setMask(true);
+          renderer.state.buffers.color.setMask(true);
+          renderer.clear(true, true, false);
+          renderer.render(scene, camera);
+        } finally {
+          renderer.setRenderTarget(previousTarget, previousCubeFace, previousMipmapLevel);
+          renderer.setViewport(previousViewport);
+          renderer.setScissor(previousScissor);
+          renderer.setScissorTest(previousScissorTest);
+          renderer.setClearColor(previousClearColor, previousClearAlpha);
+          renderer.xr.enabled = previousXrEnabled;
+          renderer.shadowMap.autoUpdate = previousShadowAutoUpdate;
+          renderer.state.buffers.depth.setMask(previousDepthMask);
+          renderer.state.buffers.color.setMask(previousColorMask);
+          scene.background = previousBackground;
+          scene.overrideMaterial = previousOverride;
+          hidden.forEach((object, index) => {
+            object.visible = wasVisible[index] ?? true;
+          });
+        }
       }
 
       return { texture: target.texture, matrix, softnessTexels, coverage };

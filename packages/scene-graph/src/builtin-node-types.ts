@@ -351,8 +351,8 @@ const Model3dPropsSchema = z
      * `model3d` sem elas, e exigi-las transformaria toda cena antiga em erro de
      * validação. Ausente vale zero — o centro do palco.
      */
-    stageX: NumberPropertySchema.optional(),
-    stageZ: NumberPropertySchema.optional(),
+    stageX: NumberPropertySchema.default(animatable(0)),
+    stageZ: NumberPropertySchema.default(animatable(0)),
   })
   .passthrough();
 
@@ -383,6 +383,11 @@ const StudioStagePropsSchema = z
     environmentIntensity: NonNegativeNumberPropertySchema,
     /** Textura procedural do piso, somada à grade. 0 devolve piso liso. */
     floorTexture: UnitNumberPropertySchema,
+    /**
+     * Reflexo planar do equipamento no piso. Opcional para abrir palcos salvos
+     * antes do ADR-018 sem mudar um pixel; ausente equivale a zero.
+     */
+    reflectionStrength: UnitNumberPropertySchema.default(animatable(0)),
     /** Sombra de contato sob cada objeto do palco. 0 desliga. */
     shadowStrength: UnitNumberPropertySchema,
     /** Gradiente radial ao preto nas bordas: a sensacao de cenario infinito. */
@@ -1436,6 +1441,8 @@ export const STUDIO_STAGE_NODE_TYPE = defineNodeType({
     // preenchia as sombras próprias do modelo e ele lia como maquete de plástico.
     environmentIntensity: animatable(0.2),
     floorTexture: animatable(1),
+    // Reflexo discreto: assenta o objeto sem transformar a vitrine em espelho.
+    reflectionStrength: animatable(0.3),
     shadowStrength: animatable(1),
     vignette: animatable(0.7),
     // Névoa no máximo, e numa cor bem mais escura que o cinza-azulado inicial: com
@@ -1628,6 +1635,18 @@ export const STUDIO_STAGE_NODE_TYPE = defineNodeType({
     property({
       path: "props.shadowStrength",
       label: "Sombra de contato",
+      kind: "number",
+      group: "appearance",
+      binding: "animatable",
+      animatable: true,
+      min: 0,
+      max: 1,
+      step: 0.05,
+      unit: "percent",
+    }),
+    property({
+      path: "props.reflectionStrength",
+      label: "Reflexo do piso",
       kind: "number",
       group: "appearance",
       binding: "animatable",

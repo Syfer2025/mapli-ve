@@ -175,6 +175,9 @@ export const NATIVE_COMMAND_DEFINITIONS: readonly ErasedDefinition[] = [
   defineNative("property.set", "Alterar propriedade", (draft, command) => {
     getProperty(draft, command.payload).value = command.payload.value;
   }),
+  defineNative("property.initialize", "Inicializar propriedade", (draft, command) => {
+    initializeProperty(draft, command.payload, command.payload.property);
+  }),
   defineNative("property.reset", "Redefinir propriedade", (draft, command) => {
     const property = getProperty(draft, command.payload);
     property.value = command.payload.value;
@@ -540,6 +543,39 @@ function getProperty(draft: Draft<ProjectDocument>, location: PropertyLocation):
     rejectCommand(`O caminho ${location.path.join(".")} não aponta para uma propriedade animável.`);
   }
   return value;
+}
+
+/**
+ * Cria somente a folha ausente. Não inventa objetos intermediários e não
+ * sobrescreve valor existente: esses dois casos quase sempre significam typo ou
+ * comando montado contra uma versão diferente do documento.
+ */
+function initializeProperty(
+  draft: Draft<ProjectDocument>,
+  location: PropertyLocation,
+  property: AnimatableProperty<unknown>,
+): void {
+  const composition = getComposition(draft, location.compositionId);
+  let parent: unknown =
+    location.target.kind === "node"
+      ? getNode(composition, location.target.nodeId)
+      : composition.camera;
+  const leaf = location.path.at(-1);
+  if (leaf === undefined) rejectCommand("Caminho de propriedade vazio.");
+
+  for (const segment of location.path.slice(0, -1)) {
+    if (typeof parent !== "object" || parent === null) {
+      rejectCommand(`Caminho de propriedade inválido: ${location.path.join(".")}.`);
+    }
+    parent = Reflect.get(parent, segment);
+  }
+  if (typeof parent !== "object" || parent === null) {
+    rejectCommand(`Caminho de propriedade inválido: ${location.path.join(".")}.`);
+  }
+  if (Reflect.has(parent, leaf)) {
+    rejectCommand(`A propriedade ${location.path.join(".")} já existe.`);
+  }
+  Reflect.set(parent, leaf, property);
 }
 
 function isAnimatableProperty(value: unknown): value is MutableProperty {

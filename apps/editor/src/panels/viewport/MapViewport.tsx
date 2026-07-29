@@ -306,7 +306,7 @@ export function MapViewport(): ReactNode {
     });
     mapRef.current = map;
     setMapInstance(map);
-    if (import.meta.env.DEV) {
+    if (import.meta.env.DEV || import.meta.env.VITE_THEATRUM_VERIFY === "1") {
       const debugCameraPort = createMapLibreCameraPort(map);
       Object.defineProperty(window, "__theatrumPhase2", {
         value: Object.freeze({
@@ -375,7 +375,7 @@ export function MapViewport(): ReactNode {
       map.remove();
       mapRef.current = null;
       setMapInstance(null);
-      if (import.meta.env.DEV) {
+      if (import.meta.env.DEV || import.meta.env.VITE_THEATRUM_VERIFY === "1") {
         Reflect.deleteProperty(window as Phase2DebugWindow, "__theatrumPhase2");
       }
     };

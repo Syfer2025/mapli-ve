@@ -219,6 +219,17 @@ interface StudioDebugWindow extends Window {
       elevationDeg: number;
       authoring: boolean;
     } | null;
+    /**
+     * Cronômetro opt-in do frame real. GPU vem de timer query assíncrona; CPU
+     * cobre avaliação, Three, marcadores e submissão do Pixi.
+     */
+    readonly profile: {
+      readonly start: () => void;
+      readonly reset: () => void;
+      readonly stop: () => void;
+      readonly status: () => ReturnType<StudioSceneRuntime["profileStatus"]>;
+      readonly poll: () => ReturnType<StudioSceneRuntime["profilePoll"]>;
+    };
   };
 }
 
@@ -311,7 +322,10 @@ export function StudioViewport(): ReactNode {
     // dirige o export vive no outro. Um por aplicativo é o limite declarado no
     // ADR-014; se algum dia houver dois palcos, este é o ponto que muda.
     setActiveStudioRuntime(runtime);
-    if (import.meta.env.DEV) {
+    // VITE_THEATRUM_VERIFY gera um build estático de produção com sondas para os
+    // verificadores. Sem a flag, o bundle distribuído elimina este bloco como
+    // elimina o DEV — CDP não ganha superfície de execução por acidente.
+    if (import.meta.env.DEV || import.meta.env.VITE_THEATRUM_VERIFY === "1") {
       (window as StudioDebugWindow).__theatrumStudio = {
         status: () => runtime.status(),
         project: (point) => runtime.project(point, sizeRef.current[0], sizeRef.current[1]),
@@ -346,6 +360,13 @@ export function StudioViewport(): ReactNode {
             // do gesto — por ref, não por closure, pela armadilha 4.12.
             authoring: authoringCameraRef.current !== null,
           };
+        },
+        profile: {
+          start: () => runtime.profileStart(),
+          reset: () => runtime.profileReset(),
+          stop: () => runtime.profileStop(),
+          status: () => runtime.profileStatus(),
+          poll: () => runtime.profilePoll(),
         },
       };
     }
@@ -422,6 +443,7 @@ export function StudioViewport(): ReactNode {
       (candidate) => candidate.id === session.selectedCompositionId,
     );
     if (composition === undefined) return;
+    const cpuFrameStartedAt = performance.now();
     sizeRef.current = size;
 
     // Duas etapas separadas de propósito, igual ao Viewport: `evaluate` é puro e
@@ -503,6 +525,7 @@ export function StudioViewport(): ReactNode {
       );
       renderer.render(callouts.scene, PREVIEW_SLOT_ORDER);
     }
+    runtime.recordProfileCpuFrame(performance.now() - cpuFrameStartedAt);
 
     const report = runtime.status();
     /**

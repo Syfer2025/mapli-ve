@@ -87,6 +87,49 @@ describe("inspector model", () => {
     ]);
   });
 
+  it("mostra defaults de compatibilidade para props opcionais ainda ausentes", () => {
+    const registry = createBuiltinNodeTypeRegistry();
+    const root = createEmptyProjectDocument().compositions[0]!.nodes["nd_root"]!;
+
+    const stageDefinition = registry.get("studio.stage");
+    const stage = structuredClone(root);
+    stage.type = "studio.stage";
+    stage.props = registry.createDefaultProps("studio.stage");
+    delete stage.props["reflectionStrength"];
+
+    const stageModel = buildInspectorModel(stage, stageDefinition);
+    expect(modelProperty(stageModel, "props.reflectionStrength")).toMatchObject({
+      value: 0,
+      keyframeCount: 0,
+      animated: false,
+      available: true,
+    });
+    expect(stage.props["reflectionStrength"]).toBeUndefined();
+    expect(
+      (registry.createDefaultProps("studio.stage")["reflectionStrength"] as { value: unknown })
+        .value,
+    ).toBe(0.3);
+
+    const modelDefinition = registry.get("model3d");
+    const model = structuredClone(root);
+    model.type = "model3d";
+    model.props = registry.createDefaultProps("model3d");
+    delete model.props["stageX"];
+    delete model.props["stageZ"];
+
+    const modelInspector = buildInspectorModel(model, modelDefinition);
+    expect(modelProperty(modelInspector, "props.stageX")).toMatchObject({
+      value: 0,
+      available: true,
+    });
+    expect(modelProperty(modelInspector, "props.stageZ")).toMatchObject({
+      value: 0,
+      available: true,
+    });
+    expect(model.props["stageX"]).toBeUndefined();
+    expect(model.props["stageZ"]).toBeUndefined();
+  });
+
   it("um tipo novo aparece sem ramificação de UI por node.type", () => {
     const node = createEmptyProjectDocument().compositions[0]!.nodes["nd_root"]!;
     node.type = "plugin.sentinel";
@@ -155,4 +198,10 @@ function fakeDefinition(
     defaultAnchorSpace: "comp",
     defaultSizeMode: "screen",
   };
+}
+
+function modelProperty(model: ReturnType<typeof buildInspectorModel>, path: string) {
+  return model.groups
+    .flatMap(({ properties }) => properties)
+    .find(({ descriptor }) => descriptor.path === path);
 }

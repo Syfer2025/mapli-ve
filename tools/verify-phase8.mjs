@@ -200,7 +200,10 @@ const MONTAR_CENA = `(async () => {
  */
 const MONTAR_CENA_3D = `(async () => {
   const S = session();
-  const response = await fetch('/models/fa-18f.glb');
+  // Relativo ao documento: no dev resolve para /models/...; no build estático,
+  // para o diretório out/renderer/models. Começar com / em file:// apontaria
+  // para a raiz do volume e reprovaria o empacotado antes de testar o settle.
+  const response = await fetch(new URL('./models/fa-18f.glb', location.href));
   if (!response.ok) throw new Error('GLB não servido pelo dev server: ' + response.status);
   const source = new Uint8Array(await response.arrayBuffer());
   const sourceView = new DataView(source.buffer, source.byteOffset, source.byteLength);

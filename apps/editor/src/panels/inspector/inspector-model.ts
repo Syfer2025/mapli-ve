@@ -1,6 +1,7 @@
 import type { NodeTypeDefinition, PropertyDescriptor, PropertyGroup } from "@theatrum/scene-graph";
-import type { AnimatableProperty, Node } from "@theatrum/schema";
-import { parsePropertyPath, readAnimatableProperty } from "../timeline/timeline-model.js";
+import type { Node } from "@theatrum/schema";
+import { resolveNodeAnimatableProperty } from "../../document/optional-animatable-property.js";
+import { parsePropertyPath } from "../timeline/timeline-model.js";
 
 export interface InspectorProperty {
   readonly descriptor: PropertyDescriptor;
@@ -36,7 +37,7 @@ export function buildInspectorModel(
 
   const grouped = new Map<PropertyGroup, InspectorProperty[]>();
   for (const descriptor of definition.properties) {
-    const property = inspectorProperty(node, descriptor);
+    const property = inspectorProperty(node, definition, descriptor);
     const properties = grouped.get(descriptor.group);
     if (properties === undefined) grouped.set(descriptor.group, [property]);
     else properties.push(property);
@@ -101,9 +102,13 @@ export function readPath(source: object, path: string): unknown {
   return value;
 }
 
-function inspectorProperty(node: Node, descriptor: PropertyDescriptor): InspectorProperty {
+function inspectorProperty(
+  node: Node,
+  definition: NodeTypeDefinition,
+  descriptor: PropertyDescriptor,
+): InspectorProperty {
   if (descriptor.binding === "animatable") {
-    const property = readAnimatableProperty(node, descriptor.path);
+    const property = resolveNodeAnimatableProperty(node, definition, descriptor.path)?.property;
     return Object.freeze({
       descriptor,
       path: parsePropertyPath(descriptor.path),
@@ -123,17 +128,6 @@ function inspectorProperty(node: Node, descriptor: PropertyDescriptor): Inspecto
     animated: false,
     available: value !== undefined,
   });
-}
-
-export function asAnimatableProperty(value: unknown): AnimatableProperty<unknown> | undefined {
-  return typeof value === "object" &&
-    value !== null &&
-    "value" in value &&
-    "keyframes" in value &&
-    Array.isArray(Reflect.get(value, "keyframes")) &&
-    "expression" in value
-    ? (value as AnimatableProperty<unknown>)
-    : undefined;
 }
 
 const GROUP_ORDER: readonly PropertyGroup[] = Object.freeze([

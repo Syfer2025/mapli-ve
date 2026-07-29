@@ -19,6 +19,7 @@ import {
   ProjectSettingsSchema,
   SizeSpecSchema,
   TrackMatteSchema,
+  UnknownAnimatablePropertySchema,
   keyframeSchema,
 } from "@theatrum/schema";
 import { z } from "zod";
@@ -283,6 +284,15 @@ export const CommandSchemas = {
   "property.set": commandSchema(
     "property.set",
     PropertyLocationSchema.extend({ value: z.unknown() }).strict(),
+  ),
+  /**
+   * Materializa uma propriedade animável opcional que não existia no documento
+   * antigo. É deliberadamente separado de `property.set`: um path digitado errado
+   * continua sendo rejeitado em vez de criar silenciosamente uma prop nova.
+   */
+  "property.initialize": commandSchema(
+    "property.initialize",
+    PropertyLocationSchema.extend({ property: UnknownAnimatablePropertySchema }).strict(),
   ),
   "property.reset": commandSchema(
     "property.reset",

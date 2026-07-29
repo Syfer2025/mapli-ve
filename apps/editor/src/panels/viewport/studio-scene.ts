@@ -28,7 +28,17 @@ import {
   type ModelTemplate,
 } from "./three-assets.js";
 import { anchorToWorld, type AnchorFrame } from "./studio-anchor.js";
+import {
+  createStudioFrameProfiler,
+  type StudioFrameProfiler,
+  type StudioFrameProfilerStatus,
+} from "./studio-frame-profiler.js";
 import { createStudioGrid, type StudioGrid } from "./studio-grid.js";
+import {
+  createStudioReflectionProjector,
+  type StudioReflectionProjector,
+  type StudioReflectionStatus,
+} from "./studio-reflection.js";
 import {
   createStudioShadowProjector,
   type ShadowSubject,
@@ -53,6 +63,8 @@ export interface StudioStageState {
   readonly environmentIntensity: number;
   /** Textura procedural do piso. 0 devolve o piso liso. */
   readonly floorTexture: number;
+  /** Reflexo planar do equipamento. Ausente em documento antigo equivale a 0. */
+  readonly reflectionStrength: number;
   /** Sombra de contato sob cada objeto. 0 desliga. */
   readonly shadowStrength: number;
   /** Gradiente radial ao preto nas bordas: a sensacao de infinito. */
@@ -149,6 +161,7 @@ export function collectStudioStage(evaluated: EvaluatedScene): StudioStageState 
       rimIntensity: Math.max(0, num(props, "rimIntensity", 1.8)),
       environmentIntensity: Math.max(0, num(props, "environmentIntensity", 0.75)),
       floorTexture: clamp01(num(props, "floorTexture", 0.35)),
+      reflectionStrength: clamp01(num(props, "reflectionStrength", 0)),
       shadowStrength: clamp01(num(props, "shadowStrength", 0.75)),
       vignette: clamp01(num(props, "vignette", 0.55)),
       horizonHaze: clamp01(num(props, "horizonHaze", 0.55)),
@@ -334,6 +347,8 @@ export interface StudioStatus {
   /** Modelos que ainda podem aparecer — o que o settle do export espera zerar. */
   readonly pending: number;
   readonly renders: number;
+  /** Diagnóstico do passe planar; não participa da decisão do frame. */
+  readonly reflection: StudioReflectionStatus;
   readonly cameraPosition: readonly [number, number, number] | null;
   readonly contextLost: boolean;
   readonly lastError: string | null;
@@ -348,9 +363,11 @@ export class StudioSceneRuntime {
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(38, 1, 0.05, 20_000);
   private readonly renderer: THREE.WebGLRenderer;
+  private readonly frameProfiler: StudioFrameProfiler;
   private readonly loader = new GLTFLoader();
   private readonly raycaster = new THREE.Raycaster();
   private readonly grid: StudioGrid;
+  private readonly reflectionProjector: StudioReflectionProjector;
   private readonly shadowProjector: StudioShadowProjector;
   private readonly rig: LightRig;
   private readonly templates = new Map<string, Promise<ModelTemplate | null>>();
@@ -368,6 +385,8 @@ export class StudioSceneRuntime {
   private lastError: string | null = null;
   private disposed = false;
   private repaint: (() => void) | null = null;
+  /** Bucket da última imagem: o relógio externo de CPU precisa usar a mesma classe da query GPU. */
+  private profileReflectionOn = false;
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -383,11 +402,13 @@ export class StudioSceneRuntime {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1;
+    this.frameProfiler = createStudioFrameProfiler(this.renderer);
     this.environment = createStudioEnvironment(this.renderer);
     this.scene.environment = this.environment;
     this.rig = createLightRig("y", { key: 2.6, fill: 0.7, rim: 1.8, ambient: 0.3 });
     addLightRig(this.scene, this.rig);
     this.grid = createStudioGrid();
+    this.reflectionProjector = createStudioReflectionProjector();
     this.shadowProjector = createStudioShadowProjector();
     this.scene.add(this.grid.mesh);
   }
@@ -403,7 +424,9 @@ export class StudioSceneRuntime {
     this.instances.clear();
     this.templates.clear();
     this.grid.dispose();
+    this.reflectionProjector.dispose();
     this.shadowProjector.dispose();
+    this.frameProfiler.dispose();
     this.environment?.dispose();
     this.environment = null;
     // Só `dispose`. **Não** chamar `WEBGL_lose_context.loseContext()` aqui.
@@ -430,6 +453,7 @@ export class StudioSceneRuntime {
       loaded: this.instances.size,
       pending: this.pendingModels(),
       renders: this.renderCount,
+      reflection: this.reflectionProjector.status(),
       cameraPosition: position === null ? null : [position.x, position.y, position.z],
       contextLost: this.renderer.getContext().isContextLost(),
       lastError: this.lastError,
@@ -445,13 +469,49 @@ export class StudioSceneRuntime {
     return countPendingModels(this.models, new Set(this.instances.keys()), this.failedSrcs);
   }
 
+  /**
+   * Medição opt-in do frame real. Estas cinco operações só são expostas nas
+   * sondas DEV/verificação; o caminho distribuído nunca inicia queries.
+   */
+  profileStart(): void {
+    this.frameProfiler.start();
+  }
+
+  profileReset(): void {
+    this.frameProfiler.reset();
+  }
+
+  profileStop(): void {
+    this.frameProfiler.stop();
+  }
+
+  profileStatus(): StudioFrameProfilerStatus {
+    return this.frameProfiler.status();
+  }
+
+  profilePoll(): StudioFrameProfilerStatus {
+    return this.frameProfiler.poll();
+  }
+
+  /**
+   * O painel mede de `evaluate` até terminar Three, marcadores e Pixi. O runtime
+   * acrescenta o resultado ao mesmo bucket ON/OFF escolhido antes dos passes GPU.
+   */
+  recordProfileCpuFrame(milliseconds: number): boolean {
+    return this.frameProfiler.recordCpuFrame(milliseconds, this.profileReflectionOn);
+  }
+
   /** Reconcilia e desenha um frame. `width`/`height` em pixels CSS. */
   render(scene: StudioScene, width: number, height: number): void {
     this.stage = scene.stage;
     this.models = scene.models;
+    this.profileReflectionOn = false;
     if (scene.stage === null || width <= 0 || height <= 0) return;
     this.syncInstances(scene.models);
     this.applyStage(scene.stage, width, height);
+    // O tamanho final é o estado de entrada dos dois passes offscreen. Assim a
+    // restauração deles volta ao viewport correto deste frame, não ao anterior.
+    this.renderer.setSize(width, height, false);
     for (const model of scene.models) {
       const instance = this.instances.get(model.id);
       if (instance === undefined) continue;
@@ -472,32 +532,53 @@ export class StudioSceneRuntime {
       scene.stage.keyElevationDeg,
     );
     this.rig.key.position.set(lightDirection[0], lightDirection[1], lightDirection[2]);
-    const shadow =
-      scene.stage.shadowStrength > 0
-        ? this.shadowProjector.update(
+    const hasReflectionSubject = scene.models.some(
+      (model) => model.opacity > 0 && this.instances.has(model.id),
+    );
+    const reflectionWanted = scene.stage.reflectionStrength > 0 && hasReflectionSubject;
+    this.frameProfiler.beginFrame(reflectionWanted);
+    try {
+      const shadow =
+        scene.stage.shadowStrength > 0
+          ? this.shadowProjector.update(
+              this.renderer,
+              this.scene,
+              [this.grid.mesh],
+              this.shadowSubjects(scene.models),
+              lightDirection,
+            )
+          : null;
+      const reflection = reflectionWanted
+        ? this.reflectionProjector.update(
             this.renderer,
             this.scene,
+            this.camera,
             [this.grid.mesh],
-            this.shadowSubjects(scene.models),
-            lightDirection,
+            width,
+            height,
           )
         : null;
-    this.grid.update(this.camera, {
-      floor: stripAlpha(scene.stage.floor),
-      grid: stripAlpha(scene.stage.gridColor),
-      horizon: stripAlpha(scene.stage.background),
-      spacingMeters: scene.stage.gridSpacingMeters,
-      opacity: scene.stage.gridOpacity,
-      texture: scene.stage.floorTexture,
-      shadow,
-      shadowStrength: scene.stage.shadowStrength,
-      vignette: scene.stage.vignette,
-      haze: scene.stage.horizonHaze,
-      hazeColor: stripAlpha(scene.stage.hazeColor),
-    });
-    this.renderer.setSize(width, height, false);
-    this.renderer.render(this.scene, this.camera);
-    this.renderCount += 1;
+      this.profileReflectionOn = reflection !== null;
+      this.grid.update(this.camera, {
+        floor: stripAlpha(scene.stage.floor),
+        grid: stripAlpha(scene.stage.gridColor),
+        horizon: stripAlpha(scene.stage.background),
+        spacingMeters: scene.stage.gridSpacingMeters,
+        opacity: scene.stage.gridOpacity,
+        texture: scene.stage.floorTexture,
+        reflection,
+        reflectionStrength: scene.stage.reflectionStrength,
+        shadow,
+        shadowStrength: scene.stage.shadowStrength,
+        vignette: scene.stage.vignette,
+        haze: scene.stage.horizonHaze,
+        hazeColor: stripAlpha(scene.stage.hazeColor),
+      });
+      this.renderer.render(this.scene, this.camera);
+      this.renderCount += 1;
+    } finally {
+      this.frameProfiler.endFrame(this.profileReflectionOn);
+    }
   }
 
   /**

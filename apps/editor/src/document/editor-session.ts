@@ -11,7 +11,7 @@ import {
 import { createCommandBus, type HistorySnapshot } from "@theatrum/commands";
 import { createBuiltinActionRegistry } from "@theatrum/behaviors";
 import { createIdFactory } from "@theatrum/core-utils";
-import { createDocumentStore, select } from "@theatrum/document";
+import { createDocumentStore } from "@theatrum/document";
 import { createBuiltinNodeTypeRegistry, type NodeTypeDefinition } from "@theatrum/scene-graph";
 import {
   createEmbeddedAsset,
@@ -45,6 +45,10 @@ import {
   unregisterAssetMedia,
 } from "../assets/asset-media.js";
 import { bridge } from "../bridge/index.js";
+import {
+  resolveNodeAnimatableProperty,
+  type ResolvedNodeAnimatableProperty,
+} from "./optional-animatable-property.js";
 
 const AUTOSAVE_DEBOUNCE_MS = 500;
 const HEARTBEAT_INTERVAL_MS = 5_000;
@@ -243,13 +247,14 @@ export const editorActions = Object.freeze({
     value: unknown,
     keyframeWhenAnimated = true,
   ): boolean {
-    const property = selectedProperty(nodeId, path);
-    if (property === undefined) return false;
+    const resolved = selectedEditableProperty(nodeId, path);
+    if (resolved === undefined) return false;
+    const { property } = resolved;
     const existing = property.keyframes.find(
       (keyframe) => keyframe.frame === snapshot.playheadFrame,
     );
     if (keyframeWhenAnimated && property.keyframes.length > 0) {
-      return this.dispatch({
+      const command = {
         type: "keyframe.set",
         payload: {
           ...propertyLocation(nodeId, path),
@@ -262,6 +267,27 @@ export const editorActions = Object.freeze({
           },
         },
         source: "user",
+      } as const;
+      return resolved.initializationRequired
+        ? initializePropertyAndDispatch(
+            "Alterar propriedade animada",
+            nodeId,
+            path,
+            property,
+            command,
+          )
+        : this.dispatch(command);
+    }
+    if (resolved.initializationRequired) {
+      const initialized = structuredClone(property);
+      initialized.value = structuredClone(value);
+      return this.dispatch({
+        type: "property.initialize",
+        payload: {
+          ...propertyLocation(nodeId, path),
+          property: initialized,
+        },
+        source: "user",
       });
     }
     return this.dispatch({
@@ -272,22 +298,26 @@ export const editorActions = Object.freeze({
   },
 
   togglePropertyKeyframe(nodeId: string, path: string): boolean {
-    const property = selectedProperty(nodeId, path);
-    if (property === undefined) return false;
+    const resolved = selectedEditableProperty(nodeId, path);
+    if (resolved === undefined || !resolved.descriptor.animatable) return false;
+    const { property } = resolved;
     const existing = property.keyframes.find(
       (keyframe) => keyframe.frame === snapshot.playheadFrame,
     );
     if (existing !== undefined) {
-      return this.dispatch({
+      const command = {
         type: "keyframe.remove",
         payload: {
           ...propertyLocation(nodeId, path),
           keyframeId: existing.id,
         },
         source: "user",
-      });
+      } as const;
+      return resolved.initializationRequired
+        ? initializePropertyAndDispatch("Remover keyframe", nodeId, path, property, command)
+        : this.dispatch(command);
     }
-    return this.dispatch({
+    const command = {
       type: "keyframe.set",
       payload: {
         ...propertyLocation(nodeId, path),
@@ -300,7 +330,10 @@ export const editorActions = Object.freeze({
         },
       },
       source: "user",
-    });
+    } as const;
+    return resolved.initializationRequired
+      ? initializePropertyAndDispatch("Criar keyframe", nodeId, path, property, command)
+      : this.dispatch(command);
   },
 
   removePropertyKeyframe(nodeId: string, path: string, keyframeId: string): boolean {
@@ -1678,8 +1711,40 @@ function supportsChildren(type: string): boolean {
   return nodeTypeRegistry.get(type)?.supportsChildren ?? false;
 }
 
-function selectedProperty(nodeId: string, path: string) {
-  return select.property(documentStore.get(), { nodeId, path });
+function selectedEditableProperty(
+  nodeId: string,
+  path: string,
+): ResolvedNodeAnimatableProperty | undefined {
+  const node = selectedComposition()?.nodes[nodeId];
+  if (node === undefined) return undefined;
+  return resolveNodeAnimatableProperty(node, nodeTypeRegistry.get(node.type), path);
+}
+
+/**
+ * Materializar o wrapper e aplicar a operação seguinte é um único gesto de
+ * autoria. A transação garante que um primeiro keyframe nunca deixe para trás
+ * uma prop vazia se o segundo comando for rejeitado, e um único undo remove os
+ * dois.
+ */
+function initializePropertyAndDispatch(
+  label: string,
+  nodeId: string,
+  path: string,
+  property: AnimatableProperty<unknown>,
+  nextCommand: unknown,
+): boolean {
+  return runTransaction(label, () => {
+    const initialized = commandBus.dispatch({
+      type: "property.initialize",
+      payload: {
+        ...propertyLocation(nodeId, path),
+        property: structuredClone(property),
+      },
+      source: "user",
+    });
+    if (!initialized.ok) return;
+    commandBus.dispatch(nextCommand);
+  });
 }
 
 function propertyLocation(nodeId: string, path: string) {

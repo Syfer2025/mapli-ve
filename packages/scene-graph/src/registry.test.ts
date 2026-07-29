@@ -200,6 +200,7 @@ describe("builtin node type registry", () => {
       rimIntensity: 1.1,
       environmentIntensity: 0.2,
       floorTexture: 1,
+      reflectionStrength: 0.3,
       shadowStrength: 1,
       vignette: 0.7,
       horizonHaze: 1,
@@ -212,6 +213,23 @@ describe("builtin node type registry", () => {
       azimuthDeg: 35,
       elevationDeg: 14,
       fovDeg: 38,
+    });
+  });
+
+  it("aceita palco anterior ao ADR-018 sem criar reflexo implícito", () => {
+    const registry = createBuiltinNodeTypeRegistry();
+    const props = registry.createDefaultProps("studio.stage");
+    delete props["reflectionStrength"];
+    const resolved = registry.resolve({
+      id: "stage_antigo",
+      type: "studio.stage",
+      name: "Palco antigo",
+      children: [],
+      props,
+    } as never);
+    expect(resolved).toMatchObject({
+      status: "resolved",
+      props: { reflectionStrength: { value: 0, keyframes: [], expression: null } },
     });
   });
 

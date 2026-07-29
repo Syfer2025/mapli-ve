@@ -7,8 +7,14 @@
  * que tem de conter a sombra, não só a pegada.
  */
 
+import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { fitLightFrustum, lightBasis } from "./studio-shadow.js";
+import {
+  createStudioShadowProjector,
+  fitLightFrustum,
+  lightBasis,
+  type ShadowSubject,
+} from "./studio-shadow.js";
 import { keyLightDirection } from "./studio-scene.js";
 
 function magnitude(v: readonly [number, number, number]): number {
@@ -17,6 +23,156 @@ function magnitude(v: readonly [number, number, number]): number {
 
 function dot(a: readonly [number, number, number], b: readonly [number, number, number]): number {
   return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+
+function createFakeRenderer() {
+  const previousTarget = new THREE.WebGLRenderTarget(2, 2);
+  const initialClearColor = new THREE.Color("#123456");
+  const initialClearAlpha = 0.37;
+  const state = {
+    target: previousTarget as THREE.WebGLRenderTarget | null,
+    activeCubeFace: 3,
+    activeMipmapLevel: 2,
+    clearColor: initialClearColor.clone(),
+    clearAlpha: initialClearAlpha,
+    viewport: new THREE.Vector4(3, 4, 5, 6),
+    scissor: new THREE.Vector4(7, 8, 9, 10),
+    scissorTest: true,
+    depthMask: false,
+    colorMask: false,
+    depthMaskCalls: [] as boolean[],
+    colorMaskCalls: [] as boolean[],
+    backgroundDuringRender: undefined as THREE.Scene["background"] | undefined,
+    xrDuringRender: null as boolean | null,
+    shadowAutoUpdateDuringRender: null as boolean | null,
+    cubeFaceDuringRender: null as number | null,
+    mipmapDuringRender: null as number | null,
+    failNext: false,
+    renderCalls: 0,
+  };
+  const context = {
+    DEPTH_WRITEMASK: 0x0b72,
+    COLOR_WRITEMASK: 0x0c23,
+    getParameter: (parameter: number) =>
+      parameter === 0x0b72
+        ? state.depthMask
+        : [state.colorMask, state.colorMask, state.colorMask, state.colorMask],
+  } as unknown as WebGL2RenderingContext;
+  const renderer = {
+    xr: { enabled: true },
+    shadowMap: { autoUpdate: true },
+    state: {
+      buffers: {
+        depth: {
+          setMask: (enabled: boolean) => {
+            state.depthMask = enabled;
+            state.depthMaskCalls.push(enabled);
+          },
+        },
+        color: {
+          setMask: (enabled: boolean) => {
+            state.colorMask = enabled;
+            state.colorMaskCalls.push(enabled);
+          },
+        },
+      },
+    },
+    getContext: () => context,
+    getRenderTarget: () => state.target,
+    getActiveCubeFace: () => state.activeCubeFace,
+    getActiveMipmapLevel: () => state.activeMipmapLevel,
+    setRenderTarget: (
+      target: THREE.WebGLRenderTarget | null,
+      activeCubeFace = 0,
+      activeMipmapLevel = 0,
+    ) => {
+      state.target = target;
+      state.activeCubeFace = activeCubeFace;
+      state.activeMipmapLevel = activeMipmapLevel;
+      // O renderer real troca viewport/scissor pelos do target. Simular isso é
+      // o que faz o teste provar a restauração explícita, não apenas observá-la.
+      state.viewport.set(0, 0, 2, 2);
+      state.scissor.set(0, 0, 2, 2);
+      state.scissorTest = false;
+    },
+    getViewport: (target: THREE.Vector4) => target.copy(state.viewport),
+    setViewport: (value: THREE.Vector4) => {
+      state.viewport.copy(value);
+    },
+    getScissor: (target: THREE.Vector4) => target.copy(state.scissor),
+    setScissor: (value: THREE.Vector4) => {
+      state.scissor.copy(value);
+    },
+    getScissorTest: () => state.scissorTest,
+    setScissorTest: (value: boolean) => {
+      state.scissorTest = value;
+    },
+    getClearColor: (target: THREE.Color) => target.copy(state.clearColor),
+    getClearAlpha: () => state.clearAlpha,
+    setClearColor: (color: THREE.ColorRepresentation, alpha?: number) => {
+      state.clearColor.set(color);
+      if (alpha !== undefined) state.clearAlpha = alpha;
+    },
+    clear: () => undefined,
+    render: (scene: THREE.Scene) => {
+      state.renderCalls += 1;
+      state.backgroundDuringRender = scene.background;
+      state.xrDuringRender = renderer.xr.enabled;
+      state.shadowAutoUpdateDuringRender = renderer.shadowMap.autoUpdate;
+      state.cubeFaceDuringRender = state.activeCubeFace;
+      state.mipmapDuringRender = state.activeMipmapLevel;
+      if (!state.failNext) return;
+      state.failNext = false;
+      throw new Error("render da sombra falhou");
+    },
+  } as unknown as THREE.WebGLRenderer;
+  return {
+    renderer,
+    state,
+    previousTarget,
+    initialClearColor,
+    initialClearAlpha,
+    dispose: () => previousTarget.dispose(),
+  };
+}
+
+function createProjectorFixture() {
+  const projector = createStudioShadowProjector();
+  const scene = new THREE.Scene();
+  const previousOverride = new THREE.MeshBasicMaterial({ color: 0x445566 });
+  const previousBackground = new THREE.Color("#223344");
+  scene.overrideMaterial = previousOverride;
+  scene.background = previousBackground;
+  const hidden = [new THREE.Object3D(), new THREE.Object3D()];
+  hidden[0]!.visible = true;
+  hidden[1]!.visible = false;
+  const root = new THREE.Object3D();
+  root.updateMatrix();
+  const subjects: readonly ShadowSubject[] = [
+    {
+      root,
+      center: [0, 0],
+      halfX: 2,
+      halfZ: 1,
+      heightMeters: 3,
+      opacity: 0.8,
+    },
+  ];
+  const fake = createFakeRenderer();
+  return {
+    projector,
+    scene,
+    previousOverride,
+    previousBackground,
+    hidden,
+    subjects,
+    fake,
+    dispose: () => {
+      projector.dispose();
+      previousOverride.dispose();
+      fake.dispose();
+    },
+  };
 }
 
 describe("keyLightDirection", () => {
@@ -45,6 +201,150 @@ describe("keyLightDirection", () => {
   /** Elevação fora da faixa satura em vez de virar luz vinda de baixo do chão. */
   it("elevação negativa satura em zero", () => {
     expect(keyLightDirection(0, -30)[1]).toBeCloseTo(0, 9);
+  });
+});
+
+describe("disciplina de estado do projetor de sombra", () => {
+  it("restaura target, override, clear e visibilidades depois de renderizar", () => {
+    const fixture = createProjectorFixture();
+    const initialVisibility = fixture.hidden.map((object) => object.visible);
+    const initialViewport = fixture.fake.state.viewport.clone();
+    const initialScissor = fixture.fake.state.scissor.clone();
+    try {
+      const projection = fixture.projector.update(
+        fixture.fake.renderer,
+        fixture.scene,
+        fixture.hidden,
+        fixture.subjects,
+        keyLightDirection(138, 24),
+      );
+      expect(projection).not.toBeNull();
+      expect(fixture.fake.state.renderCalls).toBe(1);
+      expect(fixture.fake.state.backgroundDuringRender).toBeNull();
+      expect(fixture.fake.state.xrDuringRender).toBe(false);
+      expect(fixture.fake.state.shadowAutoUpdateDuringRender).toBe(false);
+      expect(fixture.fake.state.cubeFaceDuringRender).toBe(0);
+      expect(fixture.fake.state.mipmapDuringRender).toBe(0);
+      expect(fixture.fake.state.target).toBe(fixture.fake.previousTarget);
+      expect(fixture.fake.state.activeCubeFace).toBe(3);
+      expect(fixture.fake.state.activeMipmapLevel).toBe(2);
+      expect(fixture.scene.overrideMaterial).toBe(fixture.previousOverride);
+      expect(fixture.scene.background).toBe(fixture.previousBackground);
+      expect(fixture.fake.renderer.xr.enabled).toBe(true);
+      expect(fixture.fake.renderer.shadowMap.autoUpdate).toBe(true);
+      expect(fixture.fake.state.clearColor.getHex()).toBe(fixture.fake.initialClearColor.getHex());
+      expect(fixture.fake.state.clearAlpha).toBeCloseTo(fixture.fake.initialClearAlpha, 9);
+      expect(fixture.fake.state.viewport).toEqual(initialViewport);
+      expect(fixture.fake.state.scissor).toEqual(initialScissor);
+      expect(fixture.fake.state.scissorTest).toBe(true);
+      expect(fixture.fake.state.depthMask).toBe(false);
+      expect(fixture.fake.state.colorMask).toBe(false);
+      expect(fixture.fake.state.depthMaskCalls).toEqual([true, false]);
+      expect(fixture.fake.state.colorMaskCalls).toEqual([true, false]);
+      expect(fixture.hidden.map((object) => object.visible)).toEqual(initialVisibility);
+    } finally {
+      fixture.dispose();
+    }
+  });
+
+  it("restaura o estado e tenta de novo quando o render falha", () => {
+    const fixture = createProjectorFixture();
+    const initialVisibility = fixture.hidden.map((object) => object.visible);
+    const initialViewport = fixture.fake.state.viewport.clone();
+    const initialScissor = fixture.fake.state.scissor.clone();
+    fixture.fake.state.failNext = true;
+    try {
+      expect(() =>
+        fixture.projector.update(
+          fixture.fake.renderer,
+          fixture.scene,
+          fixture.hidden,
+          fixture.subjects,
+          keyLightDirection(138, 24),
+        ),
+      ).toThrow("render da sombra falhou");
+
+      expect(fixture.fake.state.target).toBe(fixture.fake.previousTarget);
+      expect(fixture.fake.state.activeCubeFace).toBe(3);
+      expect(fixture.fake.state.activeMipmapLevel).toBe(2);
+      expect(fixture.scene.overrideMaterial).toBe(fixture.previousOverride);
+      expect(fixture.scene.background).toBe(fixture.previousBackground);
+      expect(fixture.fake.renderer.xr.enabled).toBe(true);
+      expect(fixture.fake.renderer.shadowMap.autoUpdate).toBe(true);
+      expect(fixture.fake.state.clearColor.getHex()).toBe(fixture.fake.initialClearColor.getHex());
+      expect(fixture.fake.state.clearAlpha).toBeCloseTo(fixture.fake.initialClearAlpha, 9);
+      expect(fixture.fake.state.viewport).toEqual(initialViewport);
+      expect(fixture.fake.state.scissor).toEqual(initialScissor);
+      expect(fixture.fake.state.scissorTest).toBe(true);
+      expect(fixture.fake.state.depthMask).toBe(false);
+      expect(fixture.fake.state.colorMask).toBe(false);
+      expect(fixture.fake.state.depthMaskCalls).toEqual([true, false]);
+      expect(fixture.fake.state.colorMaskCalls).toEqual([true, false]);
+      expect(fixture.hidden.map((object) => object.visible)).toEqual(initialVisibility);
+
+      expect(
+        fixture.projector.update(
+          fixture.fake.renderer,
+          fixture.scene,
+          fixture.hidden,
+          fixture.subjects,
+          keyLightDirection(138, 24),
+        ),
+      ).not.toBeNull();
+      expect(fixture.fake.state.renderCalls).toBe(2);
+
+      // Sem cache incompleto: o mesmo frame também é derivado da entrada corrente.
+      fixture.projector.update(
+        fixture.fake.renderer,
+        fixture.scene,
+        fixture.hidden,
+        fixture.subjects,
+        keyLightDirection(138, 24),
+      );
+      expect(fixture.fake.state.renderCalls).toBe(3);
+    } finally {
+      fixture.dispose();
+    }
+  });
+
+  it("o modelo mais alto amplia o frustum mesmo quando é menos opaco", () => {
+    const fixture = createProjectorFixture();
+    const tallRoot = new THREE.Object3D();
+    tallRoot.updateMatrix();
+    try {
+      const base = fixture.projector.update(
+        fixture.fake.renderer,
+        fixture.scene,
+        fixture.hidden,
+        fixture.subjects,
+        keyLightDirection(138, 24),
+      );
+      const baseMatrix = base?.matrix.clone();
+      const withTall = fixture.projector.update(
+        fixture.fake.renderer,
+        fixture.scene,
+        fixture.hidden,
+        [
+          ...fixture.subjects,
+          {
+            root: tallRoot,
+            center: [0, 0],
+            halfX: 1,
+            halfZ: 1,
+            heightMeters: 30,
+            opacity: 0.4,
+          },
+        ],
+        keyLightDirection(138, 24),
+      );
+
+      expect(baseMatrix).toBeDefined();
+      expect(withTall).not.toBeNull();
+      expect(withTall?.matrix.equals(baseMatrix ?? new THREE.Matrix4())).toBe(false);
+      expect(fixture.fake.state.renderCalls).toBe(2);
+    } finally {
+      fixture.dispose();
+    }
   });
 });
 

@@ -28,6 +28,11 @@
 
 const DEBUG_URL = "http://localhost:9222/json/list";
 const REQUEST_TIMEOUT_MS = 90_000;
+// O painel divide a janela com camadas, inspector e timeline. Este viewport
+// produz um drawing buffer do palco >= 1920×1080 sem extrapolar custo: Chromium
+// realmente aloca e desenha todos os pixels, e o override é limpo no finally.
+const PROFILE_VIEWPORT_WIDTH = 3000;
+const PROFILE_VIEWPORT_HEIGHT = 1800;
 
 async function pageTarget() {
   let response;
@@ -493,8 +498,27 @@ async function main() {
   // agir sobre um nó que nunca existiu.
   let stageId;
   let modelId;
+  let metricsOverrideRequested = false;
 
   try {
+    // Dentro do try: até uma falha/timeout na preparação precisa limpar a
+    // emulação e fechar o CDP no finally.
+    metricsOverrideRequested = true;
+    await client.request("Emulation.setDeviceMetricsOverride", {
+      width: PROFILE_VIEWPORT_WIDTH,
+      height: PROFILE_VIEWPORT_HEIGHT,
+      deviceScaleFactor: 1,
+      mobile: false,
+      screenWidth: PROFILE_VIEWPORT_WIDTH,
+      screenHeight: PROFILE_VIEWPORT_HEIGHT,
+      dontSetVisibleSize: false,
+    });
+    await client.evaluate(`(async () => {
+      window.dispatchEvent(new Event('resize'));
+      await wait(300);
+      return [innerWidth, innerHeight];
+    })()`);
+
     // ── 1. O palco é ambiente à parte, com chão de verdade ──────────────────
     {
       const report = await client.evaluate(
@@ -1659,6 +1683,9 @@ async function main() {
             const c2d = scratch.getContext('2d', { willReadFrequently: true });
             c2d.drawImage(canvas, 0, 0);
             const image = c2d.getImageData(0, 0, scratch.width, scratch.height);
+            return image;
+          };
+          const pixelsComTinta = (image) => {
             let pintados = 0;
             for (let i = 3; i < image.data.length; i += 4) {
               if (image.data[i] > 8) pintados += 1;
@@ -1668,11 +1695,11 @@ async function main() {
 
           // Três amostras ao longo da revelação: começo, meio e fim.
           await atFrame(0);
-          const noComeco = tinta();
+          const imagemNoComeco = tinta();
           await atFrame(12);
-          const noMeio = tinta();
+          const imagemNoMeio = tinta();
           await atFrame(60);
-          const noFim = tinta();
+          const imagemNoFim = tinta();
 
           return {
             alvoDoRotulo: rotulo.props.targetId.value,
@@ -1680,9 +1707,15 @@ async function main() {
             keyframesDaRevelacao: [
               'dotRadius', 'offsetX', 'offsetY', 'textReveal', 'leaderProgress',
             ].map((key) => rotulo.props[key].keyframes.length),
-            noComeco,
-            noMeio,
-            noFim,
+            noComeco: pixelsComTinta(imagemNoComeco),
+            noMeio: pixelsComTinta(imagemNoMeio),
+            noFim: pixelsComTinta(imagemNoFim),
+            // Contagem de tinta oscila alguns pixels quando o balão cruza
+            // coordenadas subpixel. A diferença espacial prova que a segunda fase
+            // continuou animando sem exigir uma monotonicidade que o rasterizador
+            // não promete.
+            mudancaMeioFim: differingPixels(imagemNoMeio, imagemNoFim, 4),
+            area: imagemNoFim.width * imagemNoFim.height,
           };
         })()`,
       );
@@ -1693,13 +1726,19 @@ async function main() {
         anotacao.alvoDoRotulo === anotacao.idDoPonto &&
           // ...as cinco props da revelação têm par de keyframes...
           anotacao.keyframesDaRevelacao.every((count) => count === 2) &&
-          // ...e a anotação CRESCE na tela em vez de aparecer inteira.
-          anotacao.noFim > anotacao.noMeio &&
-          anotacao.noMeio > anotacao.noComeco,
+          // ...a primeira fase cria tinta e a segunda ainda muda a imagem. A
+          // contagem final pode oscilar por rasterização subpixel quando o balão
+          // termina de deslizar; exigir `fim > meio` seria medir o rasterizador,
+          // não a revelação.
+          anotacao.noMeio > anotacao.noComeco &&
+          anotacao.noFim > anotacao.noComeco &&
+          anotacao.mudancaMeioFim > Math.max(40, anotacao.area * 0.00002),
         `alvo do rótulo ${anotacao.alvoDoRotulo === anotacao.idDoPonto ? "é o ponto" : "NÃO é o ponto"}; ` +
           `keyframes por prop ${anotacao.keyframesDaRevelacao.join("/")}; ` +
           `tinta do overlay ${String(anotacao.noComeco)} → ${String(anotacao.noMeio)} → ` +
-          `${String(anotacao.noFim)} px ao longo da revelação`,
+          `${String(anotacao.noFim)} px, mudança meio/fim ${String(
+            anotacao.mudancaMeioFim,
+          )} px ao longo da revelação`,
       );
 
       // ── 12. A sombra cai para o lado da luz, e segue a luz ───────────────────
@@ -1789,36 +1828,728 @@ async function main() {
           } px de ${String(Math.round(sombra.largura))}); ` +
           `pixels escuros ${String(sombra.leste?.contagem ?? 0)}/${String(sombra.oeste?.contagem ?? 0)}`,
       );
+
+      // ── 13. Reflexo planar espelha o modelo e acompanha a altura ────────────
+      //
+      // Um brilho no piso também muda pixels quando reflectionStrength sai de 0 para
+      // 1. Uma sombra falsa também pode copiar aproximadamente a silhueta. A prova que
+      // separa essas três coisas é geométrica: sem modelo, ligar o efeito não pinta nada;
+      // com o modelo, a tinta nova nasce abaixo do contato com o piso; e, quando o
+      // objeto sobe, a imagem direta sobe enquanto a refletida desce. Sombra, grade,
+      // textura, vinheta e névoa ficam zeradas para não poderem explicar a diferença.
+      const reflexo = await client.evaluate(
+        `(async () => {
+          const stageId = ${JSON.stringify(stageId)};
+          const modelId = ${JSON.stringify(modelId)};
+          const actions = session().actions;
+          actions.pause();
+          actions.clearSelection();
+
+          // Estado de painel não pertence ao documento e sobrevive ao undo. Começar
+          // explicitamente na câmera do documento e fora da marcação torna o critério
+          // independente da rodada anterior e evita os marcadores sobre a medição.
+          const cameraDoDocumento = studioTool('Câmera do documento');
+          if (cameraDoDocumento !== null) {
+            cameraDoDocumento.click();
+            await wait(180);
+          }
+          const marcar = studioTool('Marcar pontos');
+          if (marcar !== null && marcar.getAttribute('aria-pressed') === 'true') {
+            marcar.click();
+            await wait(180);
+          }
+
+          const stagePaths = [
+            'props.targetX', 'props.targetY', 'props.targetZ',
+            'props.distanceMeters', 'props.azimuthDeg', 'props.elevationDeg', 'props.fovDeg',
+            'props.background', 'props.floor',
+            'props.gridOpacity', 'props.floorTexture', 'props.shadowStrength',
+            'props.reflectionStrength', 'props.vignette', 'props.horizonHaze',
+            'props.keyIntensity', 'props.rimIntensity', 'props.environmentIntensity',
+            'props.keyAzimuthDeg', 'props.keyElevationDeg',
+          ];
+          const modelPaths = [
+            'props.stageX', 'props.stageZ', 'props.altitudeMeters',
+            'props.scaleMeters', 'props.headingOffset',
+            'transform.rotation', 'transform.opacity',
+          ];
+          // O roteiro dos critérios 5/10 e qualquer documento de entrada podem deixar
+          // trilhas nestas props. property.set não vence uma trilha avaliada no frame,
+          // portanto elas saem antes de fixar a cena A/B.
+          const stageTracksCleared = actions.writeKeyframeTracks(
+            stageId,
+            stagePaths.map((path) => ({ path, keyframes: [] })),
+          );
+          const modelTracksCleared = actions.writeKeyframeTracks(
+            modelId,
+            modelPaths.map((path) => ({ path, keyframes: [] })),
+          );
+          if (!stageTracksCleared || !modelTracksCleared) {
+            throw new Error('não foi possível limpar as trilhas do critério de reflexo');
+          }
+
+          for (const [path, value] of [
+            ['props.targetX', 0], ['props.targetY', 4], ['props.targetZ', 0],
+            ['props.distanceMeters', 50], ['props.azimuthDeg', 0],
+            ['props.elevationDeg', 14], ['props.fovDeg', 38],
+            ['props.background', '#05070aff'], ['props.floor', '#080b10ff'],
+            ['props.gridOpacity', 0], ['props.floorTexture', 0],
+            ['props.shadowStrength', 0], ['props.reflectionStrength', 0],
+            ['props.vignette', 0], ['props.horizonHaze', 0],
+            ['props.keyIntensity', 2.6], ['props.rimIntensity', 1.8],
+            ['props.environmentIntensity', 0.75],
+            ['props.keyAzimuthDeg', 0], ['props.keyElevationDeg', 90],
+          ]) {
+            if (!actions.setPropertyValue(stageId, path, value, false)) {
+              throw new Error('palco recusou ' + path + ' no critério de reflexo');
+            }
+          }
+          for (const [path, value] of [
+            ['props.stageX', 0], ['props.stageZ', 0], ['props.altitudeMeters', 2],
+            ['props.scaleMeters', 18], ['props.headingOffset', 0],
+            ['transform.rotation', 0], ['transform.opacity', 0],
+          ]) {
+            if (!actions.setPropertyValue(modelId, path, value, false)) {
+              throw new Error('modelo recusou ' + path + ' no critério de reflexo');
+            }
+          }
+
+          const capture = async () => {
+            await atFrame(0);
+            // O target planar é outro passe WebGL. O silêncio do palco mais esta
+            // margem cobre a atualização de estado do React que pediu o passe.
+            await wait(180);
+            return studioPixels();
+          };
+          const reflectionPasses = () => studio().reflection?.renders ?? null;
+          const setLighting = (key, rim, environment) => {
+            const writes = [
+              ['props.keyIntensity', key],
+              ['props.rimIntensity', rim],
+              ['props.environmentIntensity', environment],
+            ];
+            for (const [path, value] of writes) {
+              if (!actions.setPropertyValue(stageId, path, value, false)) {
+                throw new Error('palco recusou ' + path + ' no A/B de iluminação');
+              }
+            }
+          };
+
+          /**
+           * Diferença ponderada pela maior mudança RGB.
+           *
+           * count diz a área; energy torna o centroide resistente à antialiasing.
+           * As frações acima/abaixo do contato impedem um brilho de tela inteira de
+           * passar como reflexo.
+           */
+          const diffStats = (before, after, splitY, tolerance = 8) => {
+            if (
+              before.width !== after.width ||
+              before.height !== after.height ||
+              before.data.length !== after.data.length
+            ) return null;
+            let count = 0;
+            let energy = 0;
+            let sumX = 0;
+            let sumY = 0;
+            let aboveEnergy = 0;
+            let belowEnergy = 0;
+            let minX = Infinity;
+            let minY = Infinity;
+            let maxX = -Infinity;
+            let maxY = -Infinity;
+            for (let y = 0; y < before.height; y += 1) {
+              for (let x = 0; x < before.width; x += 1) {
+                const i = (y * before.width + x) * 4;
+                const delta = Math.max(
+                  Math.abs(before.data[i] - after.data[i]),
+                  Math.abs(before.data[i + 1] - after.data[i + 1]),
+                  Math.abs(before.data[i + 2] - after.data[i + 2]),
+                );
+                if (delta <= tolerance) continue;
+                count += 1;
+                energy += delta;
+                sumX += x * delta;
+                sumY += y * delta;
+                if (y < splitY) aboveEnergy += delta;
+                else belowEnergy += delta;
+                if (x < minX) minX = x;
+                if (y < minY) minY = y;
+                if (x > maxX) maxX = x;
+                if (y > maxY) maxY = y;
+              }
+            }
+            if (count === 0 || energy === 0) {
+              return {
+                count: 0,
+                energy: 0,
+                centroid: null,
+                aboveFraction: 0,
+                belowFraction: 0,
+                box: null,
+              };
+            }
+            return {
+              count,
+              energy,
+              centroid: { x: sumX / energy, y: sumY / energy },
+              aboveFraction: aboveEnergy / energy,
+              belowFraction: belowEnergy / energy,
+              box: {
+                x: minX,
+                y: minY,
+                width: maxX - minX + 1,
+                height: maxY - minY + 1,
+              },
+            };
+          };
+
+          // H0/H1: nenhum modelo visível. Um passe/target existir não basta; sem
+          // assunto ele não pode deixar tinta residual no piso.
+          const passesBefore = reflectionPasses();
+          const h0 = await capture();
+          actions.setPropertyValue(stageId, 'props.reflectionStrength', 1, false);
+          const h1 = await capture();
+
+          const canvas = studioCanvas().getBoundingClientRect();
+          const contatoCss = window.__theatrumStudio.project([0, 0, 0]);
+          const contato =
+            contatoCss === null
+              ? null
+              : {
+                  x: contatoCss[0] * (h0.width / canvas.width),
+                  y: contatoCss[1] * (h0.height / canvas.height),
+                };
+          const splitY = contato?.y ?? h0.height / 2;
+
+          // Dlow/Rlow: imagem direta com o reflexo desligado e o mesmo frame com
+          // ele ligado. A diferença entre as duas é exclusivamente o reflexo.
+          actions.setPropertyValue(stageId, 'props.reflectionStrength', 0, false);
+          actions.setPropertyValue(modelId, 'transform.opacity', 1, false);
+          const dLow = await capture();
+          actions.setPropertyValue(stageId, 'props.reflectionStrength', 1, false);
+          const rLowA = await capture();
+          const passesAfterSeed = reflectionPasses();
+
+          // O target agora contém o modelo iluminado. Ocultá-lo e fazer outro OFF/ON
+          // prova que a textura antiga não vaza quando deixa de haver assunto.
+          actions.setPropertyValue(modelId, 'transform.opacity', 0, false);
+          actions.setPropertyValue(stageId, 'props.reflectionStrength', 0, false);
+          const hiddenAfterSeedOff = await capture();
+          actions.setPropertyValue(stageId, 'props.reflectionStrength', 1, false);
+          const hiddenAfterSeedOn = await capture();
+          const passesAfterHidden = reflectionPasses();
+
+          // OFF -> ON de verdade entre as leituras iguais. Se o target acumular o
+          // quadro anterior ou depender da ordem de passes, a segunda imagem denuncia.
+          actions.setPropertyValue(modelId, 'transform.opacity', 1, false);
+          actions.setPropertyValue(stageId, 'props.reflectionStrength', 0, false);
+          const dLowB = await capture();
+          actions.setPropertyValue(stageId, 'props.reflectionStrength', 1, false);
+          const rLowB = await capture();
+
+          // A cor refletida tem de vir do material iluminado, não de uma máscara ou
+          // elipse genérica. Com key, rim e environment zerados ainda há a luz ambiente
+          // mínima do palco, mas a energia isolada do reflexo deve cair fortemente.
+          actions.setPropertyValue(stageId, 'props.reflectionStrength', 0, false);
+          setLighting(0, 0, 0);
+          const dDark = await capture();
+          actions.setPropertyValue(stageId, 'props.reflectionStrength', 1, false);
+          const rDark = await capture();
+
+          // Dhigh/Rhigh: ao subir o objeto, a silhueta direta vai para cima e a
+          // silhueta no espelho se afasta do piso no sentido oposto.
+          actions.setPropertyValue(stageId, 'props.reflectionStrength', 0, false);
+          setLighting(2.6, 1.8, 0.75);
+          actions.setPropertyValue(modelId, 'props.altitudeMeters', 7, false);
+          const dHigh = await capture();
+          actions.setPropertyValue(stageId, 'props.reflectionStrength', 1, false);
+          const rHigh = await capture();
+          const passesAfter = reflectionPasses();
+
+          const directLow = diffStats(h0, dLow, splitY);
+          const reflectionLow = diffStats(dLow, rLowA, splitY);
+          const directDark = diffStats(h0, dDark, splitY);
+          const reflectionDark = diffStats(dDark, rDark, splitY);
+          const directHigh = diffStats(h0, dHigh, splitY);
+          const reflectionHigh = diffStats(dHigh, rHigh, splitY);
+
+          // O status do target ajuda a diagnosticar alocação/passe, mas não participa
+          // do verde: a prova é o efeito final em pixel.
+          const targetDiagnostic = studio().reflection ?? null;
+
+          return {
+            size: [h0.width, h0.height],
+            contato,
+            hiddenDelta: differingPixels(h0, h1, 8),
+            hiddenAfterSeedDelta: differingPixels(hiddenAfterSeedOff, hiddenAfterSeedOn, 8),
+            directLow,
+            reflectionLow,
+            directDark,
+            reflectionDark,
+            directHigh,
+            reflectionHigh,
+            repeatedOnDelta: differingPixels(rLowA, rLowB, 0),
+            repeatedOffDelta: differingPixels(dLow, dLowB, 0),
+            reflectionPasses: {
+              before: passesBefore,
+              afterSeed: passesAfterSeed,
+              afterHidden: passesAfterHidden,
+              after: passesAfter,
+            },
+            targetDiagnostic,
+            cameraAuthoring: window.__theatrumStudio.camera()?.authoring ?? false,
+            marking: studioTool('Marcar pontos')?.getAttribute('aria-pressed') === 'true',
+          };
+        })()`,
+      );
+
+      const [reflexoWidth, reflexoHeight] = reflexo.size;
+      const reflexoArea = reflexoWidth * reflexoHeight;
+      const minDirectPixels = Math.max(300, reflexoArea * 0.001);
+      const minReflectionPixels = Math.max(
+        150,
+        (reflexo.directLow?.count ?? 0) * 0.04,
+        reflexoArea * 0.00025,
+      );
+      const hiddenLimit = Math.max(20, reflexoArea * 0.0002);
+      const statsCompletas = Boolean(
+        reflexo.contato &&
+        reflexo.directLow?.centroid &&
+        reflexo.reflectionLow?.centroid &&
+        reflexo.directHigh?.centroid &&
+        reflexo.reflectionHigh?.centroid,
+      );
+      const diretoVisivel =
+        (reflexo.directLow?.count ?? 0) > minDirectPixels &&
+        (reflexo.directHigh?.count ?? 0) > minDirectPixels * 0.5;
+      const reflexoVisivel =
+        (reflexo.reflectionLow?.count ?? 0) > minReflectionPixels &&
+        (reflexo.reflectionHigh?.count ?? 0) > minReflectionPixels * 0.5 &&
+        (reflexo.reflectionLow?.count ?? reflexoArea) < reflexoArea * 0.25;
+      const ladosDoPiso =
+        statsCompletas &&
+        reflexo.directLow.aboveFraction > 0.7 &&
+        reflexo.reflectionLow.belowFraction > 0.7 &&
+        reflexo.directLow.centroid.y < reflexo.contato.y - reflexoHeight * 0.008 &&
+        reflexo.reflectionLow.centroid.y > reflexo.contato.y + reflexoHeight * 0.008;
+      const directShift = statsCompletas
+        ? reflexo.directLow.centroid.y - reflexo.directHigh.centroid.y
+        : 0;
+      const reflectionShift = statsCompletas
+        ? reflexo.reflectionHigh.centroid.y - reflexo.reflectionLow.centroid.y
+        : 0;
+      const shiftRatio = directShift > 0 ? reflectionShift / directShift : 0;
+      const movimentoEspelhado =
+        directShift > reflexoHeight * 0.012 &&
+        reflectionShift > reflexoHeight * 0.008 &&
+        shiftRatio > 0.25 &&
+        shiftRatio < 3.5;
+      const semModeloSemTinta = reflexo.hiddenDelta < hiddenLimit;
+      const targetVelhoNaoVazou = reflexo.hiddenAfterSeedDelta < hiddenLimit;
+      const litReflectionEnergy = reflexo.reflectionLow?.energy ?? 0;
+      const darkReflectionEnergy = reflexo.reflectionDark?.energy ?? Number.POSITIVE_INFINITY;
+      const darkEnergyRatio =
+        litReflectionEnergy > 0
+          ? darkReflectionEnergy / litReflectionEnergy
+          : Number.POSITIVE_INFINITY;
+      // Fill e ambiente mínimos continuam ligados no rig, portanto zero não é uma
+      // expectativa honesta. Exigir queda de ao menos 35% ainda deixa folga para
+      // materiais escuros e reprova uma máscara cuja tinta independe da iluminação.
+      const materialRespondeALuz = darkEnergyRatio < 0.65;
+      const repetivel = reflexo.repeatedOnDelta === 0 && reflexo.repeatedOffDelta === 0;
+      const uiNormalizada = !reflexo.cameraAuthoring && !reflexo.marking;
+      const centro = (stats) =>
+        stats?.centroid === null || stats?.centroid === undefined
+          ? "—"
+          : `${stats.centroid.x.toFixed(0)},${stats.centroid.y.toFixed(0)}`;
+
+      record(
+        "13 · reflexo espelha a geometria abaixo do piso e acompanha a altura",
+        statsCompletas &&
+          diretoVisivel &&
+          reflexoVisivel &&
+          ladosDoPiso &&
+          movimentoEspelhado &&
+          semModeloSemTinta &&
+          targetVelhoNaoVazou &&
+          materialRespondeALuz &&
+          repetivel &&
+          uiNormalizada,
+        `sem modelo antes/depois de semear deixou ${String(reflexo.hiddenDelta)}/` +
+          `${String(reflexo.hiddenAfterSeedDelta)} px (limite ${hiddenLimit.toFixed(0)}); ` +
+          `direto baixo/alto ${String(reflexo.directLow?.count ?? 0)}/${String(reflexo.directHigh?.count ?? 0)} px ` +
+          `em ${centro(reflexo.directLow)} → ${centro(reflexo.directHigh)}; ` +
+          `reflexo baixo/alto ${String(reflexo.reflectionLow?.count ?? 0)}/${String(reflexo.reflectionHigh?.count ?? 0)} px ` +
+          `em ${centro(reflexo.reflectionLow)} → ${centro(reflexo.reflectionHigh)}; ` +
+          `energia iluminado/escuro ${String(Math.round(litReflectionEnergy))}/` +
+          `${String(Math.round(darkReflectionEnergy))} (razão ${darkEnergyRatio.toFixed(2)}); ` +
+          `contato y ${reflexo.contato?.y.toFixed(0) ?? "—"}, deslocamentos opostos ` +
+          `${directShift.toFixed(1)}/${reflectionShift.toFixed(1)} px (razão ${shiftRatio.toFixed(2)}); ` +
+          `ON/OFF repetidos diferem em ${String(reflexo.repeatedOnDelta)}/` +
+          `${String(reflexo.repeatedOffDelta)} px; passes ` +
+          `${JSON.stringify(reflexo.reflectionPasses)}; target ` +
+          `${JSON.stringify(reflexo.targetDiagnostic)}`,
+      );
+
+      // ── 13b. Three + submissão CPU cabem no orçamento de 1080p ───────────────
+      //
+      // Não há cronômetro improvisado aqui. A CPU vem do intervalo que o painel
+      // mede de evaluate até terminar Three, marcadores e a submissão do Pixi; a
+      // GPU é a do canvas Three, via EXT_disjoint_timer_query_webgl2 assíncrona.
+      // Pixi vive em outro contexto e não cabe na mesma query; o nome do critério
+      // diz essa fronteira em vez de chamar a medida de "GPU do frame completo".
+      //
+      // A ordem A-B-B-A separa tendência térmica/clock da diferença do reflexo.
+      // Cada bloco aquece shaders e targets antes de abrir uma época nova de
+      // medição. Durante a época, cada mudança de playhead espera apenas o contador
+      // real de renders avançar — não existe pausa fixa fingindo estabilização.
+      const perfil = await client.evaluate(
+        `(async () => {
+          const stageId = ${JSON.stringify(stageId)};
+          const modelId = ${JSON.stringify(modelId)};
+          const actions = session().actions;
+          const profile = window.__theatrumStudio?.profile;
+          const requiredMethods = ['start', 'reset', 'stop', 'status', 'poll'];
+          if (
+            profile === undefined ||
+            requiredMethods.some((method) => typeof profile[method] !== 'function')
+          ) {
+            return {
+              error: 'API window.__theatrumStudio.profile incompleta',
+              blocks: [],
+              initial: null,
+            };
+          }
+
+          actions.pause();
+          profile.stop();
+          profile.reset();
+          const initial = profile.status();
+          const comp = composition();
+          const duration = comp?.duration ?? 0;
+          if (duration < 80) {
+            return {
+              error: 'composição precisa ter ao menos 80 frames únicos',
+              duration,
+              blocks: [],
+              initial,
+            };
+          }
+
+          // Estado constante entre A e B. Só reflectionStrength varia.
+          for (const [path, value] of [
+            ['props.gridOpacity', 0],
+            ['props.floorTexture', 0],
+            ['props.shadowStrength', 0],
+            ['props.vignette', 0],
+            ['props.horizonHaze', 0],
+          ]) {
+            if (!actions.setPropertyValue(stageId, path, value, false)) {
+              return {
+                error: 'palco recusou ' + path + ' no perfil 1080p',
+                duration,
+                blocks: [],
+                initial,
+              };
+            }
+          }
+          for (const [path, value] of [
+            ['props.altitudeMeters', 2],
+            ['transform.opacity', 1],
+          ]) {
+            if (!actions.setPropertyValue(modelId, path, value, false)) {
+              return {
+                error: 'modelo recusou ' + path + ' no perfil 1080p',
+                duration,
+                blocks: [],
+                initial,
+              };
+            }
+          }
+
+          const nextRenderedFrame = async (frame) => {
+            const before = studio().renders;
+            actions.setPlayhead(frame);
+            const deadline = Date.now() + 8000;
+            while (Date.now() < deadline) {
+              const after = studio().renders;
+              if (after > before) return { frame, renders: after - before };
+              await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+            }
+            throw new Error(
+              'contador do palco não avançou para o frame de perfil ' + String(frame),
+            );
+          };
+
+          const pollUntilComplete = async () => {
+            const deadline = Date.now() + 3000;
+            let snapshot = profile.poll();
+            while (snapshot.pending > 0 && Date.now() < deadline) {
+              await wait(16);
+              snapshot = profile.poll();
+            }
+            return snapshot;
+          };
+
+          const order = [false, true, true, false];
+          const blocks = [];
+          try {
+            for (let blockIndex = 0; blockIndex < order.length; blockIndex += 1) {
+              const reflectionOn = order[blockIndex];
+              if (
+                !actions.setPropertyValue(
+                  stageId,
+                  'props.reflectionStrength',
+                  reflectionOn ? 1 : 0,
+                  false,
+                )
+              ) {
+                throw new Error(
+                  'palco recusou reflectionStrength no bloco ' + String(blockIndex + 1),
+                );
+              }
+
+              // Doze frames fora da época medida aquecem shader, target e driver.
+              // Alternar as pontas garante um render mesmo se a rodada anterior
+              // terminou no mesmo playhead.
+              const warmupRenders = [];
+              for (let warmup = 0; warmup < 12; warmup += 1) {
+                warmupRenders.push(
+                  await nextRenderedFrame(warmup % 2 === 0 ? duration : 0),
+                );
+              }
+
+              const firstFrame = blockIndex * 20 + 1;
+              const measuredFrames = Array.from(
+                { length: 20 },
+                (_, offset) => firstFrame + offset,
+              );
+              profile.start();
+              const started = profile.status();
+              const measuredRenders = [];
+              try {
+                for (const frame of measuredFrames) {
+                  measuredRenders.push(await nextRenderedFrame(frame));
+                }
+              } finally {
+                profile.stop();
+              }
+              const finished = await pollUntilComplete();
+              blocks.push({
+                index: blockIndex + 1,
+                label: reflectionOn ? 'ON' : 'OFF',
+                reflectionOn,
+                warmupFrames: warmupRenders.length,
+                measuredFrames,
+                measuredRenderDeltas: measuredRenders.map((entry) => entry.renders),
+                started,
+                finished,
+              });
+            }
+          } catch (error) {
+            profile.stop();
+            return {
+              error: error instanceof Error ? error.message : String(error),
+              duration,
+              blocks,
+              initial,
+            };
+          }
+          profile.stop();
+          return { error: null, duration, blocks, initial };
+        })()`,
+      );
+
+      const validSamples = (samples) =>
+        Array.isArray(samples)
+          ? samples.filter(
+              (sample) => typeof sample === "number" && Number.isFinite(sample) && sample >= 0,
+            )
+          : [];
+      const percentile = (samples, fraction) => {
+        if (samples.length === 0) return null;
+        const ordered = [...samples].sort((a, b) => a - b);
+        const rank = Math.max(0, Math.ceil(ordered.length * fraction) - 1);
+        return ordered[Math.min(rank, ordered.length - 1)];
+      };
+      const summarize = (samples) => ({
+        count: samples.length,
+        p50: percentile(samples, 0.5),
+        p95: percentile(samples, 0.95),
+      });
+      const formatMetric = (metric) =>
+        `${String(metric.count)} amostras, p50 ${
+          metric.p50 === null ? "—" : metric.p50.toFixed(2)
+        } ms, p95 ${metric.p95 === null ? "—" : metric.p95.toFixed(2)} ms`;
+
+      const cpuOff = [];
+      const cpuOn = [];
+      const gpuOff = [];
+      const gpuOn = [];
+      for (const block of perfil.blocks ?? []) {
+        const cpu = validSamples(
+          block.finished?.cpuMs?.[block.reflectionOn ? "reflectionOn" : "reflectionOff"],
+        );
+        const gpu = validSamples(
+          block.finished?.gpuMs?.[block.reflectionOn ? "reflectionOn" : "reflectionOff"],
+        );
+        (block.reflectionOn ? cpuOn : cpuOff).push(...cpu);
+        (block.reflectionOn ? gpuOn : gpuOff).push(...gpu);
+      }
+      const metrics = {
+        cpuOff: summarize(cpuOff),
+        cpuOn: summarize(cpuOn),
+        gpuOff: summarize(gpuOff),
+        gpuOn: summarize(gpuOn),
+      };
+      const blocksCompletos =
+        perfil.error === null &&
+        perfil.blocks.length === 4 &&
+        perfil.blocks.every((block) => {
+          const cpu = validSamples(
+            block.finished?.cpuMs?.[block.reflectionOn ? "reflectionOn" : "reflectionOff"],
+          );
+          const gpu = validSamples(
+            block.finished?.gpuMs?.[block.reflectionOn ? "reflectionOn" : "reflectionOff"],
+          );
+          return (
+            block.warmupFrames === 12 &&
+            block.measuredFrames.length === 20 &&
+            new Set(block.measuredFrames).size === 20 &&
+            block.finished?.pending === 0 &&
+            cpu.length >= 20 &&
+            gpu.length >= 20
+          );
+        });
+      const measuredFrames = (perfil.blocks ?? []).flatMap((block) => block.measuredFrames);
+      const framesUnicos =
+        measuredFrames.length === 80 && new Set(measuredFrames).size === measuredFrames.length;
+      const ordemAbba =
+        (perfil.blocks ?? []).map((block) => block.label).join("-") === "OFF-ON-ON-OFF";
+      const measuredStatuses = (perfil.blocks ?? [])
+        .flatMap((block) => [block.started, block.finished])
+        .filter(Boolean);
+      const statuses = [perfil.initial, ...measuredStatuses].filter(Boolean);
+      const gpuDisponivel = statuses.length > 0 && statuses.every((status) => status.supported);
+      const semDisjoint = (perfil.blocks ?? []).every((block) => block.finished?.disjoints === 0);
+      const canvas1080p =
+        measuredStatuses.length === 8 &&
+        measuredStatuses.every(
+          (status) => status.canvas?.width >= 1920 && status.canvas?.height >= 1080,
+        );
+      const amostras40 =
+        metrics.cpuOff.count >= 40 &&
+        metrics.cpuOn.count >= 40 &&
+        metrics.gpuOff.count >= 40 &&
+        metrics.gpuOn.count >= 40;
+      const dentroDoOrcamento =
+        metrics.cpuOn.p95 !== null &&
+        metrics.gpuOn.p95 !== null &&
+        metrics.cpuOn.p95 < 16.6 &&
+        metrics.gpuOn.p95 < 16.6;
+      const finalStatus = perfil.blocks?.at(-1)?.finished ?? perfil.initial;
+      const angle =
+        finalStatus?.diagnostics?.angle ??
+        finalStatus?.diagnostics?.unmaskedRenderer ??
+        finalStatus?.diagnostics?.renderer ??
+        "indisponível";
+      const canvas = finalStatus?.canvas;
+      const blockCounts = (perfil.blocks ?? [])
+        .map((block) => {
+          const bucket = block.reflectionOn ? "reflectionOn" : "reflectionOff";
+          return (
+            `${String(block.index)}:${block.label} ` +
+            `CPU ${String(validSamples(block.finished?.cpuMs?.[bucket]).length)}/` +
+            `GPU ${String(validSamples(block.finished?.gpuMs?.[bucket]).length)}, ` +
+            `pending ${String(block.finished?.pending ?? "—")}, ` +
+            `disjoint ${String(block.finished?.disjoints ?? "—")}`
+          );
+        })
+        .join(" | ");
+
+      record(
+        "13b · canvas Three com reflexo e CPU de submissão cabem em 1080p",
+        perfil.error === null &&
+          blocksCompletos &&
+          framesUnicos &&
+          ordemAbba &&
+          gpuDisponivel &&
+          semDisjoint &&
+          canvas1080p &&
+          amostras40 &&
+          dentroDoOrcamento,
+        `${perfil.error === null ? "medição concluída" : `erro: ${perfil.error}`}; ` +
+          `canvas físico ${String(canvas?.width ?? 0)}×${String(canvas?.height ?? 0)} ` +
+          `${canvas1080p ? "(1080p real ou maior)" : "(MENOR que 1920×1080)"}; ` +
+          `GPU Three ${gpuDisponivel ? "timer suportado" : "SEM timer"}, ` +
+          `ANGLE/renderer ${angle}; ordem ${String(
+            (perfil.blocks ?? []).map((block) => block.label).join("-") || "—",
+          )}; blocos ${blockCounts || "nenhum"}; ` +
+          `CPU OFF ${formatMetric(metrics.cpuOff)}; CPU ON ${formatMetric(metrics.cpuOn)}; ` +
+          `GPU Three OFF ${formatMetric(metrics.gpuOff)}; GPU Three ON ${formatMetric(
+            metrics.gpuOn,
+          )}; limite p95 ON < 16,60 ms, disjoints ${
+            semDisjoint ? "0" : "PRESENTES"
+          }; sem extrapolação de resolução`,
+      );
     }
   } finally {
     // ── Desfaz tudo e prova que o documento voltou ao início ────────────────
-    const restored = await client.evaluate(
-      `(async () => {
+    try {
+      const restored = await client.evaluate(
+        `(async () => {
+        // Estes dois estados pertencem ao painel, não ao Command Bus. Normalizá-los
+        // antes do undo é o que permite duas rodadas idênticas do verificador.
+        const cameraDoDocumento = studioTool('Câmera do documento');
+        if (cameraDoDocumento !== null) cameraDoDocumento.click();
+        const marcar = studioTool('Marcar pontos');
+        if (marcar !== null && marcar.getAttribute('aria-pressed') === 'true') marcar.click();
+        await wait(180);
         const bus = session().commandBus;
         let undone = 0;
-        while (bus.history.canUndo() && undone < 200) {
+        while (bus.history.canUndo() && undone < 400) {
           bus.history.undo();
           undone += 1;
         }
+        const limiteAtingido = bus.history.canUndo();
         session().actions.setPlayhead(0);
         session().actions.clearSelection();
         await wait(300);
         return {
           undone,
+          limiteAtingido,
           document: JSON.stringify(canonical(session().getSnapshot().document)),
           palcoDesligado: palcoDesligado(),
           studioActive: studio().active,
+          cameraAuthoring: window.__theatrumStudio.camera()?.authoring ?? false,
+          marking: studioTool('Marcar pontos')?.getAttribute('aria-pressed') === 'true',
         };
-      })()`,
-    );
-    const clean = restored.document === baseline;
-    record(
-      "0 · desfazer devolve o documento e desliga o palco",
-      clean && restored.palcoDesligado && !restored.studioActive,
-      `${restored.undone} comandos desfeitos, documento ${clean ? "idêntico" : "DIVERGENTE"}, ` +
-        `palco ${restored.studioActive ? "AINDA ATIVO" : "desligado"}`,
-    );
-    client.close();
+        })()`,
+      );
+      const clean = restored.document === baseline;
+      record(
+        "0 · desfazer devolve o documento e desliga o palco",
+        clean &&
+          restored.palcoDesligado &&
+          !restored.studioActive &&
+          !restored.limiteAtingido &&
+          !restored.cameraAuthoring &&
+          !restored.marking,
+        `${restored.undone} comandos desfeitos, documento ${clean ? "idêntico" : "DIVERGENTE"}, ` +
+          `palco ${restored.studioActive ? "AINDA ATIVO" : "desligado"}, ` +
+          `UI ${restored.cameraAuthoring || restored.marking ? "AINDA ATIVA" : "neutra"}, ` +
+          `histórico ${restored.limiteAtingido ? "AINDA TEM UNDO" : "esgotado"}`,
+      );
+    } finally {
+      try {
+        if (metricsOverrideRequested) {
+          await client.request("Emulation.clearDeviceMetricsOverride");
+        }
+      } finally {
+        client.close();
+      }
+    }
   }
 
   const failures = results.filter((entry) => !entry.ok);

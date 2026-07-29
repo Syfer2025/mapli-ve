@@ -29,6 +29,7 @@
  */
 
 import * as THREE from "three";
+import type { ReflectionProjection } from "./studio-reflection.js";
 import type { ShadowProjection } from "./studio-shadow.js";
 
 const VERTEX = /* glsl */ `
@@ -68,6 +69,13 @@ uniform float uTexture;
 uniform float uHaze;
 uniform vec3 uHazeColor;
 
+uniform sampler2D uReflectionMap;
+/* bias * projection * view: leva mundo direto em UV homogêneo. */
+uniform mat4 uReflectionMatrix;
+uniform vec2 uReflectionTexelSize;
+uniform float uReflectionStrength;
+uniform float uReflectionValid;
+
 uniform sampler2D uShadowMap;
 /* projection * view da camera de cima: leva mundo direto em UV da silhueta. */
 uniform mat4 uShadowMatrix;
@@ -95,6 +103,33 @@ vec3 linearToSrgb(vec3 linear) {
   vec3 low = linear * 12.92;
   vec3 high = 1.055 * pow(max(linear, vec3(0.0)), vec3(1.0 / 2.4)) - 0.055;
   return mix(high, low, step(linear, vec3(0.0031308)));
+}
+
+/**
+ * A mesma curva ACESFilmicToneMapping do Three, com exposure 1.
+ *
+ * O modelo direto recebe esta curva do renderer. O target do espelho precisa
+ * guardar HDR linear e chegar aqui antes da curva; aplicar só depois do clamp de
+ * RGBA8 apagaria highlights, e omiti-la faria reflexo e objeto terem contrastes
+ * diferentes apesar de virem do mesmo material.
+ */
+vec3 acesFilmicToneMapping(vec3 color) {
+  const mat3 inputMatrix = mat3(
+    vec3(0.59719, 0.07600, 0.02840),
+    vec3(0.35458, 0.90834, 0.13383),
+    vec3(0.04823, 0.01566, 0.83777)
+  );
+  const mat3 outputMatrix = mat3(
+    vec3( 1.60475, -0.10208, -0.00327),
+    vec3(-0.53108,  1.10813, -0.07276),
+    vec3(-0.07367, -0.00605,  1.07602)
+  );
+  color *= 1.0 / 0.6;
+  color = inputMatrix * color;
+  vec3 a = color * (color + 0.0245786) - 0.000090537;
+  vec3 b = color * (0.983729 * color + 0.4329510) + 0.238081;
+  color = a / b;
+  return clamp(outputMatrix * color, 0.0, 1.0);
 }
 
 /** Ponto do mundo sob um ponto de recorte, na profundidade dada. */
@@ -213,6 +248,43 @@ float silhouetteShadow(vec3 world) {
 }
 
 /**
+ * Cor e cobertura do espelho planar no ponto reconstruído do piso.
+ *
+ * O target tem fundo transparente, portanto alfa zero é uma prova geométrica de
+ * que não há equipamento naquele ponto — ligar o controle num palco vazio não
+ * cria um brilho genérico. Cinco amostras dão rugosidade curta sem transformar
+ * o reflexo em borrão; o tamanho vem do target real, não de um 1024 presumido.
+ */
+vec4 floorReflection(vec3 world, float distanceFade) {
+  if (uReflectionValid < 0.5 || uReflectionStrength <= 0.0) return vec4(0.0);
+  vec4 projected = uReflectionMatrix * vec4(world, 1.0);
+  if (projected.w <= 1e-6) return vec4(0.0);
+  vec2 uv = projected.xy / projected.w;
+  if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return vec4(0.0);
+
+  vec2 radius = uReflectionTexelSize * 1.5;
+  vec4 reflected = texture(uReflectionMap, uv) * 0.36;
+  reflected += texture(uReflectionMap, uv + vec2(radius.x, 0.0)) * 0.16;
+  reflected += texture(uReflectionMap, uv - vec2(radius.x, 0.0)) * 0.16;
+  reflected += texture(uReflectionMap, uv + vec2(0.0, radius.y)) * 0.16;
+  reflected += texture(uReflectionMap, uv - vec2(0.0, radius.y)) * 0.16;
+
+  // O blur mistura cor com o fundo transparente e devolve RGB pré-multiplicado
+  // pela cobertura. Recuperar a cor reta antes do mix evita aplicar alfa duas
+  // vezes (c*a no filtro e outra vez no mix), que escureceria toda borda.
+  float coverage = clamp(reflected.a, 0.0, 1.0);
+  if (coverage <= 1e-5) return vec4(0.0);
+  reflected.rgb = acesFilmicToneMapping(max(reflected.rgb / coverage, vec3(0.0)));
+
+  vec3 toCamera = normalize(uCameraPosition - world);
+  float facing = clamp(dot(toCamera, vec3(0.0, 1.0, 0.0)), 0.0, 1.0);
+  // Piso de vitrine: reflexo discreto de frente e mais forte em ângulo rasante.
+  float fresnel = 0.22 + 0.78 * pow(1.0 - facing, 2.0);
+  reflected.a = coverage * uReflectionStrength * fresnel * sqrt(max(distanceFade, 0.0));
+  return reflected;
+}
+
+/**
  * A cor do fundo numa direção do olhar.
  *
  * Dois problemas que o dono relatou de uma vez: "metade da tela do palco parece
@@ -287,10 +359,16 @@ void main() {
   float coverage = max(fine * 0.55, coarse) * uOpacity;
 
   float shade = silhouetteShadow(hit);
+  vec4 reflection = floorReflection(hit, fade);
   vec3 floorTone = uFloorColor * (1.0 + grain);
+  vec3 reflectedFloor = mix(floorTone, reflection.rgb, clamp(reflection.a, 0.0, 1.0));
   // A sombra escurece o piso e as linhas juntos: sombra que apaga o chão e deixa
   // a grade acesa por baixo denuncia o truque na hora.
-  vec3 color = mix(floorTone * (1.0 - shade * 0.86), uGridColor * (1.0 - shade * 0.74), coverage);
+  vec3 color = mix(
+    reflectedFloor * (1.0 - shade * 0.86),
+    uGridColor * (1.0 - shade * 0.74),
+    coverage
+  );
   // Sem o antigo + 0.08: era ele que impedia o piso de chegar à cor do fundo e
   // deixava a aresta no horizonte. O piso agora dissolve por completo, e no valor
   // exato que o céu tem naquela mesma direção.
@@ -307,6 +385,10 @@ export interface StudioGridAppearance {
   readonly opacity: number;
   /** 0 desliga a textura procedural e devolve o piso liso. */
   readonly texture: number;
+  /** Cena colorida vista pela câmera espelhada; `null` não amostra target antigo. */
+  readonly reflection: ReflectionProjection | null;
+  /** Força do reflexo, 0..1. */
+  readonly reflectionStrength: number;
   /** Silhueta projetada vinda do `StudioShadowProjector`; `null` some a sombra. */
   readonly shadow: ShadowProjection | null;
   /** Força da sombra, 0..1. */
@@ -339,6 +421,11 @@ export function createStudioGrid(): StudioGrid {
     uOpacity: { value: 0.55 },
     uFade: { value: 120 },
     uTexture: { value: 0.35 },
+    uReflectionMap: { value: null as THREE.Texture | null },
+    uReflectionMatrix: { value: new THREE.Matrix4() },
+    uReflectionTexelSize: { value: new THREE.Vector2(1, 1) },
+    uReflectionStrength: { value: 0 },
+    uReflectionValid: { value: 0 },
     uShadowMap: { value: null as THREE.Texture | null },
     uShadowMatrix: { value: new THREE.Matrix4() },
     uShadowStrength: { value: 0 },
@@ -384,10 +471,27 @@ export function createStudioGrid(): StudioGrid {
       uniforms.uHaze.value = Math.max(0, Math.min(1, appearance.haze));
       uniforms.uHazeColor.value.set(appearance.hazeColor);
 
+      const reflection = appearance.reflection;
+      if (reflection === null) {
+        uniforms.uReflectionValid.value = 0;
+        uniforms.uReflectionStrength.value = 0;
+        uniforms.uReflectionMap.value = null;
+      } else {
+        uniforms.uReflectionValid.value = 1;
+        uniforms.uReflectionMap.value = reflection.texture;
+        uniforms.uReflectionMatrix.value.copy(reflection.matrix);
+        uniforms.uReflectionTexelSize.value.copy(reflection.texelSize);
+        uniforms.uReflectionStrength.value = Math.max(
+          0,
+          Math.min(1, appearance.reflectionStrength),
+        );
+      }
+
       const shadow = appearance.shadow;
       if (shadow === null) {
         uniforms.uShadowValid.value = 0;
         uniforms.uShadowStrength.value = 0;
+        uniforms.uShadowMap.value = null;
       } else {
         uniforms.uShadowValid.value = 1;
         uniforms.uShadowMap.value = shadow.texture;

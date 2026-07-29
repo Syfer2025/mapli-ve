@@ -70,6 +70,19 @@ describe("collectStudioStage", () => {
     expect(stage?.distanceMeters).toBe(40);
     expect(stage?.fovDeg).toBe(38);
     expect(stage?.gridSpacingMeters).toBe(5);
+    // ADR-018: palco salvo antes da prop continua pixel-idêntico.
+    expect(stage?.reflectionStrength).toBe(0);
+  });
+
+  it("limita a força do reflexo ao intervalo desenhável", () => {
+    const acima = collectStudioStage(
+      evaluated([["p", { type: "studio.stage", props: { reflectionStrength: 5 } }]]),
+    );
+    const abaixo = collectStudioStage(
+      evaluated([["p", { type: "studio.stage", props: { reflectionStrength: -2 } }]]),
+    );
+    expect(acima?.reflectionStrength).toBe(1);
+    expect(abaixo?.reflectionStrength).toBe(0);
   });
 
   /**

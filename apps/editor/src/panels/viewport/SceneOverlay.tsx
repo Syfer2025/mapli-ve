@@ -875,7 +875,9 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
   }, [penState, commitPen, updatePen]);
 
   useEffect(() => {
-    if (!import.meta.env.DEV) return;
+    // A flag existe para verificar o bundle estático/minificado sem servidor
+    // HMR. Builds distribuídos não a definem e continuam sem esta superfície.
+    if (!(import.meta.env.DEV || import.meta.env.VITE_THEATRUM_VERIFY === "1")) return;
     const debug: Phase4DebugSurface = Object.freeze({
       getSnapshot: () =>
         serializeDebugFrame(frameRef.current, gizmoModeRef.current, renderCountRef.current),

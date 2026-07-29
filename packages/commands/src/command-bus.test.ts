@@ -278,6 +278,82 @@ describe("CommandBus", () => {
     expect(rootNode(mainComposition(document.get())).transform.opacity.keyframes).toEqual([]);
   });
 
+  it("inicializa uma prop opcional sem tornar property.set permissivo a typo", () => {
+    const document = createDocumentStore(createEmptyProjectDocument());
+    const bus = createCommandBus(document);
+    const location = {
+      compositionId: "cmp_main",
+      target: { kind: "node", nodeId: "nd_root" },
+      path: ["props", "legacyStrength"],
+    } as const;
+
+    const typo = bus.dispatch(command("property.set", { ...location, value: 0.8 }));
+    expect(typo).toMatchObject({ ok: false, error: { code: "rejected" } });
+    expect(rootNode(mainComposition(document.get())).props["legacyStrength"]).toBeUndefined();
+
+    expectOk(
+      bus,
+      command("property.initialize", {
+        ...location,
+        property: { value: 0.3, keyframes: [], expression: null },
+      }),
+    );
+    expect(rootNode(mainComposition(document.get())).props["legacyStrength"]).toEqual({
+      value: 0.3,
+      keyframes: [],
+      expression: null,
+    });
+    expect(bus.history.entries()[0]?.commandTypes).toEqual(["property.initialize"]);
+
+    const duplicate = bus.dispatch(
+      command("property.initialize", {
+        ...location,
+        property: { value: 0.9, keyframes: [], expression: null },
+      }),
+    );
+    expect(duplicate).toMatchObject({ ok: false, error: { code: "rejected" } });
+    expect(bus.history.entries()).toHaveLength(1);
+
+    expect(bus.undo()).toBe(true);
+    expect(rootNode(mainComposition(document.get())).props["legacyStrength"]).toBeUndefined();
+  });
+
+  it("agrupa inicialização e primeiro keyframe em um undo atômico", () => {
+    const document = createDocumentStore(createEmptyProjectDocument());
+    const bus = createCommandBus(document);
+    const location = {
+      compositionId: "cmp_main",
+      target: { kind: "node", nodeId: "nd_root" },
+      path: ["props", "legacyStrength"],
+    } as const;
+
+    const result = bus.transaction("Criar primeiro keyframe", () => {
+      bus.dispatch(
+        command("property.initialize", {
+          ...location,
+          property: { value: 0.3, keyframes: [], expression: null },
+        }),
+      );
+      bus.dispatch(
+        command("keyframe.set", {
+          ...location,
+          keyframe: keyframe("kf_12", 12, 0.3),
+        }),
+      );
+    });
+
+    expect(result).toMatchObject({ ok: true, deferred: false });
+    expect(bus.history.entries()).toHaveLength(1);
+    expect(bus.history.entries()[0]?.commandTypes).toEqual(["property.initialize", "keyframe.set"]);
+    expect(rootNode(mainComposition(document.get())).props["legacyStrength"]).toMatchObject({
+      value: 0.3,
+      keyframes: [{ id: "kf_12", frame: 12, value: 0.3 }],
+    });
+
+    expect(bus.undo()).toBe(true);
+    expect(rootNode(mainComposition(document.get())).props["legacyStrength"]).toBeUndefined();
+  });
+
   it("cria, duplica, renomeia e exclui composições válidas", () => {
     const document = createDocumentStore(createEmptyProjectDocument());
     const bus = createCommandBus(document);
