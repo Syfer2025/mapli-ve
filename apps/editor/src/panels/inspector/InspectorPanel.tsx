@@ -4,6 +4,7 @@ import {
   type PropertyDescriptor,
   type PropertyKind,
 } from "@theatrum/scene-graph";
+import { assetDisplayName } from "@theatrum/assets";
 import type { Anchor, AssetDescriptor, Node, SizeSpec } from "@theatrum/schema";
 import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "react";
 import { editorActions } from "../../document/editor-session.js";
@@ -372,6 +373,23 @@ function EnumPropertyControl({ property, onCommit }: PropertyControlProps): Reac
   );
 }
 
+/**
+ * Escolha de asset.
+ *
+ * **O valor é o `src`, não o `id`.** Isto foi um defeito com consequência exata: este
+ * controle gravava `asset.id`, e todo mundo que **lê** `props.assetId` — o palco em
+ * `collectStudioModels`, a camada 3D do mapa, as primitivas de imagem e SVG do renderer
+ * — trata o valor como o `src`, que é o caminho por hash de conteúdo. Resultado:
+ * escolher um modelo aqui deixava o palco vazio dizendo `asset ausente: ast_…`, e nada
+ * na tela ligava a causa ao efeito. O caminho canônico (`applyAsset`, o duplo clique na
+ * biblioteca) sempre gravou `src`; era este `select` que discordava.
+ *
+ * O nome da prop continua `assetId` por compatibilidade do formato de projeto, e é
+ * enganoso — está anotado no tipo de nó e nas armadilhas do 09-CONTINUIDADE.
+ *
+ * O rótulo mostra o **nome** do asset. `ast_plpsib174e · model` não ajuda ninguém a
+ * achar o F/A-18 numa lista de oitenta.
+ */
 function AssetPropertyControl({ property, assets, onCommit }: PropertyControlProps): ReactNode {
   return (
     <select
@@ -383,8 +401,8 @@ function AssetPropertyControl({ property, assets, onCommit }: PropertyControlPro
     >
       <option value="">Nenhum</option>
       {assets.map((asset) => (
-        <option key={asset.id} value={asset.id}>
-          {asset.id} · {asset.kind}
+        <option key={asset.id} value={asset.src}>
+          {assetDisplayName(asset)} · {asset.kind}
         </option>
       ))}
     </select>

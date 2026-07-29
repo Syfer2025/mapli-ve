@@ -81,7 +81,8 @@ export function formatValidationIssues(issues: readonly DocumentValidationIssue[
 function validateRelations(doc: ProjectDocument, issues: DocumentValidationIssue[]): void {
   const compositionIds = new Set<string>();
   const nodeIds = new Set<string>();
-  const assetIds = new Set(doc.assets.map((asset) => asset.id));
+  // O que os nós referenciam é o SRC do asset, não o id. Ver validateReferences.
+  const assetSrcs = new Set(doc.assets.map((asset) => asset.src));
   const pathIds = new Set(Object.keys(doc.paths));
 
   for (
@@ -124,7 +125,7 @@ function validateRelations(doc: ProjectDocument, issues: DocumentValidationIssue
     }
 
     validateComposition(composition, compositionPointer, issues);
-    validateReferences(composition, compositionPointer, assetIds, pathIds, issues);
+    validateReferences(composition, compositionPointer, assetSrcs, pathIds, issues);
     validateAnimatableValues(composition, compositionPointer, issues, new Set<object>());
   }
 }
@@ -289,7 +290,7 @@ function validateParentCycle(
 function validateReferences(
   composition: Composition,
   pointer: string,
-  assetIds: ReadonlySet<string>,
+  assetSrcs: ReadonlySet<string>,
   pathIds: ReadonlySet<string>,
   issues: DocumentValidationIssue[],
 ): void {
@@ -298,7 +299,17 @@ function validateReferences(
     pointer,
     (value, valuePointer, key) => {
       if (typeof value !== "string") return;
-      if (key === "assetId" && !assetIds.has(value)) {
+      /**
+       * `props.assetId` guarda o **`src`** do asset, não o `id` — o nome da prop é
+       * enganoso e o formato de projeto o mantém por compatibilidade.
+       *
+       * Este validador comparava contra a lista de **ids**, então todo nó criado pelo
+       * caminho canônico (`applyAsset`, que grava `src`) era acusado de referenciar
+       * asset inexistente. Um validador que acusa o caso correto treina quem o lê a
+       * ignorá-lo — e foi ignorado o suficiente para o defeito irmão sobreviver no
+       * `select` do Inspector, que gravava `id` e deixava o palco vazio.
+       */
+      if (key === "assetId" && value !== "" && !assetSrcs.has(value)) {
         addIssue(issues, "missing-asset", valuePointer, `O asset ${value} não existe.`);
       }
       if (key === "pathId" && !pathIds.has(value)) {

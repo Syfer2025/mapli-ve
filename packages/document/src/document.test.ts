@@ -93,6 +93,48 @@ describe("validação relacional", () => {
     );
   });
 
+  /**
+   * `props.assetId` guarda o **`src`** do asset, não o `id`.
+   *
+   * O contrato tinha dois lados discordando e **nenhum teste**, o que é exatamente por
+   * que o defeito sobreviveu: os leitores (palco, camada 3D, primitivas de imagem) e o
+   * criador de nó canônico usam `src`; o validador comparava contra `id` e o `select` do
+   * Inspector gravava `id`. Escolher um modelo no Inspector deixava o palco vazio com
+   * `asset ausente: ast_…`, e o validador acusava justamente o caso correto.
+   *
+   * Este teste trava os dois sentidos, que é o mínimo para um contrato com dois lados.
+   */
+  it("aceita assetId que é o src do asset e recusa o id", () => {
+    const comSrc = createDocumentWithTwoNodes();
+    comSrc.assets = [
+      {
+        id: "ast_um",
+        name: "F/A-18",
+        kind: "model",
+        src: "assets/ab/abcdef.glb",
+        bytes: 10,
+        tags: [],
+        meta: {},
+      },
+    ] as never;
+    comSrc.compositions[0]!.nodes["nd_a"]!.props = { assetId: "assets/ab/abcdef.glb" };
+    expect(validateDocument(comSrc).ok).toBe(true);
+
+    const comId = structuredClone(comSrc);
+    comId.compositions[0]!.nodes["nd_a"]!.props = { assetId: "ast_um" };
+    const result = validateDocument(comId);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.some((issue) => issue.code === "missing-asset")).toBe(true);
+  });
+
+  /** Sem asset é estado legítimo: um `model3d` recém-criado nasce com a prop vazia. */
+  it("assetId vazio não é referência órfã", () => {
+    const document = createDocumentWithTwoNodes();
+    document.compositions[0]!.nodes["nd_a"]!.props = { assetId: "" };
+    expect(validateDocument(document).ok).toBe(true);
+  });
+
   it("assertValidDocument relata o primeiro ponteiro", () => {
     const raw = { ...createEmptyProjectDocument(), name: 42 };
     expect(() => assertValidDocument(raw)).toThrow(/\/name/);
