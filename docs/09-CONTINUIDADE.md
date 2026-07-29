@@ -184,6 +184,12 @@ com alfa e PNG normal/alfa. Nesta retomada, `verify:phase8` deu 7/7 e
 dados offline e o FFmpeg fixado provados na máquina anterior, mas o arquivo em
 `release/` ainda deve ser regenerado antes da entrega externa.
 
+**Módulos novos estão estacionados de propósito.** Palco de voo, simulador de
+combate, editor de personagem modular e animação de asset foram decididos em
+conversa e escritos em [11-VISAO-FUTURA](11-VISAO-FUTURA.md) — nenhum deles entra
+antes de esta lista zerar. A instrução do dono foi explícita: _"vamos tentar
+finalizar o que já temos antes de criar mais e mais módulos"_.
+
 Ordem que vem agora, conforme o prompt de passagem:
 
 1. **Timeline própria do modo palco.** É o próximo bloco real. `TimelinePanel.tsx`
