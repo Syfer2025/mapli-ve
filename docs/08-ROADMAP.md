@@ -340,6 +340,157 @@ Escopo:
 4. Um `geo.region` aparece no Inspector gerado e aceita os filtros existentes
    (outline, glow).
 
+### 7F — Os nove pedidos do palco (2026-07-28)
+
+> 🚧 **Em curso.** Segunda rodada de pedidos do dono sobre o Palco 3D, depois de
+> usar o que o ADR-015 entregou. Atacados em blocos, cada um com prova própria.
+
+Estado medido de cada um no momento do pedido, para a ordem não ser palpite:
+
+| #   | Pedido                                      | Estado quando foi pedido                                                                       | Bloco          |
+| --- | ------------------------------------------- | ---------------------------------------------------------------------------------------------- | -------------- |
+| 1   | Navegação livre tipo _street view_ no palco | **Nenhum handler de pointer/wheel existia**; a câmera vinha só das props do `studio.stage`     | **✅ ADR-017** |
+| 2   | Timeline própria do modo palco              | `TimelinePanel`/`timeline-model` não têm nenhuma referência a studio/stage                     | a fazer        |
+| 3   | Transições fluidas, enquadramento melhor    | interpolação linear das seis props, handles fixos, distância = raio do modelo **inteiro**      | **✅ 7F.4**    |
+| 4   | Integração com qualquer IA                  | é a **Fase 9**; `packages/scripting` é stub de 9 linhas                                        | Fase 9         |
+| 5   | Bolinha + eixo + balão de texto animado     | `label.callout` já faz caixa + guia; falta a bolinha, a revelação animada e mirar um **ponto** | **✅ 7F.5**    |
+| 6   | Complementos sempre virados para a câmera   | callout é Pixi em tela, já encara; o buraco é `withStudioProjection` projetar **só** `model3d` | **✅ 7F.5**    |
+| 7   | POI travado no espaço, não no objeto        | confirmado: `pointX/Y/Z` absolutos, sem vínculo com as quatro props que movem o modelo         | **✅ ADR-016** |
+| 8   | Luz e sombra melhores                       | a sombra era projetada com a luz assumida **vertical** — mancha embaixo, não sombra            | **✅ 7F.6**    |
+| 8b  | Reflexo no piso                             | não existe; o piso é quad de fundo, então pede espelho planar por render target                | a fazer        |
+| 9   | Névoa clara ao fundo, nunca sobre o objeto  | não existe. `THREE.Fog` é por profundidade e lavaria o objeto — tem de ser elemento de fundo   | **✅ 7F.3**    |
+
+#### 7F.1 — POI ancorado no objeto ✅
+
+Entregue e provado pelo [ADR-016](adr/ADR-016-poi-anchored-to-object.md):
+`verify:phase7e3` de 6/6 para **7/7**, com o critério novo medindo em pixel que o
+ponto ancorado acompanha mover, girar e escalar o objeto, enquanto um ponto solto de
+controle fica no lugar e o pixel dele passa a acertar o vazio.
+
+**Limite declarado, não corrigido aqui.** Com o objeto **animado**, a câmera escorrega
+do ponto durante a pausa da narração: o objeto continua andando e o alvo da câmera é
+um par de keyframes parado. Corrigir exige alvo que acompanha, e isso pertence ao
+bloco de transições (pedido 3). Está aqui em vez de virar surpresa.
+
+#### 7F.2 — Câmera de autoria livre no palco ✅
+
+Entregue e provado pelo [ADR-017](adr/ADR-017-studio-authoring-camera.md):
+`verify:phase7e3` de 7/7 para **8/8**. Arrastar orbita, Shift ou botão do meio desloca o
+alvo, roda aproxima, e clique continua marcando — separados por 4 px de deslocamento,
+que é o que faz "mover o cenário livremente **ao ativar o marcar pontos**" caber num
+botão só.
+
+Medido no critério 8: o arrasto girou o azimute de 35,0° para −37,0°, a imagem mudou, as
+seis props do palco ficaram **intactas**, o ponto marcado gravou o ângulo da câmera
+solta (−37,0°) e não o do documento, e "Gravar enquadramento" levou as seis props
+exatamente para os valores compostos.
+
+**Custo declarado:** enquanto a câmera está solta, o preview não é o enquadramento do
+vídeo. Dito na barra de estado, desfeito por um botão, e sem efeito algum no export —
+`verify:phase8` continua 7/7.
+
+**Fica fora, e dispara a revisão do ADR-017 se alguém pedir:** _roll_ e olhar fora do
+eixo. A câmera do documento não os representa, e oferecer no painel o que o documento
+não guarda transformaria gravar em aproximar.
+
+#### 7F.3 — Horizonte, névoa de fundo e o caminho do modelo até o palco ✅
+
+Três coisas que o dono encontrou usando o palco, e uma delas era um defeito de contrato
+que estava no código desde a Fase 7A.
+
+**`props.assetId` guarda o `src`, não o `id`.** O `select` do Inspector gravava o id e o
+validador de documento comparava contra ids, enquanto todos os leitores e o `applyAsset`
+usam o src. Escolher um modelo no Inspector deixava o palco vazio com
+`asset ausente: ast_…`. **Não havia teste em nenhuma das duas direções** — agora há.
+
+**Arrastar e soltar.** Modelo da biblioteca, do disco ou já no projeto, vira nó onde foi
+solto — o raio do cursor cruza o plano do piso. Soltar assume 18 m de vão em vez do padrão
+de 30 000 m de terreno, que o teto do palco cortaria em 500 m com a câmera dentro do
+objeto.
+
+**Horizonte e névoa.** O céu era uma cor lisa e o piso nunca a alcançava (sobrava 8% de cor
+de chão no infinito): era a "linha esquisita". Os dois lados passaram a pedir a cor à mesma
+função. `verify:phase7e3` de 8/8 para **9/9**, com o critério medindo o maior salto entre
+pixels vizinhos numa coluna que cruza o horizonte: **12,1 → 6,8**, amplitude 66,9.
+
+A névoa cumpre "nunca sobrepondo o objeto" **por construção**: ela vive no passe do piso,
+que desenha antes de toda geometria com teste de profundidade desligado. É por isso que a
+resposta não foi `THREE.Fog`.
+
+#### 7F.4 — Transições fluidas, enquadramento pela lente e alvo que acompanha ✅
+
+`verify:phase7e3` de 9/9 para **10/10**. Três mudanças:
+
+**O enquadramento passou a considerar a lente.** Era `raio × 0,9`, e essa conta dá o mesmo
+número com campo de visão de 20° e de 60° — o enquadramento "certo" mudava sozinho quando
+alguém tocava no `fovDeg`. Agora sai de `orbitDistanceToFit` sobre 35% do raio do objeto:
+a visita mostra a peça com contexto, não o veículo inteiro nem um close sem referência.
+
+**As alças de aceleração abriram** de `0,42/0,58` para `0,25/0,75`: rampa mais longa,
+partida e chegada sem arranque. É o "passagens mais suaves" do pedido.
+
+**O alvo acompanha objeto animado durante a pausa**, o que fecha o limite declarado no
+7F.1. A pausa é amostrada e ganha keyframe **só onde a reta entre os vizinhos já não
+descreve o caminho**, com tolerância de 20 cm. Medido: objeto indo e voltando 40 m,
+**um único** keyframe inserido, no vértice do movimento, e o ponto a **0,00 px do centro**
+na chegada, no meio e na partida.
+
+Duas propriedades que valem por si: **objeto parado não gera keyframe nenhum** — cena
+estática sai idêntica à de antes — e **movimento em linha reta também não**, porque
+interpolar o alvo entre os extremos reproduz reta exatamente. A câmera já acompanhava
+movimento linear de graça.
+
+#### 7F.5 — Bolinha, eixo e balão de texto animado ✅
+
+`verify:phase7e3` de 10/10 para **11/11**. O desbloqueio foi de um lado só: o passe de
+projeção do palco passou a pôr os **POIs** no layout, e aí `label.callout` — que procura o
+alvo por id desde o 7E.2 — encontra o míssil em vez do avião inteiro. **Zero linha nova do
+lado do rótulo.**
+
+A primitiva de rótulo ganhou a bolinha no alvo (`dotRadius`, `dotColor`), a guia que cresce
+**a partir do alvo** (`leaderProgress`) e a revelação do texto por caractere
+(`textReveal`). Um botão **Anotar ponto** cria a anotação e compila a revelação em três
+fases: bolinha, caixa se afastando com a guia, texto digitado.
+
+**Sobre "os complementos virados para a câmera" (pedido 6):** o rótulo é Pixi em espaço de
+tela, então ele já encarava a câmera por construção. O que faltava não era orientação, era
+**o alvo** — e é o mesmo conserto.
+
+**Um defeito de produto que só a medição ao vivo pegou.** A caixa é dimensionada pelo texto
+**completo** em qualquer valor de `textReveal`, de propósito: medir pelo pedaço visível a
+faria crescer letra a letra e arrastar a borda de onde a guia sai. A consequência não
+prevista era uma **caixa vazia em tamanho final já na tela no primeiro frame** — o balão
+aparecendo antes da bolinha que ele explica. O critério 11 mediu tinta que não crescia
+(2122 → 2103 → 2122) e obrigou a revelação a animar também `backgroundAlpha` e
+`borderWidth`. Depois: **0 → 2096 → 2122**.
+
+#### 7F.6 — Sombra direcional, aimada pelo documento ✅
+
+`verify:phase7e3` de 11/11 para **12/12**. A sombra do palco já era a silhueta real do
+objeto projetada numa textura — mas projetada **de cima**, com a luz assumida vertical. Isso
+dá uma mancha simétrica embaixo do objeto, não uma sombra.
+
+Agora a silhueta é renderizada **da direção da luz**, e o retângulo da textura se ajusta aos
+oito cantos da caixa **vistos da luz** em vez da pegada — com luz a 23° a sombra vai a 2,3
+alturas de distância, e ajustar pela pegada a cortaria ao meio. Duas props novas
+(`keyAzimuthDeg`, `keyElevationDeg`) aimam luz e sombra **juntas**: antes o rig tinha a
+direção fixa no código e o projetor assumia vertical — duas verdades diferentes sobre onde
+estava a luz.
+
+Medido no critério 12: girar a luz meia volta desloca o centroide da sombra em **93 px**.
+Luz rente ao horizonte recua para a projeção vertical, porque a sombra tenderia ao infinito
+e a silhueta sairia com um texel de altura.
+
+**O reflexo no piso ficou de fora** e está na tabela como 8b. O piso é um quad de fundo com
+teste de profundidade desligado, então reflexo pede espelho planar por render target — mesma
+máquina da sombra, trabalho separado.
+
+**Decisão de teste tomada por omissão que virou decisão explícita num arquivo só.**
+`studio-anchor.test.ts` usa `fc.assert` com `{ seed: 20260728 }`, porque o assunto
+dele é uma inversa e propriedade de ida e volta com semente livre é a receita do
+vermelho intermitente de [§ 4.17](09-CONTINUIDADE.md). A decisão para o **resto** da
+suíte continua aberta — ver a lista de pendências por omissão.
+
 ### 7E — Apresentação e contexto visual
 
 > 🚧 **Em curso.** Pedido do dono do projeto a partir de capturas do canal

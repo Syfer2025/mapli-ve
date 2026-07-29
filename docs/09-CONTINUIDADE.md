@@ -12,8 +12,8 @@ morde, e como não repetir erro já cometido.
 
 ## 1. Onde parou
 
-Cadeia final verde — **1.052 testes funcionais em 106 arquivos**, suíte isolada
-de performance com 6/6 testes, 336 módulos e 896 dependências sem violação de
+Cadeia final verde — **1.135 testes funcionais em 112 arquivos**, suíte isolada
+de performance com 6/6 testes, 355 módulos e 952 dependências sem violação de
 camada; build electron-vite e pacote Windows verificados. Os orçamentos de
 performance ficam isolados dos workers funcionais para medir o motor, não a
 contenção artificial do runner.
@@ -27,7 +27,17 @@ Passe de auditoria em 2026-07-28, sobre o estado que o `77aa7e4` deixou:
 | `settle` do export cego para o carregamento do GLB        | **fechado e provado** — [§3](#o-settle-3d-foi-fechado-e-provado)                 |
 | Bootstrap necessário depois do 7B                         | documentado em [§4.18](#418-bootstrap-pnpm-install-e-geobuild-não-são-opcionais) |
 
-Passe seguinte, no mesmo dia — o palco 3D, a pedido do dono:
+Passe de 2026-07-28, à noite — nove pedidos novos do dono sobre o palco, atacados em
+blocos. Os blocos 7F.1 a 7F.6 estão fechados; o próximo é o reflexo 7F.8b.
+
+| O quê                                                    | Resultado                                                                                          |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| POI ficava no espaço, não no objeto ("limbo" com escala) | **ADR-016 entregue e provado** — `verify:phase7e3` de 6/6 para **7/7**                             |
+| Aviso de POI órfão (o que o ADR-015 deixou em aberto)    | fechado, e agora com definição objetiva em vez de heurística                                       |
+| Critério 5 do 7e3 vermelho **antes** de qualquer mudança | era coordenada de clique fixada à silhueta do F/A-18 — [§3](#o-poi-passou-a-ser-do-objeto-adr-016) |
+| `verify:phase8` derrubado por rodar depois do 7e3        | ganhou `activateViewportTab`; os dois viraram independentes de ordem                               |
+
+Passe anterior, no mesmo dia — o palco 3D, a pedido do dono:
 
 | O quê                                             | Resultado                                                          |
 | ------------------------------------------------- | ------------------------------------------------------------------ |
@@ -41,18 +51,34 @@ Fases 0–6 concluídas. **O bloco 7 inteiro está fechado** (única exceção d
 7E.4, VFX, que o dono mandou adiar) e a **Fase 8 produz MP4 H.264, GIF, ProRes
 4444 e PNG normal/alfa**. Os encoders repetíveis preservam o critério mais
 importante do projeto: saída idêntica entre execuções.
-Cada bloco tem verificador próprio dirigindo o Electron real por CDP:
+Os verificadores visuais dirigem o Electron real por CDP:
 
-| Bloco                    | Verificador             | Resultado |
-| ------------------------ | ----------------------- | --------- |
-| 7A · biblioteca e assets | `verify:phase7a`        | verde     |
-| 7B · camadas geográficas | `verify:phase7b`        | 4/4       |
-| 7C · rotas e setas       | `verify:phase7c`        | verde     |
-| 7D · textos no mapa      | `verify:phase7d`        | 4/4       |
-| 7E.3 · modo estúdio      | `verify:phase7e3`       | 6/6       |
-| 8 · export byte-idêntico | `verify:phase8`         | 7/7       |
-| 8 · arquivo MP4 H.264    | `verify:phase8-video`   | 6/6       |
-| 8 · GIF + ProRes/alfa    | `verify:phase8-formats` | 5/5       |
+| Bloco                    | Verificador             | Resultado     |
+| ------------------------ | ----------------------- | ------------- |
+| 7A · biblioteca e assets | `verify:phase7a`        | verde         |
+| 7B · camadas geográficas | `verify:phase7b`        | 4/4           |
+| 7C · rotas e setas       | `verify:phase7c`        | verde         |
+| 7D · textos no mapa      | `verify:phase7d`        | 4/4           |
+| 7E.3 · modo estúdio      | `verify:phase7e3`       | 12/12         |
+| 8 · export byte-idêntico | `verify:phase8`         | 7/7           |
+| 8 · arquivo MP4 H.264    | `verify:phase8-video`   | 6/6           |
+| 8 · GIF + ProRes/alfa    | `verify:phase8-formats` | 5/5 histórico |
+
+O `verify:phase8-formats` é diferente dos demais: roda sem Electron e invoca
+FFmpeg e ffprobe diretamente. Nesta máquina ele não pode ser repetido porque ambos
+estão ausentes; os 5/5 são a prova registrada na máquina anterior, não uma execução
+desta retomada.
+
+O passe noturno foi incorporado nestes commits locais, sem incluir as duas
+mudanças reservadas ao dono (`settleFailedFrames` e `tools/demo-missao.mjs`):
+
+| Commit    | O quê                                                                    |
+| --------- | ------------------------------------------------------------------------ |
+| `2bb9ca3` | ADR-016/017, emenda do ADR-015 e índice de decisões                      |
+| `19dc320` | contrato legado `assetId = asset.src`, travado nos dois sentidos         |
+| `505ae7d` | fluxo de autoria do palco: POI, câmera, drop, atmosfera, tour e anotação |
+| `16e1ffa` | provas ao vivo 7–12 e verificadores independentes da aba persistida      |
+| `c79e25f` | comentário do vínculo de POI junto à ação que ele documenta              |
 
 Entregue nesta sessão, em sete commits:
 
@@ -133,17 +159,20 @@ para as peças e os três defeitos silenciosos que só a medição em pixel acho
 **7E.4, VFX volumétrico: bloqueado por ferramenta, não por decisão.** Os 7,6 GB
 de VDB da JangaFX que o dono deixou não rodam em WebGL — é formato de volume para
 renderizador offline. O caminho certo é converter em flipbook num passo de
-bootstrap, e isso exige Blender, Houdini ou uma biblioteca OpenVDB. FFmpeg agora
-existe e atende os formatos da Fase 8, mas não lê VDB; Blender/Houdini/OpenVDB
-continuam ausentes. A alternativa de custo zero é usar o vídeo de preview como
-textura, com qualidade menor.
+bootstrap, e isso exige Blender, Houdini ou uma biblioteca OpenVDB. O instalador
+registrado anteriormente inclui um sidecar FFmpeg para os formatos da Fase 8,
+mas esta máquina não tem FFmpeg nem ffprobe disponíveis para a prova local; mesmo
+com eles, FFmpeg não lê VDB. Blender/Houdini/OpenVDB continuam ausentes. A
+alternativa de custo zero é usar o vídeo de preview como textura, com qualidade
+menor.
 
 ## 3. O que vem agora
 
 O bloco 7 está fechado e os **formatos principais da Fase 8 estão entregues**:
 MP4 H.264, GIF, ProRes 4444 com alfa e PNG normal/alfa. Os verificadores são
 `verify:phase8` (7/7), `verify:phase8-video` (6/6) e
-`verify:phase8-formats` (5/5). O instalador NSIS inclui os 15.034 arquivos de
+`verify:phase8-formats` (5/5 históricos; não repetidos aqui por falta de FFmpeg
+e ffprobe). O instalador NSIS inclui os 15.034 arquivos de
 dados offline e o FFmpeg fixado; o arquivo de 1,6 GiB passou no teste integral
 do arquivo 7z interno. O fonte passou a incluir também os três exemplos e o
 seletor **Exemplos…** depois dessa prova. Portanto, o instalador que está em
@@ -189,6 +218,265 @@ Três coisas para lembrar antes de mexer nisto:
 - **POI leva a câmera até a torre; não a gira.** Girar exige `gltf.animations`,
   hoje descartado em `three-assets.ts`, e um modelo com a torre como nó separado —
   que o 2S19 do dono não tem. São problemas diferentes.
+
+### O POI passou a ser do objeto (ADR-016)
+
+**Fechado em 2026-07-28.** O dono relatou: _"quando se coloca keys pontos de interesse
+no objeto eles não ficam fixos no objeto, ficam fixos no espaço; se o avião mudar de
+escala os objetos ficam travados no limbo."_ Era a consequência que o
+[ADR-015](adr/ADR-015-studio-points-of-interest.md) havia aceito de propósito, e o
+[ADR-016](adr/ADR-016-poi-anchored-to-object.md) a emenda.
+
+O `studio.poi` ganhou `ownerId`. Vazio, `pointX/Y/Z` são metros de palco — a leitura
+de sempre, e o que faz projeto antigo abrir igual sem migração. Preenchido, são o
+**espaço normalizado do modelo**, e o ponto atravessa a matriz que
+`applyModelTransform` já monta: `T · S · Ry`. As quatro props que movem o objeto
+passam a mover o ponto de graça.
+
+Quatro coisas para lembrar antes de mexer nisto:
+
+- **O conserto óbvio não funciona.** Guardar o deslocamento em **metros** a partir da
+  origem do modelo segue posição e rumo, e falha exatamente no caso do relato: dobrar
+  `scaleMeters` faz o objeto crescer e o ponto ficar onde estava. É a alternativa D do
+  ADR-016, rejeitada por medição, não por gosto.
+- **`parent` não serve de dono.** Ele já significa organização e herança de
+  opacidade/visibilidade, e a transformação que se herda por ele é **2D**
+  (`TransformSchema` é `Vec2` + escalar). Arrastar um ponto para uma pasta o
+  desanexaria do caça — falha silenciosa causada por arrumação.
+- **Uma fonte de verdade.** O POI guarda só o ponto local; nada de cópia em mundo ao
+  lado. Quem precisa de mundo pergunta: `collectStudioPois` recebe um resolvedor, e o
+  compilador do roteiro recebe outro, que resolve **no frame de chegada** de cada
+  parada — porque um ponto num objeto animado se move, e resolver tudo no frame zero
+  faria a câmera mirar onde o míssil **estava**.
+- **`props.pointX` não é mais "metros" para o Inspector.** As três props perderam o
+  `unit` de propósito: com dono elas são fração do vão do modelo. O valor em metros
+  aparece na barra de estado do painel. Rótulo de unidade errado é como se marca um
+  ponto no lugar errado com total confiança.
+
+**Dois defeitos de verificador que este bloco achou, e nenhum dos dois era do código
+sob teste.**
+
+O **critério 5 do 7e3 já estava vermelho nesta máquina** antes de qualquer mudança:
+1 ponto criado em vez de 2, ida e volta de 35,04 px. Ele clicava em duas coordenadas
+de mundo fixas, `[6,0,0]` e `[6,1.2,0]`, escolhidas para a silhueta do F/A-18 — e a
+`library-roots.json` desta máquina serve um SA-3. O primeiro clique caía no vão sob o
+veículo, e a ida e volta então comparava o único ponto criado com o pixel do clique
+que **errou**: os 35 px eram exatamente a separação entre os dois alvos na tela.
+Agora os pixels de sondagem saem de uma varredura que pergunta ao raycast onde há
+geometria. Ida e volta: **0,00/0,00 px**. Centragem da visita: **0,00 px**.
+
+E o **`verify:phase8` não ativava aba nenhuma** — presumia o Viewport na frente. Como
+o layout é persistido, rodá-lo depois do 7e3 derrubava cinco critérios com
+`.maplibregl-canvas ausente`, e reiniciar o app não resolvia. Ganhou
+`activateViewportTab` com `PointerEvent` no próprio elemento, do jeito que a seção
+seguinte registra. **A lição não é sobre o palco: verificador que depende da ordem em
+que outro rodou não é verificador, é armadilha.**
+
+Limite declarado, que foi para o roteiro em vez de sumir: com objeto **animado**, a
+câmera escorrega do ponto durante a pausa da narração — o objeto continua andando e o
+alvo é um par de keyframes parado. Corrigir exige alvo que acompanha, e é o bloco de
+transições.
+
+### `props.assetId` guarda o **src**, e o nome mente
+
+**Fechado em 2026-07-28**, e é a armadilha mais barata de repetir deste arquivo.
+
+O dono relatou "não consigo jogar modelos 3D no palco" e a barra de estado dizia
+`falha ao carregar modelo · asset ausente: ast_plpsib174e`. O valor era um **id** de
+asset; todos os leitores de `props.assetId` — `collectStudioModels`, a camada 3D do mapa,
+as primitivas de imagem e SVG do renderer — tratam o valor como o **`src`**, o caminho por
+hash de conteúdo. O criador canônico (`applyAsset`) sempre gravou `src`.
+
+Quem discordava eram dois:
+
+- o **`select` de asset do Inspector** gravava `asset.id`. Escolher um modelo ali deixava
+  o palco vazio, e nada na tela ligava causa e efeito;
+- o **validador de documento** comparava `assetId` contra a lista de **ids**, ou seja
+  acusava de referência órfã justamente o caso correto. Validador que acusa o certo treina
+  quem o lê a ignorá-lo, e foi ignorado o suficiente para o defeito irmão sobreviver.
+
+E **não havia teste em nenhuma das duas direções** — a suíte passou de 1.091 para 1.102
+sem que nada quebrasse quando o contrato foi consertado, o que é a medida exata de quanto
+ele estava coberto. Agora há teste dos dois lados.
+
+O nome da prop continua `assetId` por compatibilidade do formato de projeto. Renomear é
+migração, e não vale hoje; o que vale é isto estar escrito no tipo de nó, no validador e
+aqui.
+
+### Arrastar da biblioteca e soltar no palco
+
+Modelo da biblioteca — do disco ou já no projeto — vira nó ao ser solto no painel do
+palco, **onde** foi solto: o raio do cursor cruza o plano do piso e o ponto sai daí
+(`studio-drop.ts`, com o caso âncora "centro da tela cai no alvo da câmera" travado em
+teste). Duas decisões que valem lembrar:
+
+- **soltar assume 18 m de vão.** O padrão de `scaleMeters` do `model3d` é 30 000, que são
+  metros de **terreno**; no palco o teto de `collectStudioModels` corta em 500 m, e um
+  objeto de 500 m com a câmera a 40 põe a câmera dentro dele;
+- **tipo MIME próprio**, não `text/plain`: com texto solto, qualquer arraste de qualquer
+  lugar chegaria ao palco parecendo pedido legítimo.
+
+### O horizonte do palco dissolve, e a névoa mora no fundo
+
+O dono relatou "metade da tela do palco parece cortada, não dá sensação de espaço" e "essa
+linha de transição da base com o fundo está esquisita". Era um defeito só, visto de dois
+lados: o céu era **uma cor lisa** — sem gradiente o olho lê a metade de cima como um bloco
+chapado — e o piso nunca alcançava essa cor, porque a mistura tinha um piso de `0.08` e
+sobrava sempre 8% de cor de chão no infinito. Essa era a aresta.
+
+Agora os dois lados pedem a cor à **mesma** função (`skyTone`), na mesma direção do olhar:
+eles se encontram no mesmo valor por construção. Medido no critério 9 do `verify:phase7e3`:
+o maior salto entre pixels vizinhos de uma coluna que cruza o horizonte caiu de **12,1
+para 6,8**, com amplitude de 66,9 — dissolveu sem achatar.
+
+**A névoa (`horizonHaze`) resolve o "nunca sobrepondo o objeto" por construção**, não por
+cuidado: ela vive no passe do piso, que é um quad de tela cheia com `depthTest: false` e
+`renderOrder: -1`. Toda geometria desenha depois, em cima. `THREE.Fog` faria o oposto — é
+por profundidade e lavaria o modelo junto.
+
+E uma armadilha nova, prima da 4.1: **backtick dentro do shader fecha o template
+literal.** Um comentário GLSL com `` `THREE.Fog` `` transformou o resto do shader em
+código TypeScript e produziu quatro erros de sintaxe a cem linhas de distância da causa.
+Comentário de shader não leva acento grave.
+
+### O alvo acompanha objeto animado, e movimento reto não paga nada
+
+**Fechado em 2026-07-28**, e fecha o limite que o ADR-016 tinha declarado: com o dono
+animado, a câmera escorregava do ponto durante a pausa da narração.
+
+O compilador do roteiro passou a amostrar a pausa e inserir keyframe de alvo **só onde a
+reta entre os vizinhos já não descreve o caminho** — Douglas–Peucker sobre a série de
+pontos, com tolerância de 20 cm. Medido no critério 10: objeto indo e voltando 40 m
+durante a pausa, **um único** keyframe de acompanhamento inserido, exatamente no vértice
+do movimento (frame 30), e o ponto projetando a **0,00 px do centro** na chegada, no meio
+e na partida.
+
+Três coisas para lembrar:
+
+- **Objeto parado não paga nada**, e isso era a condição para o recurso existir: todos os
+  desvios dão zero e o roteiro sai keyframe por keyframe igual ao de antes.
+- **Movimento em linha reta também não paga nada, e a câmera já acompanha de graça.**
+  Interpolar o alvo entre os dois extremos reproduz movimento linear **exatamente**. Só
+  caminho que se afasta da reta precisa de keyframe no meio. Isto não é economia
+  agressiva: é a redução notando que não há nada a acrescentar.
+- **Os keyframes de acompanhamento são lineares nos dois lados.** Bézier passando por
+  pontos amostrados de um objeto em movimento ultrapassa entre amostras, e a câmera
+  oscilaria em torno do alvo — um tremor sutil que ninguém liga à curva.
+
+E o enquadramento da visita saiu de `raio × 0,9` para `orbitDistanceToFit`, porque a conta
+antiga **ignorava a lente**: a mesma distância mostra um quarto do objeto com campo de
+visão de 20 e com 60, então o enquadramento "certo" mudava sozinho quando alguém tocava no
+`fovDeg`, e o 0,9 não tinha de onde sair.
+
+### A sombra do palco virou direcional
+
+**Fechado em 2026-07-28.** A sombra já era a silhueta real do objeto — o dono tinha matado a
+elipse analítica antes, com razão — mas projetada **de cima**, com a luz assumida vertical. O
+docstring do módulo dizia isso em voz alta: _"a luz é vertical e paralela"_. O resultado é uma
+mancha simétrica embaixo do objeto, e não uma sombra que cai para um lado.
+
+Agora a silhueta é renderizada **da direção da luz**. Três coisas que valem lembrar:
+
+- **O retângulo da textura tem de conter a sombra, não a pegada.** Com luz a 23° a sombra vai
+  a 2,3 alturas de distância; ajustar pela pegada — que estava certo para luz vertical —
+  cortaria a sombra ao meio. `fitLightFrustum` ajusta aos oito cantos da caixa vistos da luz,
+  o que vale para qualquer inclinação sem caso especial.
+- **Uma fonte só para onde está a luz.** Antes o rig tinha a direção fixa no código e o
+  projetor assumia vertical: duas verdades diferentes sobre a mesma coisa. As props
+  `keyAzimuthDeg`/`keyElevationDeg` aimam as duas juntas, na mesma régua da câmera orbital.
+- **Luz rente ao horizonte recua para a projeção vertical**, e isso é decisão, não desistência:
+  a sombra tenderia ao infinito e a silhueta sairia com um texel de altura.
+
+Não há comparação de profundidade, e não precisa: o receptor é um plano e o emissor está
+acima dele, então todo ponto do piso cujo raio de luz atravessa o objeto está na sombra.
+
+**Reflexo no piso ficou de fora** e está no roteiro como 7F/8b. O piso é um quad de fundo com
+`depthTest` desligado, então reflexo pede espelho planar por render target — a mesma máquina
+da sombra, trabalho separado.
+
+### O verificador não era idempotente, e o critério 5 pagou
+
+**Vale mais que o caso.** Rodar o `verify:phase7e3` duas vezes seguidas, sem reiniciar o app,
+fazia o **critério 5 falhar com "0 pontos criados"** — a mesma mensagem que um clique que erra
+a geometria produziria.
+
+A causa: o critério 5 **alternava** o modo de marcação, assumindo que ele começa desligado. Os
+critérios 8 e 10, que eu acrescentei depois, ligam a marcação e não desligam — e `marking` é
+estado do **painel React**, não do documento, então o undo do fim do verificador não o desfaz.
+Segunda rodada: o critério 5 desligava a marcação e clicava no vazio.
+
+O conserto é o critério **garantir** o estado de que precisa em vez de alternar
+(`if (aria-pressed !== 'true')`), que é o padrão que os critérios 8 e 10 já usavam. Provado
+rodando duas vezes seguidas: **12/12 nas duas**.
+
+A regra: **o undo do verificador restaura o documento, não a interface.** Qualquer estado de
+painel — modo ligado, aba ativa, câmera solta — sobrevive entre rodadas, e critério que
+depende dele tem de afirmá-lo, não alterná-lo.
+
+### Duas medições erradas no mesmo dia, e o padrão que elas têm
+
+Vale pelo método. Nos dois casos o critério ficou verde ou vermelho **pelo motivo errado**,
+e nos dois a pista foi a mesma: um número que não deveria ser idêntico entre dois lados de
+um A/B.
+
+**A grade em vez do horizonte.** O critério do horizonte amostrava uma coluna de pixels e
+media o maior salto entre vizinhos. Relatou **14,6 com névoa e 14,6 sem** — o maior salto
+era uma **linha da grade**, nítida de propósito, e a costura nunca entrou na conta.
+Conserto: desligar grade, textura e vinheta durante a medição.
+
+**A reta em vez da curva.** O critério do acompanhamento animava o objeto em **linha
+reta**, e relatou desvio 0,00 px com zero keyframe inserido — que parecia defeito e era
+correção funcionando: reta é descrita pelos extremos. Conserto: mover o objeto em vai e
+volta. O teste de unidade do mesmo recurso já usava uma parábola **e o comentário dele já
+explicava por quê** — o erro foi repetido no verificador de todo modo.
+
+**A falsa aprovação, que é a pior das três.** A primeira versão do critério 10 não removia
+os pontos das etapas anteriores. Com seis paradas acumuladas, a parada nova era a última
+— chegada no frame 450 — e a medição olhava os frames 0, 30 e 60, que são a **primeira**
+parada, de um objeto parado. Deu 0,00 px nos três e o placar disse **verde sem ter testado
+nada**. Critério que mede "a parada" precisa de exatamente uma.
+
+A regra que sai daí: **quando os dois lados de um A/B dão o mesmo número, a primeira
+hipótese é "estou medindo outra coisa", não "o conserto falhou".** E critério que herda
+estado de critério anterior não está medindo o que o nome dele diz.
+
+### A câmera do palco ganhou mouse (ADR-017)
+
+**Fechado em 2026-07-28.** O dono pediu _"uma espécie de street view livre para poder
+marcar os pontos nos objetos"_, e a medição foi desconfortável: **não existia interação
+de câmera nenhuma** no palco. Nem `onPointerDown`, nem roda. O único jeito de girar era
+digitar número no Inspector. Isso explicava uma frase estranha no ADR-015, que dizia
+gravar _"os ângulos que a câmera tinha no instante da marcação"_ descrevendo um gesto
+que o produto não oferecia.
+
+A câmera de autoria é um `OrbitState` **local ao painel** que substitui a do documento
+enquanto está ativa. Arrastar orbita, Shift ou botão do meio desloca o alvo, roda
+aproxima. Quatro coisas para lembrar:
+
+- **O documento não é tocado ao navegar.** É o que preserva o export byte-idêntico, e o
+  critério 8 do 7e3 mede exatamente isso: o arrasto girou o azimute de 35,0° para
+  −37,0°, a imagem mudou, e as seis props do palco ficaram **intactas**.
+- **A câmera de autoria vive no mesmo espaço de parâmetros do documento**, e isso é a
+  decisão, não um detalhe. Uma câmera de voo livre seria mais literal como "street
+  view" e tornaria "Gravar enquadramento" uma **aproximação** — _roll_ e olhar fora do
+  eixo não têm onde morar em `(target, distância, azimute, elevação)`, então gravar
+  mudaria o enquadramento que o dono acabou de compor. Medido no critério 8: gravar é
+  exato nas seis props.
+- **Substituir num lugar só.** `effectiveStageCamera` entra entre `collectStudioStage` e
+  o `runtime.render`, e por isso `pick`, `project`, os marcadores e os rótulos
+  acompanham sem código novo. Se cada consumidor escolhesse a câmera, o marcador
+  ficaria um frame atrás na primeira divergência.
+- **Clique e arrasto no mesmo botão**, separados por 4 px de deslocamento. Era a única
+  forma de atender "movimentar o cenário livremente **ao ativar o marcar pontos**" sem
+  obrigar a desligar um para usar o outro. O `onClick` saiu: ele dispararia também no
+  fim de um arrasto, e o dono ganharia um ponto de interesse a cada vez que girasse a
+  cena.
+
+Custo declarado e visível: **enquanto a câmera está solta, o preview não é o
+enquadramento do vídeo.** A barra de estado diz isso, e os dois botões da câmera só
+existem quando ela está solta — o que é o segundo aviso. `orbitDistanceToFit`, que
+estava em L0 sem chamador desde o ADR-012 com o docstring dizendo "serve o botão
+enquadrar", finalmente tem o botão.
 
 ### Trocar de aba do dockview por CDP: resolvido
 
