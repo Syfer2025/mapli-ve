@@ -1,6 +1,7 @@
 # ADR-015 — Pontos de interesse do palco vêm de clique, não do arquivo 3D
 
-**Status:** aceito · **Data:** 2026-07-28 · **Revisar em:** quando alguém pedir POI em modelo com hierarquia real (rig de torre, trem de pouso articulado)
+**Status:** aceito, com a consequência **"POI é do objeto, não do asset"** emendada
+pelo [ADR-016](ADR-016-poi-anchored-to-object.md) · **Data:** 2026-07-28 · **Revisar em:** quando alguém pedir POI em modelo com hierarquia real (rig de torre, trem de pouso articulado)
 
 ## Contexto
 
