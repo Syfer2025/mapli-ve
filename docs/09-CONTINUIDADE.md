@@ -190,6 +190,35 @@ conversa e escritos em [11-VISAO-FUTURA](11-VISAO-FUTURA.md) — nenhum deles en
 antes de esta lista zerar. A instrução do dono foi explícita: _"vamos tentar
 finalizar o que já temos antes de criar mais e mais módulos"_.
 
+### Limite conhecido: o reflexo planar não repete pixel a pixel
+
+**Isolado em 2026-07-29, não corrigido.** O critério 13 do `verify:phase7e3`
+falha de forma intermitente — três rodadas seguidas deram 10/14, 13/14 e 14/14
+com o mesmo código. O campo que discrimina está no fim da mensagem dele:
+
+```
+ON/OFF repetidos diferem em 0/68 px
+```
+
+O critério liga e desliga o reflexo duas vezes e compara os pixels. Repetir o
+**mesmo estado** deveria dar imagem idêntica; dá 0 numa direção e **68 px** na
+outra.
+
+Duas coisas já foram descartadas: a ordem está certa (o reflexo é atualizado
+**antes** do render principal em `studio-scene.ts`, então não é atraso de um
+frame), e o passe salva e restaura render target, viewport, máscaras e
+visibilidade no `finally`.
+
+**Por que isto é mais sério que um critério vermelho.** Determinismo é a tese
+central do projeto. O `verify:phase8` continua 7/7, mas provavelmente porque
+**nenhum critério dele liga o reflexo** — vale confirmar isso antes de qualquer
+outra coisa. Se não cobrir, uma cena com reflexo ativo pode exportar diferente
+entre execuções sem ninguém perceber.
+
+Próximo passo sugerido: instrumentar `studio-reflection.ts` para gravar o
+conteúdo do target em dois frames idênticos e comparar; suspeitar de reúso de
+render target entre tamanhos e de estado de GL que o `finally` não devolve.
+
 Ordem que vem agora, conforme o prompt de passagem:
 
 1. **Timeline própria do modo palco.** É o próximo bloco real. `TimelinePanel.tsx`
