@@ -1,13 +1,21 @@
 # ADR-013 — Composição do frame de export
 
 **Status:** aceito, com a **tabela de superfícies substituída** pelo
-[ADR-014](ADR-014-studio-own-panel.md) · **Data:** 2026-07-28 · **Revisar em:** Fase 8, ao entrar codec
+[ADR-014](ADR-014-studio-own-panel.md) e o **tamanho do frame** pelo
+[ADR-022](ADR-022-export-resolution-from-composition.md) · **Data:** 2026-07-28 ·
+**Revisar em:** gatilho já disparou — ver ADR-022
 
 > A decisão deste ADR — compor as superfícies do viewport ao vivo, em vez de abrir
 > uma janela de render oculta — **continua valendo**, e a medição que a sustenta
 > também. O que o ADR-014 substituiu foi a lista fixa de três superfícies: com o
 > palco em painel próprio, a ordem de composição passou a ser **função do modo
 > ativo**, e são dois contratos em vez de um.
+>
+> O gatilho da seção "Quando revisar" **disparou** em 2026-07-29, e a resposta foi
+> medida: o [ADR-022](ADR-022-export-resolution-from-composition.md) tira o
+> tamanho do frame da janela e o põe na composição, **sem** promover a
+> alternativa A. A janela de render oculta continua recusada, agora por medição
+> nova, e o motivo está lá.
 
 ## Contexto
 
