@@ -67,6 +67,15 @@ export interface ExportReport {
   readonly hashes: readonly { readonly filename: string; readonly sha256: string }[];
   /** Frames em que a quietude não chegou dentro do teto. Tem de ser zero. */
   readonly settleFailed: number;
+  /**
+   * **Quais** frames não assentaram.
+   *
+   * Uma contagem sem os números não é acionável: "13 de 300 falharam" não diz se
+   * foram os treze primeiros — o mapa ainda carregando, e o export está bom do
+   * frame 14 em diante — ou treze espalhados, que é outro problema. Limitado a
+   * 64 para o relatório não virar um despejo.
+   */
+  readonly settleFailedFrames: readonly number[];
   readonly settleP99Ms: number;
   readonly aborted: boolean;
   readonly errors: readonly string[];
@@ -92,6 +101,7 @@ export async function runExport(options: ExportOptions): Promise<ExportReport> {
   const hashes: { filename: string; sha256: string }[] = [];
   const errors: string[] = [];
   const settleTimes: number[] = [];
+  const settleFailedFrames: number[] = [];
   let settleFailed = 0;
   let aborted = false;
 
@@ -103,7 +113,10 @@ export async function runExport(options: ExportOptions): Promise<ExportReport> {
     options.host.seek(planned.frame);
     const settle = await waitForQuiet(options.host, planned.frame);
     settleTimes.push(settle.elapsedMs);
-    if (!settle.quiet) settleFailed += 1;
+    if (!settle.quiet) {
+      settleFailed += 1;
+      if (settleFailedFrames.length < 64) settleFailedFrames.push(planned.frame);
+    }
 
     const composed = options.host.compose();
     if (composed === null) {
@@ -128,6 +141,7 @@ export async function runExport(options: ExportOptions): Promise<ExportReport> {
     written: hashes.length,
     hashes: Object.freeze(hashes),
     settleFailed,
+    settleFailedFrames: Object.freeze(settleFailedFrames),
     settleP99Ms: percentile(settleTimes, 0.99),
     aborted,
     errors: Object.freeze(errors),
