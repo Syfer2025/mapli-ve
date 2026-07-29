@@ -31,6 +31,17 @@ const POI_CONTEXT_FRACTION = 0.35;
 /** Piso do raio enquadrado, em metros. Evita distância degenerada em objeto minúsculo. */
 const MIN_CONTEXT_RADIUS_METERS = 0.35;
 
+/**
+ * Fração do raio do modelo abaixo da qual a câmera estaria dentro dele.
+ *
+ * 1,15 é o raio da esfera envolvente mais 15% de folga. A esfera é generosa —
+ * ela cabe o objeto inteiro, então a câmera a 1,0 × raio ainda estaria fora da
+ * geometria na maioria das direções — mas trabalhar com a esfera é o que torna a
+ * garantia **independente do ângulo**, e garantia que depende de direção não é
+ * garantia. Os 15% cobrem a asa que se estende além do que a esfera sugere.
+ */
+const CAMERA_CLEARANCE = 1.15;
+
 export interface PoiFramingInput {
   /** Ângulos da câmera no instante da marcação — a vista que o dono escolheu. */
   readonly azimuthDeg: number;
@@ -66,10 +77,33 @@ export function poiFramingFor(
           Math.max(MIN_CONTEXT_RADIUS_METERS, modelRadiusMeters * POI_CONTEXT_FRACTION),
           camera.fovDeg,
         );
+  /**
+   * **Folga: a câmera nunca entra no objeto.**
+   *
+   * O dono viu isto na primeira apresentação compilada — _"a câmera está passando
+   * por dentro do objeto e isso nunca pode acontecer"_. A conta acima enquadra uma
+   * fração do vão, e num caça de 18 m isso dava 4 a 6 m de distância. Só que o raio
+   * da esfera que envolve o caça é ~9 m: a câmera nascia **dentro** do volume, e o
+   * voo entre paradas atravessava a fuselagem.
+   *
+   * O piso é o raio mais uma margem. Detalhe continua sendo detalhe porque quem
+   * aproxima é a **lente**, não a distância — fechar o campo de visão isola a peça
+   * sem meter a câmera dentro dela, que é o que um diretor de fotografia faria de
+   * qualquer forma.
+   *
+   * Isto não garante folga em toda a trajetória: paradas em lados opostos ainda
+   * podem cruzar o volume no meio do caminho, porque o voo interpola alvo e ângulo
+   * ao mesmo tempo. Garantir o trajeto inteiro é problema do compilador do roteiro,
+   * não do enquadramento de uma parada, e está declarado como limite conhecido.
+   */
+  const floor =
+    modelRadiusMeters === null || !Number.isFinite(modelRadiusMeters) || modelRadiusMeters <= 0
+      ? 0.5
+      : modelRadiusMeters * CAMERA_CLEARANCE;
   return {
     // O teto de 500 m é o mesmo do vão máximo de um objeto no palco: mais longe que isso
     // não é visita, é plano geral de um palco que não tem o que mostrar tão longe.
-    distanceMeters: Math.max(0.5, Math.min(500, distanceMeters)),
+    distanceMeters: Math.max(floor, Math.min(500, distanceMeters)),
     azimuthDeg: camera.azimuthDeg,
     elevationDeg: camera.elevationDeg,
   };

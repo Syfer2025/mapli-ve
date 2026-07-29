@@ -63,6 +63,46 @@ describe("poiFramingFor", () => {
    */
   it("nunca sai da faixa que a câmera do palco representa", () => {
     expect(poiFramingFor(CAMERA, 0.001).distanceMeters).toBeGreaterThanOrEqual(0.5);
-    expect(poiFramingFor(CAMERA, 5000).distanceMeters).toBeLessThanOrEqual(500);
+    // 250 m de raio é o maior objeto que o palco aceita (vão de 500 m em
+    // `MAX_STAGE_SIZE_METERS`), e aí o teto ainda manda.
+    expect(poiFramingFor(CAMERA, 250).distanceMeters).toBeLessThanOrEqual(500);
+  });
+
+  /**
+   * **A folga vence o teto**, e a ordem é decisão, não descuido: câmera dentro do
+   * objeto é erro de correção, e o teto de 500 m é limite de gosto. Só ocorre com
+   * objeto maior do que o palco aceita — mas se ocorrer, sair do enquadramento
+   * bonito é melhor que filmar de dentro da fuselagem.
+   */
+  it("objeto maior que o palco empurra a câmera além do teto em vez de entrar nele", () => {
+    expect(poiFramingFor(CAMERA, 5000).distanceMeters).toBeGreaterThan(5000);
+  });
+
+  /**
+   * O defeito que o dono viu na primeira apresentação compilada: _"a câmera está
+   * passando por dentro do objeto e isso nunca pode acontecer"_. A conta de
+   * enquadramento pedia 4 a 6 m num caça cujo raio envolvente é 9 — a câmera
+   * nascia dentro do volume, e o voo entre paradas atravessava a fuselagem.
+   */
+  it("a câmera nunca nasce dentro do objeto, qualquer que seja o porte", () => {
+    for (const raio of [0.4, 2, 9, 18, 60, 165]) {
+      const { distanceMeters } = poiFramingFor(CAMERA, raio);
+      expect(distanceMeters, `raio ${String(raio)} m`).toBeGreaterThan(raio);
+    }
+  });
+
+  /**
+   * E a folga não pode ter engolido a aproximação: visitar o míssil continua
+   * enquadrando o míssil, não o caça inteiro. Quem aproxima passa a ser a LENTE.
+   */
+  it("com lente fechada a visita enquadra mais perto que com lente aberta", () => {
+    const aberta = poiFramingFor({ ...CAMERA, fovDeg: 60 }, 9);
+    const fechada = poiFramingFor({ ...CAMERA, fovDeg: 18 }, 9);
+    expect(fechada.distanceMeters).toBeGreaterThanOrEqual(aberta.distanceMeters);
+    expect(aberta.distanceMeters).toBeGreaterThan(9);
+  });
+
+  it("sem raio conhecido o piso é o mínimo da câmera, não o do modelo", () => {
+    expect(poiFramingFor(CAMERA, null).distanceMeters).toBe(12);
   });
 });
