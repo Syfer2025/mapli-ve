@@ -506,16 +506,6 @@ export const editorActions = Object.freeze({
   },
 
   /**
-   * Anexa um ponto que já existe a um objeto, ou o solta ([ADR-016](../../../../docs/adr/ADR-016-poi-anchored-to-object.md)).
-   *
-   * Dono e coordenadas mudam **juntos**, porque mudar um sem o outro deixa o
-   * documento momentaneamente mentindo: o mesmo triplo lido como metros de palco e
-   * como fração do vão do modelo são dois lugares diferentes, e o frame que cair
-   * entre os dois comandos desenha o ponto no segundo. São quatro comandos no
-   * histórico, como no resto desta camada, mas quem chama já traz o ponto
-   * convertido para o espaço de destino.
-   */
-  /**
    * Grava o enquadramento da câmera de autoria nas props do palco ([ADR-017](../../../../docs/adr/ADR-017-studio-authoring-camera.md)).
    *
    * `keyframeWhenAnimated = false` em todas as seis: gravar um enquadramento é dizer
@@ -542,6 +532,16 @@ export const editorActions = Object.freeze({
     );
   },
 
+  /**
+   * Anexa um ponto que já existe a um objeto, ou o solta ([ADR-016](../../../../docs/adr/ADR-016-poi-anchored-to-object.md)).
+   *
+   * Dono e coordenadas mudam **juntos**, porque mudar um sem o outro deixa o
+   * documento momentaneamente mentindo: o mesmo triplo lido como metros de palco e
+   * como fração do vão do modelo são dois lugares diferentes, e o frame que cair
+   * entre os dois comandos desenha o ponto no segundo. São quatro comandos no
+   * histórico, como no resto desta camada, mas quem chama já traz o ponto
+   * convertido para o espaço de destino.
+   */
   attachStudioPoi(
     nodeId: string,
     ownerId: string,
