@@ -1378,8 +1378,34 @@ invisível porque o frame de export saía do tamanho do painel, 0,71 MP nesta
 máquina. O `verify:phase8` está 7/7 porque nunca exportou grande, e é por isso que
 o critério novo que exporta acima de 2 MP não é opcional.
 
-**Falta ainda**: motion blur por sampling temporal, checkpoint e retomada. O painel
-de fila já existe, com seletor dos cinco formatos, progresso, ETA e relatório de
+**Limite conhecido, medido em 2026-07-29 numa segunda máquina: o limiar é da placa
+de vídeo.** Com `antialias: true` restaurado só para medir, uma RTX **4090** repete
+bit a bit até 8,29 MP no mapa, no palco e no Pixi — 0 pixel de diferença, delta
+máximo 0, com guarda de conteúdo de 331 a 1604 cores distintas. Os ~2 MP são da
+RTX **3060 Ti**. Isso não reabilita o MSAA: prova que a bit-exatidão dele depende
+do hardware, e determinismo que muda com a placa não é determinismo. A consequência
+operacional é que **comparar hashes não pega a regressão nesta máquina** — quem
+reintroduzir `antialias: true` aqui vê dois exports idênticos e um arquivo
+divergente na máquina de quem recebe. Por isso o critério acima de 2 MP tem de
+afirmar `SAMPLES === 0` estruturalmente, e não só comparar bytes. Detalhe na seção
+"Segunda máquina" do
+[ADR-023](adr/ADR-023-no-msaa-on-composed-surfaces.md).
+
+**Regressão aberta, declarada em 2026-07-29.** Com a ligação do ADR-022 as
+superfícies passam a ser redimensionadas no começo de todo export, e **com filtro
+do Pixi na cena** duas execuções divergem nos primeiros frames em cerca de metade
+das rodadas. Sem filtro, zero divergência em catorze rodadas entre escala 1 e
+escala 2. O critério 5 do `verify:phase8` é o que acusa. Três hipóteses foram
+testadas e derrubadas por medição — viewport do Three, aquecimento de primeira
+pintura e reciclagem de alvo de filtro — e o caminho de investigação está descrito
+em [09-CONTINUIDADE](09-CONTINUIDADE.md). **Isto é limite conhecido, não critério
+afrouxado:** o critério 7, que exporta acima de 2 MP, mede a cena sem filtro
+porque é o que está provado, e a cena com filtro continua sendo cobrada pelo
+critério 5.
+
+**Falta ainda**: fechar a regressão acima, motion blur por sampling temporal,
+checkpoint e retomada. O painel de fila já existe, com seletor dos cinco formatos,
+seletor de escala com a resolução de saída na tela, progresso, ETA e relatório de
 settle.
 
 **Objetivo original.** Arquivo de vídeo. A fase que prova o determinismo.

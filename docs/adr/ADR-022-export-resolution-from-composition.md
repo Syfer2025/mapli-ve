@@ -219,6 +219,36 @@ propriedade da **obra**, e a obra mora no documento. A janela é mobília.
   `evenSize()` do `video-encoder.ts` continua como última guarda, e passa a ser
   no-op no caminho normal em vez de a única defesa.
 
+## Nota de implementação (2026-07-29)
+
+A ligação entrou como `apps/editor/src/export/surface-override.ts` e
+`useExportSurface.ts`. Um desvio da letra desta página, e ele vale registrar:
+
+**A transação espera um predicado de estado, não uma confirmação de evento.** A
+decisão acima diz "conduzidas a esse tamanho pela duração do export", e a primeira
+implementação leu isso como "aplique e siga". Não serve: o mapa redimensiona
+síncrono em `map.resize()`, mas o overlay Pixi só chega ao tamanho novo depois de
+`ResizeObserver` → `setState` → efeito de render. Cada superfície agora responde
+_"estou no tamanho?"_, e a transação só solta o export quando todas respondem que
+sim.
+
+Isso ainda deixava um buraco, e ele custou uma regressão medida: a **restauração**
+do export anterior também chega tarde e cai dentro do export seguinte. Por isso o
+`ExportHost` ganhou `surfacesBusy`, ao lado de `mapBusy` e `assetsBusy` — superfície
+fora de medida é trabalho pendente como tile pendente, e o pump espera por ela.
+Sem essa condição o `frame-composer` **escala** a superfície atrasada dentro do
+frame planejado, o arquivo sai plausível, e o critério 6 do `verify:phase8` oscila
+entre 5/7 e 7/7 com o mesmo código.
+
+E uma superfície que o compositor **ignora** não pode travar o export: o palco sem
+nó `studio.stage` fica nos 300×150 de fábrica para sempre. A pergunta "entra no
+frame?" tem um dono só, `isComposableSurface` no `frame-composer`, lido pela
+transação em vez de reimplementado.
+
+Medido depois: `verify:phase8` **7/7 em quatro rodadas**, PNG **1920×1080**;
+`verify:phase8-video` **6/6**, MP4 **1920×1080**; `verify:phase7e3` **14/14**.
+Antes, os dois arquivos saíam em 2032×800 — o tamanho do dockview desta máquina.
+
 ## Quando revisar
 
 1. Quando alguém precisar **editar durante um export**, ou exportar duas

@@ -546,6 +546,24 @@ class Scene3dLayerRuntime {
       this.lastNdc = [clip.x / clip.w, clip.y / clip.w, clip.z / clip.w];
     }
     this.renderer.resetState();
+    /**
+     * O viewport do Three acompanha o buffer do mapa, todo frame.
+     *
+     * `WebGLRenderer` guarda o próprio `_viewport`, fixado no tamanho que o canvas
+     * tinha quando ele foi criado, e o reaplica em cada `render()`. Enquanto o
+     * canvas do mapa nunca mudava de tamanho isso era invisível. Com o
+     * [ADR-022](../../../../../docs/adr/ADR-022-export-resolution-from-composition.md)
+     * o export conduz o mapa a outro tamanho e outro `pixelRatio`, e aí a camada
+     * 3D passa a desenhar num retângulo de tamanho antigo dentro de um buffer
+     * novo — e **qual** tamanho ela usa depende de o estilo ter recarregado ou não
+     * desde o último redimensionamento, que é uma corrida. Medido: em 3840×2160
+     * duas execuções do mesmo export divergiam com o modelo em cena e eram
+     * idênticas sem ele.
+     *
+     * `drawingBufferWidth`, e não `canvas.width`: é o buffer em que este `gl` de
+     * fato desenha, que é a pergunta certa quando o canvas é de outro dono.
+     */
+    this.renderer.setViewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
     // Depth buffer limpo, e depth test LIGADO nos materiais. Essa é a diferença
     // entre modelo 3D e adesivo:
     //

@@ -9,12 +9,25 @@
  * de `settle` em teste unitário sem GPU ([run-export.test.ts](./run-export.test.ts)).
  */
 
-import { counterDigits, sanitizeBasename, type FfmpegExportFormat } from "@theatrum/export";
+import {
+  counterDigits,
+  planExportResolution,
+  sanitizeBasename,
+  type ExportResolution,
+  type FfmpegExportFormat,
+} from "@theatrum/export";
+import type { Composition } from "@theatrum/schema";
 import type { Map as MapLibreMap } from "maplibre-gl";
 import { bridge } from "../bridge/index.js";
 import { editorActions, getEditorSessionSnapshot } from "../document/editor-session.js";
 import { FrameComposer, type ComposedFrame } from "./frame-composer.js";
-import { runExport, type ExportProgress, type ExportReport } from "./run-export.js";
+import {
+  runExport,
+  type ExportHost,
+  type ExportProgress,
+  type ExportReport,
+} from "./run-export.js";
+import { runWithSurfaceOverride } from "./surface-override.js";
 import {
   createVideoEncodeSession,
   isVideoEncodingSupported,
@@ -70,6 +83,14 @@ export interface StartExportOptions {
   readonly outputFps?: number;
   /** Destino já conhecido; presente, o diálogo de pasta é pulado. */
   readonly directory?: string;
+  /**
+   * Multiplicador sobre o tamanho autorado ([ADR-022](../../../../docs/adr/ADR-022-export-resolution-from-composition.md)).
+   *
+   * Vive no job e não no documento porque é preferência de saída, como
+   * `outputFps` e o trecho — não conteúdo. Ausente, 1: a composição como ela foi
+   * autorada, que é o que `compToScreen` vira na identidade.
+   */
+  readonly scale?: number;
 }
 
 export interface StartExportResult {
@@ -131,6 +152,49 @@ interface FrameRenderConfig {
   readonly jobSuffix: string;
 }
 
+type PlannedResolution =
+  | { readonly ok: true; readonly resolution: ExportResolution }
+  | { readonly ok: false; readonly message: string };
+
+/**
+ * O tamanho do frame, antes de qualquer diálogo de pasta.
+ *
+ * A ordem importa: `planExportResolution` **recusa** acima do teto de 4096 px por
+ * eixo em vez de cortar em silêncio, e recusar depois de o usuário escolher a
+ * pasta seria pedir trabalho para jogar fora. A mensagem dele já nomeia o teto e
+ * de onde ele vem, então basta repassá-la.
+ */
+function planResolutionFor(composition: Composition, scale: number | undefined): PlannedResolution {
+  try {
+    return {
+      ok: true,
+      resolution: planExportResolution({
+        compositionWidth: composition.width,
+        compositionHeight: composition.height,
+        ...(scale === undefined ? {} : { scale }),
+      }),
+    };
+  } catch (error: unknown) {
+    return { ok: false, message: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/**
+ * O tamanho a que as superfícies são conduzidas: layout em pixels de CSS e a
+ * escala no backing store. É a decisão do ADR-022 em três números.
+ */
+function surfaceOverrideFor(resolution: ExportResolution): {
+  readonly width: number;
+  readonly height: number;
+  readonly pixelRatio: number;
+} {
+  return {
+    width: resolution.layout[0],
+    height: resolution.layout[1],
+    pixelRatio: resolution.pixelRatio,
+  };
+}
+
 interface RenderedPngFrames {
   readonly result: StartExportResult;
   readonly framesDirectory?: string;
@@ -154,6 +218,11 @@ async function renderPngFrames(
     };
   }
 
+  const planned = planResolutionFor(composition, options.scale);
+  if (!planned.ok) {
+    return { result: { ok: false, directory: "", message: planned.message } };
+  }
+
   editorActions.pause();
 
   const begin = await bridge.export.begin({
@@ -168,47 +237,63 @@ async function renderPngFrames(
   }
 
   const framesDirectory = begin.framesDirectory ?? begin.directory;
-  const composer = new FrameComposer({ includeMap: !config.alpha });
+  const composer = new FrameComposer({
+    includeMap: !config.alpha,
+    size: { width: planned.resolution.output[0], height: planned.resolution.output[1] },
+  });
+  const host: ExportHost = {
+    seek: (frame) => editorActions.setPlayhead(frame),
+    observe: options.probe,
+    // `isMoving` cobre animação de câmera; `areTilesLoaded` cobre o que ainda
+    // está vindo do disco. Capturar com tile pendente grava o mapa pela
+    // metade, e qual metade depende da velocidade do disco.
+    mapBusy: () =>
+      options.map !== undefined && (options.map.isMoving() || !options.map.areTilesLoaded()),
+    // GLB em parse tem orçamento próprio no pump: pode legitimamente levar
+    // mais que os 4 s do mapa sem autorizar tile/câmera presos por 30 s.
+    assetsBusy: () => options.probe().pendingAssets > 0,
+    // Superfície ainda a caminho do tamanho do frame conta como ocupada:
+    // capturar aqui esticaria o overlay dentro do frame planejado.
+    surfacesBusy: () => composer.surfacesResizing(),
+    compose: () => composer.compose(),
+    writeFrame: async (filename, frame) => {
+      const result = await bridge.export.frame({
+        directory: framesDirectory,
+        filename,
+        width: frame.width,
+        height: frame.height,
+        rgba: frame.rgba,
+      });
+      return {
+        ok: result.ok,
+        sha256: result.sha256,
+        ...(result.message === undefined ? {} : { message: result.message }),
+      };
+    },
+  };
+
   try {
-    const report = await runExport({
-      plan: {
-        compositionId: composition.id,
-        durationFrames: composition.duration,
-        compositionFps: composition.fps,
-        ...(options.outputFps === undefined ? {} : { outputFps: options.outputFps }),
-        ...(options.range === undefined ? {} : { range: options.range }),
-        basename: composition.name,
+    // As superfícies vão ao tamanho da composição pela duração do export e voltam
+    // em `finally`, dentro da transação (ADR-022). O pump inteiro roda lá dentro:
+    // conduzir só o primeiro frame deixaria os seguintes no tamanho do painel.
+    const report = await runWithSurfaceOverride(
+      surfaceOverrideFor(planned.resolution),
+      async () => {
+        return runExport({
+          plan: {
+            compositionId: composition.id,
+            durationFrames: composition.duration,
+            compositionFps: composition.fps,
+            ...(options.outputFps === undefined ? {} : { outputFps: options.outputFps }),
+            ...(options.range === undefined ? {} : { range: options.range }),
+            basename: composition.name,
+          },
+          host,
+          ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
+          ...(options.shouldAbort === undefined ? {} : { shouldAbort: options.shouldAbort }),
+        });
       },
-      host: {
-        seek: (frame) => editorActions.setPlayhead(frame),
-        observe: options.probe,
-        // `isMoving` cobre animação de câmera; `areTilesLoaded` cobre o que ainda
-        // está vindo do disco. Capturar com tile pendente grava o mapa pela
-        // metade, e qual metade depende da velocidade do disco.
-        mapBusy: () =>
-          options.map !== undefined && (options.map.isMoving() || !options.map.areTilesLoaded()),
-        // GLB em parse tem orçamento próprio no pump: pode legitimamente levar
-        // mais que os 4 s do mapa sem autorizar tile/câmera presos por 30 s.
-        assetsBusy: () => options.probe().pendingAssets > 0,
-        compose: () => composer.compose(),
-        writeFrame: async (filename, frame) => {
-          const result = await bridge.export.frame({
-            directory: framesDirectory,
-            filename,
-            width: frame.width,
-            height: frame.height,
-            rgba: frame.rgba,
-          });
-          return {
-            ok: result.ok,
-            sha256: result.sha256,
-            ...(result.message === undefined ? {} : { message: result.message }),
-          };
-        },
-      },
-      ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
-      ...(options.shouldAbort === undefined ? {} : { shouldAbort: options.shouldAbort }),
-    });
+    );
     return {
       result: { ok: report.errors.length === 0, directory: begin.directory, report },
       framesDirectory,
@@ -302,6 +387,9 @@ export async function startVideoExport(options: StartExportOptions): Promise<Sta
     return { ok: false, directory: "", message: "nenhuma composição selecionada" };
   }
 
+  const planned = planResolutionFor(composition, options.scale);
+  if (!planned.ok) return { ok: false, directory: "", message: planned.message };
+
   editorActions.pause();
 
   const begin = await bridge.export.begin({
@@ -313,7 +401,12 @@ export async function startVideoExport(options: StartExportOptions): Promise<Sta
   }
 
   const filename = `${sanitizeBasename(composition.name)}.mp4`;
-  const composer = new FrameComposer();
+  // O tamanho vem do plano, não da primeira superfície. Isto é o que faz a
+  // dimensão par sair **por construção** em vez de sair do `evenSize()` do
+  // encoder, que passa a ser a última guarda em vez da única defesa (ADR-022).
+  const composer = new FrameComposer({
+    size: { width: planned.resolution.output[0], height: planned.resolution.output[1] },
+  });
   // O primeiro frame define a resolução do arquivo, e ela não pode mudar no meio:
   // um MP4 declara largura e altura no cabeçalho, uma vez.
   //
@@ -335,48 +428,58 @@ export async function startVideoExport(options: StartExportOptions): Promise<Sta
     if (!result.ok) throw new Error(result.message ?? "falha ao anexar ao arquivo");
   };
 
+  let encoded = 0;
+  const host: ExportHost = {
+    seek: (frame) => editorActions.setPlayhead(frame),
+    observe: options.probe,
+    // Mesma trinca do caminho PNG acima: câmera, tiles e GLB pendente.
+    mapBusy: () =>
+      options.map !== undefined && (options.map.isMoving() || !options.map.areTilesLoaded()),
+    assetsBusy: () => options.probe().pendingAssets > 0,
+    // Superfície ainda a caminho do tamanho do frame conta como ocupada:
+    // capturar aqui esticaria o overlay dentro do frame planejado.
+    surfacesBusy: () => composer.surfacesResizing(),
+    compose: () => composer.compose(),
+    writeFrame: async (_name, frame: ComposedFrame) => {
+      if (encoder.current === null) {
+        encoder.current = createVideoEncodeSession({
+          width: frame.width,
+          height: frame.height,
+          fps: options.outputFps ?? composition.fps,
+          bitrate: Math.round(
+            frame.width *
+              frame.height *
+              BITS_PER_PIXEL_PER_FRAME *
+              (options.outputFps ?? composition.fps),
+          ),
+          write: appendBytes,
+        });
+      }
+      await encoder.current.push(frame, encoded);
+      encoded += 1;
+      return { ok: true, sha256: "" };
+    },
+  };
+
   try {
-    let encoded = 0;
-    const report = await runExport({
-      plan: {
-        compositionId: composition.id,
-        durationFrames: composition.duration,
-        compositionFps: composition.fps,
-        ...(options.outputFps === undefined ? {} : { outputFps: options.outputFps }),
-        ...(options.range === undefined ? {} : { range: options.range }),
-        basename: composition.name,
+    const report = await runWithSurfaceOverride(
+      surfaceOverrideFor(planned.resolution),
+      async () => {
+        return runExport({
+          plan: {
+            compositionId: composition.id,
+            durationFrames: composition.duration,
+            compositionFps: composition.fps,
+            ...(options.outputFps === undefined ? {} : { outputFps: options.outputFps }),
+            ...(options.range === undefined ? {} : { range: options.range }),
+            basename: composition.name,
+          },
+          host,
+          ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
+          ...(options.shouldAbort === undefined ? {} : { shouldAbort: options.shouldAbort }),
+        });
       },
-      host: {
-        seek: (frame) => editorActions.setPlayhead(frame),
-        observe: options.probe,
-        // Mesma trinca do caminho PNG acima: câmera, tiles e GLB pendente.
-        mapBusy: () =>
-          options.map !== undefined && (options.map.isMoving() || !options.map.areTilesLoaded()),
-        assetsBusy: () => options.probe().pendingAssets > 0,
-        compose: () => composer.compose(),
-        writeFrame: async (_name, frame: ComposedFrame) => {
-          if (encoder.current === null) {
-            encoder.current = createVideoEncodeSession({
-              width: frame.width,
-              height: frame.height,
-              fps: options.outputFps ?? composition.fps,
-              bitrate: Math.round(
-                frame.width *
-                  frame.height *
-                  BITS_PER_PIXEL_PER_FRAME *
-                  (options.outputFps ?? composition.fps),
-              ),
-              write: appendBytes,
-            });
-          }
-          await encoder.current.push(frame, encoded);
-          encoded += 1;
-          return { ok: true, sha256: "" };
-        },
-      },
-      ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
-      ...(options.shouldAbort === undefined ? {} : { shouldAbort: options.shouldAbort }),
-    });
+    );
 
     if (encoder.current === null) {
       return { ok: false, directory: begin.directory, report, message: "nenhum frame codificado" };

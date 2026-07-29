@@ -19,11 +19,20 @@
  * 6. Com cache frio, `model3d` e `route3d` já aparecem no primeiro export; a
  *    execução quente produz os mesmos hashes. Esta é a prova de que o settle
  *    espera o parse assíncrono do GLB, não apenas câmera e tiles.
+ * 7. **Exportar acima de 2 MP dá arquivos byte-idênticos.** Até o ADR-022 o frame
+ *    saía do tamanho do painel — 0,71 MP nesta máquina — e por isso este
+ *    verificador ficou 7/7 durante sessões sem nunca exportar grande, que é
+ *    justamente onde a repintura com MSAA deixava de ser bit-exata.
+ * 8. **`SAMPLES === 0` no mapa e no palco.** Afirmação estrutural, e não
+ *    substituível pelo critério 7: há GPU em que o defeito do MSAA não reproduz
+ *    (medido numa RTX 4090), e nela comparar hashes deixaria a regressão passar.
+ *    Ver a segunda medição do ADR-023.
  *
  * Escreve numa pasta temporária escolhida sem diálogo (o verificador chama o
  * escritor direto), e desfaz o que criou no documento.
  */
 
+import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -118,6 +127,8 @@ class CdpClient {
  * `C:UsersalexmOneDrive` sem erro nenhum nesta base de código.
  */
 const SAIDA = join(tmpdir(), "theatrum-verify-phase8").replaceAll("\\", "/");
+/** Pasta separada para o export 4K: os arquivos são grandes e o nome se repete. */
+const SAIDA_4K = join(tmpdir(), "theatrum-verify-phase8-4k").replaceAll("\\", "/");
 
 const PRELUDE = `
 const session = () => window.__theatrumPhase3;
@@ -325,6 +336,92 @@ const EXPORTAR = `(async () => {
 })()`;
 
 /**
+ * Export **acima de 2 MP**, com a escala do job (ADR-022).
+ *
+ * Quatro frames, não nove: em 3840×2160 cada frame é 8,29 MP, e a prova de
+ * byte-identidade não precisa de mais. Os quatro cabem na animação de opacidade
+ * do rótulo, então continuam distintos entre si — export congelado não passa.
+ */
+const EXPORTAR_4K = `(async () => {
+  const r = await overlay().exportPngSequence({
+    range: { first: 0, last: 3 },
+    scale: 2,
+    directory: ${JSON.stringify(SAIDA_4K)},
+  });
+  return {
+    ok: r.ok,
+    directory: r.directory,
+    message: r.message ?? null,
+    written: r.report ? r.report.written : 0,
+    settleFailed: r.report ? r.report.settleFailed : -1,
+    errors: r.report ? r.report.errors : [],
+    hashes: r.report ? r.report.hashes : [],
+  };
+})()`;
+
+/**
+ * `SAMPLES` de uma superfície composta, lido do contexto vivo.
+ *
+ * É afirmação estrutural, e é a única que sobrevive a uma GPU onde o defeito do
+ * MSAA não reproduz — como a RTX 4090 desta máquina, medida em 2026-07-29:
+ * lá, `antialias: true` repete bit a bit até 8,29 MP, então **comparar hashes não
+ * pegaria a regressão**. Ver a segunda medição do ADR-023.
+ */
+const SAMPLES_DE = (seletor) => `(() => {
+  const canvas = document.querySelector(${JSON.stringify(seletor)});
+  if (canvas === null) return { presente: false };
+  const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
+  if (gl === null) return { presente: true, contexto: false };
+  const attrs = gl.getContextAttributes();
+  return {
+    presente: true,
+    contexto: true,
+    samples: gl.getParameter(gl.SAMPLES),
+    antialias: attrs === null ? null : attrs.antialias,
+    fisico: [canvas.width, canvas.height],
+  };
+})()`;
+
+/** Largura e altura de um PNG, direto do IHDR. Prova em disco, não em canvas. */
+function pngSize(file) {
+  const bytes = readFileSync(file);
+  return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+}
+
+/**
+ * Põe uma aba qualquer do dockview na frente.
+ *
+ * `PointerEvent` no próprio elemento da aba: `element.click()` o dockview ignora,
+ * e `Input.dispatchMouseEvent` por coordenada funciona só às vezes. Ver
+ * 09-CONTINUIDADE, "Trocar de aba do dockview por CDP".
+ */
+async function activateTabNamed(client, label, mountedSelector) {
+  const mounted = () =>
+    client.evaluate(`Boolean(document.querySelector(${JSON.stringify(mountedSelector)}))`);
+  if ((await mounted()) === true) return true;
+  const clicked = await client.evaluate(`(() => {
+    const tab = [...document.querySelectorAll('.dv-tab')].find((t) =>
+      t.textContent.includes(${JSON.stringify(label)}),
+    );
+    if (tab === undefined) return false;
+    for (const type of ['pointerdown', 'pointerup']) {
+      tab.dispatchEvent(new PointerEvent(type, {
+        bubbles: true, composed: true, cancelable: true,
+        pointerId: 1, isPrimary: true, button: 0,
+      }));
+    }
+    return true;
+  })()`);
+  if (clicked !== true) return false;
+  const deadline = Date.now() + 8000;
+  for (;;) {
+    if ((await mounted()) === true) return true;
+    if (Date.now() > deadline) return false;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+}
+
+/**
  * Põe o Viewport na frente antes de medir.
  *
  * **Por que isto existe.** O dockview só monta o painel ativo, e o layout é
@@ -338,10 +435,80 @@ const EXPORTAR = `(async () => {
  * dockview ignora, nem `Input.dispatchMouseEvent` por coordenada, que funciona só
  * às vezes. É a conclusão registrada em 09-CONTINUIDADE, aplicada aqui.
  */
+/**
+ * O Viewport está montado **e pintado**?
+ *
+ * Montado não basta, e a diferença custou uma rodada inteira. O MapLibre cria o
+ * canvas na hora, com o **fallback de 400×300** quando o container ainda não foi
+ * medido; e `drawImage` de um canvas WebGL que ainda não pintou devolve zero em
+ * todos os canais. Rodar o critério 1 nesse instante relata
+ * `.maplibregl-canvas 400x300 soma=0 ILEGÍVEL`, e a leitura errada é "o export
+ * quebrou".
+ *
+ * Medido nesta base: logo depois de recarregar o renderer, o verificador dá 6/7
+ * no código **sem nenhuma mudança**, e 7/7 com o app já assentado. Verificador que
+ * depende de quão recente foi o último reload não é verificador — é a mesma
+ * família do critério que dependia da ordem em que outro rodou.
+ *
+ * As três condições são as mesmas de uma sonda honesta: existe, tem tamanho
+ * plausível, e tem conteúdo. A terceira é a guarda de conteúdo do
+ * `tools/probes/README.md`, lição 3.
+ */
+const VIEWPORT_PRONTO = `(async () => {
+  const canvas = document.querySelector('.maplibregl-canvas');
+  if (canvas === null) return { pronto: false, motivo: 'canvas ausente' };
+  if (canvas.clientWidth <= 1 || canvas.clientHeight <= 1) {
+    return { pronto: false, motivo: 'canvas sem tamanho de CSS' };
+  }
+  const m = window.__theatrumPhase2 === undefined ? null : window.__theatrumPhase2.map;
+  if (m === null) return { pronto: false, motivo: 'superfície do mapa ausente' };
+  // isStyleLoaded() NAO entra aqui. Medido nesta base: ele devolve false com o
+  // mapa carregado, pintando, nove camadas no estilo e areTilesLoaded()
+  // verdadeiro. Usa-lo como porta trava o verificador por 20 s num mapa
+  // perfeitamente pronto. Quem responde "da para capturar?" e a leitura de volta.
+  //
+  // Sem acento grave neste bloco: ele mora DENTRO de um template literal, e
+  // backtick aqui fecha a string. E a armadilha 4.1, e ela acabou de morder.
+  //
+  // Pedir a repintura, nao esperar por ela. O MapLibre repinta sob demanda:
+  // depois de assentar, ele fica ocioso e a leitura de volta devolve zero em
+  // todos os canais — a armadilha 4.11, e a condição exata do pump do export
+  // entre frames. Esperar passivamente aqui deu 20 s de 'soma 0' com o mapa
+  // perfeitamente carregado. Toda sonda deste repositório força o repaint; esta
+  // guarda também.
+  await new Promise((resolve) => { m.once('idle', resolve); m.triggerRepaint(); });
+  if (!m.areTilesLoaded()) return { pronto: false, motivo: 'tiles pendentes' };
+  const s = document.createElement('canvas');
+  s.width = 32; s.height = 32;
+  const ctx = s.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(canvas, 0, 0, 32, 32);
+  const px = ctx.getImageData(0, 0, 32, 32).data;
+  let soma = 0;
+  for (let i = 0; i < px.length; i += 4) soma += px[i] + px[i + 1] + px[i + 2];
+  if (soma === 0) return { pronto: false, motivo: 'canvas não pintou nem sob triggerRepaint' };
+  return { pronto: true, tamanho: [canvas.clientWidth, canvas.clientHeight], soma };
+})()`;
+
 async function activateViewportTab(client) {
   const mounted = () => client.evaluate(`Boolean(document.querySelector('.maplibregl-canvas'))`);
-  if ((await mounted()) === true) return;
+  if ((await mounted()) !== true) await clickViewportTab(client);
+  await waitForViewportReady(client);
+}
 
+/** Espera o Viewport ficar legível, ou nomeia o que faltou. */
+async function waitForViewportReady(client) {
+  const deadline = Date.now() + 20_000;
+  for (;;) {
+    const ultimo = await client.evaluate(VIEWPORT_PRONTO);
+    if (ultimo.pronto === true) return ultimo;
+    if (Date.now() > deadline) {
+      throw new Error(`Viewport não ficou pronto em 20 s: ${ultimo.motivo}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+}
+
+async function clickViewportTab(client) {
   const clicked = await client.evaluate(`(() => {
     const tab = [...document.querySelectorAll('.dv-tab')].find((t) =>
       t.textContent.includes('Viewport'),
@@ -366,7 +533,8 @@ async function activateViewportTab(client) {
   }
   const deadline = Date.now() + 6000;
   for (;;) {
-    if ((await mounted()) === true) return;
+    const montado = await client.evaluate(`Boolean(document.querySelector('.maplibregl-canvas'))`);
+    if (montado === true) return;
     if (Date.now() > deadline) throw new Error("Viewport não montou depois de ativar a aba");
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
@@ -470,6 +638,19 @@ async function main() {
           `erros=${primeira.errors.length}; saída em ${primeira.directory}`,
       );
 
+      // ── (medição do 7, na cena limpa — antes dos filtros e do 3D) ────────
+      //
+      // A posição é deliberada e está declarada no roteiro, não é régua movida.
+      // O que está **provado** byte-idêntico acima de 2 MP é mapa mais overlay:
+      // medido 6/6 aqui e no pump do ADR-022. Com filtro do Pixi na cena, duas
+      // execuções divergem nos primeiros frames em cerca de metade das rodadas —
+      // defeito real, reproduzido, e com nome e medição em
+      // 09-CONTINUIDADE. Fazer o critério 7 rodar depois dos filtros o deixaria
+      // vermelho por um defeito que ele não é o dono de provar, e um verificador
+      // com vermelho crônico deixa de ser lido.
+      const primeira4k = await client.evaluate(EXPORTAR_4K);
+      const segunda4k = await client.evaluate(EXPORTAR_4K);
+
       // ── 5. A cena suspeita: dois nós geo com filtro ──────────────────────
       //
       // O 09-CONTINUIDADE carregava uma suspeita herdada: com região **e**
@@ -561,6 +742,108 @@ async function main() {
           `${frio3d.hashes.length} frames, frio×quente ${hashes3dIguais ? "idênticos" : "DIVERGEM"}; ` +
           `visual 3D ${visual3dEntrou ? "entrou no frame" : "não alterou o frame"}; ` +
           `${distintos3d} hashes distintos; settleFailed frio=${frio3d.settleFailed} quente=${quente3d.settleFailed}`,
+      );
+
+      // ── 7. Export ACIMA de 2 MP, byte-idêntico ───────────────────────────
+      //
+      // O critério 2 estava 7/7 há sessões porque nunca exportou grande: o frame
+      // saía do tamanho do painel, 0,71 MP nesta máquina, abaixo do limiar em que
+      // a repintura do MSAA deixava de ser bit-exata. Com o ADR-022 o tamanho vem
+      // da composição, e com escala 2 são 8,29 MP — quatro vezes acima do limiar
+      // medido na RTX 3060 Ti do ADR-023.
+      //
+      // O tamanho é afirmado no **arquivo em disco**, pelo IHDR do PNG, e não no
+      // canvas: o canvas volta ao tamanho do painel no `finally` da transação, e
+      // perguntar a ele depois responderia sobre o preview, não sobre a entrega.
+      //
+      // As duas execuções foram medidas acima, com a cena de mapa e overlay.
+      const iguais4k =
+        primeira4k.hashes.length > 0 &&
+        primeira4k.hashes.length === segunda4k.hashes.length &&
+        primeira4k.hashes.every(
+          (hash, index) =>
+            hash.filename === segunda4k.hashes[index].filename &&
+            hash.sha256 === segunda4k.hashes[index].sha256,
+        );
+      const distintos4k = new Set(primeira4k.hashes.map((hash) => hash.sha256)).size;
+      let medido4k = null;
+      let erro4k = null;
+      try {
+        const primeiro = primeira4k.hashes[0];
+        if (primeiro !== undefined) {
+          medido4k = pngSize(join(SAIDA_4K, primeiro.filename));
+        }
+      } catch (error) {
+        erro4k = error instanceof Error ? error.message : String(error);
+      }
+      const megapixels = medido4k === null ? 0 : (medido4k.width * medido4k.height) / 1e6;
+      record(
+        "7 · export acima de 2 MP dá arquivos byte-idênticos",
+        iguais4k &&
+          distintos4k > 1 &&
+          primeira4k.settleFailed === 0 &&
+          medido4k !== null &&
+          medido4k.width === 3840 &&
+          medido4k.height === 2160,
+        `${primeira4k.written} frames em ` +
+          `${medido4k === null ? `TAMANHO NÃO LIDO${erro4k === null ? "" : ` (${erro4k})`}` : `${medido4k.width}×${medido4k.height}`} ` +
+          `= ${megapixels.toFixed(2)} MP; duas execuções ${iguais4k ? "IDÊNTICAS" : "DIVERGEM"}; ` +
+          `${distintos4k} hashes distintos; settleFailed=${primeira4k.settleFailed}` +
+          `${primeira4k.errors.length === 0 ? "" : `; erros: ${primeira4k.errors.slice(0, 2).join("; ")}`}`,
+      );
+
+      // ── 8. SAMPLES === 0 nas duas superfícies compostas ──────────────────
+      //
+      // **Este critério é estrutural de propósito, e o 7 não o substitui.** Na
+      // RTX 4090 desta máquina, medido em 2026-07-29, o defeito do MSAA não
+      // reproduz: com `antialias: true` a repintura repete bit a bit até 8,29 MP.
+      // Ou seja, quem reintroduzir a flag por qualidade de imagem passaria pelo
+      // critério 7 aqui e entregaria arquivo divergente na máquina de quem
+      // recebe. Comparar bytes é sintoma; perguntar `SAMPLES` é estrutura.
+      //
+      // O palco exige aba própria e um nó `studio.stage`: sem ele o runtime nunca
+      // chama `setSize`, o canvas fica nos 300×150 de fábrica e o contexto medido
+      // não é o que exporta.
+      const samplesMapa = await client.evaluate(SAMPLES_DE(".maplibregl-canvas"));
+      const palcoMontado = await client.evaluate(
+        `(async () => {
+          const S = session();
+          const estado = S.getSnapshot();
+          const comp = estado.document.compositions.find((c) => c.id === estado.selectedCompositionId);
+          const existente = Object.values(comp.nodes).find((n) => n.type === 'studio.stage');
+          if (existente !== undefined) return { criado: false };
+          S.actions.addNodeOfType('studio.stage');
+          S.actions.clearSelection();
+          await wait(400);
+          return { criado: true };
+        })()`,
+      );
+      const abriuPalco = await activateTabNamed(client, "Palco 3D", ".studio-viewport__stage");
+      const samplesPalco = abriuPalco
+        ? await client.evaluate(
+            `(async () => { await wait(1200); return ${SAMPLES_DE(".studio-viewport__stage")}; })()`,
+          )
+        : { presente: false };
+      // Volta para o Viewport antes do desfazer, senão o próximo critério — e a
+      // próxima rodada — herdam a aba errada. É a lição do verificador que não era
+      // idempotente, aplicada a este.
+      await activateViewportTab(client);
+      const msaaDesligado =
+        samplesMapa.presente === true &&
+        samplesMapa.samples === 0 &&
+        samplesMapa.antialias === false &&
+        samplesPalco.presente === true &&
+        samplesPalco.samples === 0 &&
+        samplesPalco.antialias === false;
+      record(
+        "8 · MSAA desligado nas duas superfícies compostas (ADR-023)",
+        msaaDesligado,
+        `mapa SAMPLES=${samplesMapa.samples ?? "?"} antialias=${samplesMapa.antialias ?? "?"}` +
+          ` (${samplesMapa.fisico?.join("x") ?? "ausente"}); ` +
+          `palco SAMPLES=${samplesPalco.samples ?? "?"} antialias=${samplesPalco.antialias ?? "?"}` +
+          ` (${samplesPalco.fisico?.join("x") ?? "ausente"})` +
+          `${palcoMontado.criado ? "; nó studio.stage criado para medir" : ""}` +
+          `${abriuPalco ? "" : "; ABA DO PALCO NÃO ABRIU"}`,
       );
     }
   } finally {

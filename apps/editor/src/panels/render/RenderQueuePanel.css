@@ -22,6 +22,21 @@
   padding: 2px var(--space-2);
 }
 
+/* Mais estreito que o de formato: são três opções curtas, e o painel é apertado. */
+.render-queue__scale {
+  min-width: 118px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--fg);
+  padding: 2px var(--space-2);
+}
+
+/* A resolução de saída no rodapé, em tabular para não dançar ao trocar escala. */
+.render-queue__output {
+  font-variant-numeric: tabular-nums;
+}
+
 .render-queue__badge {
   padding: 0 var(--space-3);
   border-radius: 999px;

@@ -50,6 +50,8 @@ import {
 import { attachScene3dLayer, detachScene3dLayer } from "./scene3d-layer.js";
 import { loadNaturalEarthGazetteer } from "./natural-earth-gazetteer.js";
 import { SceneOverlay } from "./SceneOverlay.js";
+import { applyOverrideToElement, useExportSurface } from "../../export/useExportSurface.js";
+import { effectivePixelRatio, surfaceMatches } from "../../export/surface-override.js";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./MapViewport.css";
 
@@ -195,6 +197,31 @@ export function MapViewport(): ReactNode {
   const [query, setQuery] = useState("");
   const [resolution, setResolution] = useState<GazetteerResolution | null>(null);
   const gazetteerRef = useRef(new OfflineGazetteer(BUILTIN_GAZETTEER_PLACES));
+
+  /**
+   * Durante um export o mapa vai ao tamanho da composição ([ADR-022](../../../../../docs/adr/ADR-022-export-resolution-from-composition.md)).
+   *
+   * Container em pixels de CSS e `setPixelRatio` para o backing store — os dois
+   * juntos, porque é o produto deles que dá o tamanho do frame. O `resize()` é
+   * síncrono no MapLibre, então quando este efeito termina o canvas já tem o
+   * tamanho novo e a confirmação da transação não mente.
+   *
+   * Na volta, `devicePixelRatio`, e não o valor que estava antes: o mapa nasce
+   * assim, e guardar o anterior seria uma segunda verdade sobre o mesmo número.
+   */
+  useExportSurface(
+    "map",
+    (override) => {
+      applyOverrideToElement(containerRef.current, override);
+      const map = mapRef.current;
+      if (map === null) return;
+      map.setPixelRatio(effectivePixelRatio(override, window.devicePixelRatio));
+      map.resize();
+    },
+    // O canvas de verdade, não o container: é ele que o compositor lê, e é ele que
+    // o `maxCanvasSize` do MapLibre encolhe em silêncio acima de 4096 px.
+    (override) => surfaceMatches(override, mapRef.current?.getCanvas() ?? null),
+  );
 
   const stopAnimation = useCallback(() => {
     if (animationRef.current !== null) {

@@ -102,6 +102,13 @@ export interface StartJobOptions {
   readonly range?: { readonly first: number; readonly last: number };
   readonly outputFps?: number;
   readonly directory?: string;
+  /**
+   * Escala sobre o tamanho autorado ([ADR-022](../../../../docs/adr/ADR-022-export-resolution-from-composition.md)).
+   *
+   * Chega aqui do seletor do painel de fila e atravessa para o serviço, que é
+   * quem conduz as superfícies. Ausente, 1.
+   */
+  readonly scale?: number;
 }
 
 /**

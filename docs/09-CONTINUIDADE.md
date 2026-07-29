@@ -284,16 +284,17 @@ Ordem que vem agora, conforme o prompt de passagem:
 declarou — "quando alguém pedir export acima do tamanho da janela" — disparou. Foi
 medido no Electron real e virou dois ADRs. O que está feito e o que falta:
 
-| Peça                                                          | Estado       |
-| ------------------------------------------------------------- | ------------ |
-| [ADR-022](adr/ADR-022-export-resolution-from-composition.md)  | aceito       |
-| [ADR-023](adr/ADR-023-no-msaa-on-composed-surfaces.md)        | aceito       |
-| `packages/export/src/resolution.ts` — a conta pura, 14 testes | **entregue** |
-| `antialias: false` no mapa e no palco                         | **entregue** |
-| Conduzir as superfícies ao tamanho da composição              | **falta**    |
-| Seletor de escala no painel de fila                           | **falta**    |
-| Critérios novos no `verify:phase8` exportando acima de 2 MP   | **falta**    |
-| Guia de moldura da composição no canvas de gizmos             | **falta**    |
+| Peça                                                          | Estado               |
+| ------------------------------------------------------------- | -------------------- |
+| [ADR-022](adr/ADR-022-export-resolution-from-composition.md)  | aceito               |
+| [ADR-023](adr/ADR-023-no-msaa-on-composed-surfaces.md)        | aceito               |
+| `packages/export/src/resolution.ts` — a conta pura, 14 testes | **entregue**         |
+| `antialias: false` no mapa e no palco                         | **entregue**         |
+| Conduzir as superfícies ao tamanho da composição              | **entregue**         |
+| Seletor de escala no painel de fila                           | **entregue**         |
+| Critérios novos no `verify:phase8` exportando acima de 2 MP   | **entregue**         |
+| Guia de moldura da composição no canvas de gizmos             | **entregue**         |
+| Filtro do Pixi + redimensionamento repetindo bit a bit        | **regressão aberta** |
 
 **O achado que vale mais que o pedido.** Acima de ~2 MP, repintar o **mesmo
 estado** não devolve os mesmos bytes — e a causa é o MSAA:
@@ -311,6 +312,32 @@ saía do tamanho do painel — 1248×566 nesta máquina, 0,71 MP, abaixo do limi
 ligação entrar, ele passa a exportar acima de 2 MP e a afirmar `SAMPLES === 0`;
 sem esse critério, a decisão do ADR-023 se desfaz na primeira vez que alguém
 reintroduzir `antialias: true` por qualidade de imagem.
+
+**E o limiar é da placa, não do tamanho — medido em 2026-07-29 na máquina
+seguinte.** Antes de tocar na ligação, rodei a `probe-export-resolution-6a` como o
+prompt de passagem manda. Nesta máquina, uma **RTX 4090** (ANGLE/D3D11, Chrome 150,
+Electron 43, Windows 11), o defeito **não reproduz**: com `antialias: true`
+restaurado só para medir, mapa, palco e Pixi repetem bit a bit em 0,71, 2,07, 3,69,
+5,31 e 8,29 MP — 0 pixel de diferença, delta máximo 0. Os ~2 MP do ADR-023 são da
+RTX 3060 Ti.
+
+Duas coisas saem disso, e a segunda é a que importa:
+
+- **Não é absolvição do MSAA.** É a prova de que a bit-exatidão do resolve depende
+  do hardware. Determinismo que muda com a placa não é determinismo — seria
+  exportar igual aqui e diferente na máquina de quem recebe o arquivo.
+- **Nesta máquina, comparar hashes não pega a regressão.** Quem reintroduzir
+  `antialias: true` vê dois exports idênticos e um arquivo divergente na 3060 Ti.
+  Então o critério novo tem de afirmar `SAMPLES === 0` **estruturalmente**; a
+  comparação de bytes acima de 2 MP continua valendo, mas sozinha ela é verde por
+  sorte de hardware. Era recomendação; virou a única rede.
+
+Um detalhe de método que vale repetir: a sonda do repositório relata "1 hash em 3
+leituras", e **captura chapada relata a mesma coisa**. Rodei a medição com guarda de
+conteúdo ao lado — cores distintas e energia de borda por leitura, 331 → 1604 cores
+de 0,71 a 8,29 MP — porque o resultado era o que eu queria ver, e é exatamente aí
+que a lição 3 do `tools/probes/README.md` cobra. Vale acrescentar essa guarda à
+sonda versionada quando alguém voltar a ela.
 
 **O mecanismo está provado pelo pump de verdade, não só por sonda de bancada.**
 Rodando o `exportPngSequence` real duas vezes em cada tamanho, com layout no
@@ -352,6 +379,135 @@ de 4K/8K numa sonda **derruba o renderer do Electron**. O teto de dezesseis
 contextos do ADR-012 conta os da bancada junto com os do aplicativo. Sonda que
 precisa de teto de GPU lê `MAX_TEXTURE_SIZE` de um contexto que já existe, ou cria
 **um** por vez.
+
+### ⚠ REGRESSÃO ABERTA: filtro do Pixi + redimensionamento não repete bit a bit
+
+**Isolado em 2026-07-29, não corrigido. É o primeiro item da lista.**
+
+A ligação do ADR-022 redimensiona as superfícies no começo de todo export. Com
+**filtro do Pixi na cena** — `outline` + `glow` sobre um nó geo — duas execuções
+do mesmo trecho passam a divergir nos **primeiros** frames. O critério 5 do
+`verify:phase8`, que monta exatamente essa cena, saiu de estável para vermelho em
+cerca de metade das rodadas.
+
+Antes de mais nada, o que **não** mudou: o critério 2 (cena de mapa e rótulo) e o
+critério 7 (o mesmo, acima de 2 MP) ficam verdes rodada após rodada, e os arquivos
+saem em 1920×1080 e 3840×2160. O defeito é do caminho de filtro, e só aparece
+quando a resolução muda.
+
+Medições, todas com `settleFailed=0` — ou seja, o pump acredita que assentou:
+
+| Cena                     | Escala | Rodadas | Divergiram | Onde                     |
+| ------------------------ | ------ | ------- | ---------- | ------------------------ |
+| geo + rótulo             | 1      | 8       | **0**      | —                        |
+| geo + rótulo             | 2      | 6       | **0**      | —                        |
+| geo + estradas + filtros | 2      | 5       | **3**      | índices 0 e 1, nunca o 3 |
+| geo + estradas + filtros | 2      | 6       | **3**      | índices 0 e 1            |
+
+**A assinatura é de primeira pintura, não de estado errado**: sempre os primeiros
+frames, nunca os últimos; os quatro frames continuam distintos entre si, então não
+é export congelado.
+
+Três hipóteses testadas e **derrubadas por medição**, cada uma revertida:
+
+1. **Viewport do Three desatualizado.** `WebGLRenderer` guarda o próprio
+   `_viewport`, fixado no tamanho de quando nasceu, e a camada 3D vive no canvas
+   do mapa. Corrigido — `setViewport` a cada frame, e o conserto **fica**, porque
+   é certo por si — mas não era a causa: a divergência acontece igual sem nó 3D
+   nenhum na cena.
+2. **Aquecimento.** Pintar outro frame e voltar antes de começar o pump, para a
+   primeira pintura fria ser descartada. Três de seis rodadas continuaram
+   divergindo. Revertido: mitigação que não mitiga é só custo.
+3. **Alvo de filtro reciclado.** `TexturePool.clear(true)` no `resize` do backend
+   Pixi, para nenhuma textura da resolução antiga sobreviver. **Destruiu texturas
+   em uso**: o export congelou — `distintos=1` entre quatro frames e
+   `settleFailed=3` — e passou por "IDÊNTICAS" no relatório. Revertido, e vale
+   como lembrete de que "duas execuções iguais" sem a guarda de "frames distintos
+   entre si" é falsa aprovação.
+
+O que ainda não foi olhado, e é por onde eu começaria: o `filterArea` e o
+`padding` do passe de filtro dependem do retângulo do nó em pixels de tela, e esse
+retângulo muda com a resolução; e o passe de blur do `glow` amostra fora do
+retângulo, onde mora o conteúdo que o pool recicla. A pergunta a responder com
+pixel, não com leitura de código, é **de quanto** os frames diferem — a sonda atual
+só compara hash. `scratchpad/probe-divergencia.mjs` já monta a cena e aceita
+escala e filtros por argumento; falta fazê-la relatar contagem de pixels e delta
+máximo, como a `probe-limiar-com-guarda.mjs` faz.
+
+Decisão a tomar pelo dono, e não por mim: aceitar o limite enquanto o defeito é
+investigado, ou segurar a ligação do ADR-022 até ele fechar. O trabalho está
+entregue e verde em tudo o mais; este é o preço declarado.
+
+### A ligação das superfícies entrou, e o que ela ensinou
+
+**Fechado em 2026-07-29.** O frame de export deixou de sair do tamanho do painel:
+`verify:phase8` escreve PNG **1920×1080** e `verify:phase8-video` produz MP4
+**1920×1080**, onde antes os dois saíam em 2032×800, o tamanho do dockview desta
+máquina. Placar: `verify:phase8` **7/7 em quatro rodadas seguidas**, inclusive
+imediatamente depois de recarregar o renderer; `verify:phase8-video` **6/6**;
+`verify:phase7e3` **14/14**; suíte em **1.219 testes**.
+
+As peças: `apps/editor/src/export/surface-override.ts` (o store e a transação),
+`useExportSurface.ts` (o lado React), e um predicado novo no pump.
+
+**Três defeitos meus que só a prova ao vivo achou, e o padrão é o mesmo nos três:
+o estado certo chegando tarde.**
+
+- **Confirmar não é estar.** A primeira versão fazia cada superfície confirmar a
+  geração que tinha aplicado. O mapa redimensiona **síncrono** em `map.resize()`;
+  o overlay Pixi só chega ao tamanho novo depois de `ResizeObserver` →
+  `setState` → efeito de render. A confirmação chegava antes, e o compositor —
+  que agora compõe no tamanho **planejado** — esticava um overlay de 2032×800
+  dentro de um frame de 1920×1080. Frame plausível, diferente entre execuções, e
+  o critério 6 oscilando entre 5/7 e 7/7 com o mesmo código. Virou predicado de
+  estado: a transação pergunta "você **está** no tamanho?", não "você recebeu?".
+- **O predicado sozinho não bastou**, porque a **restauração** do export anterior
+  também chega tarde e cai dentro do export seguinte. Entrou `surfacesBusy` no
+  `ExportHost`, ao lado de `mapBusy` e `assetsBusy`: superfície fora de medida é
+  trabalho pendente como tile pendente. O pump espera, o compositor nunca escala.
+- **Superfície que o compositor ignora não pode travar o export.** O palco sem nó
+  `studio.stage` nunca chama `setSize` e fica nos 300×150 de fábrica — a armadilha
+  já registrada, agora do lado de quem **espera** por ele. A transação parava em
+  "superfícies não chegaram ao tamanho: studio" num export que nem ia lê-lo. A
+  regra de "entra no frame?" passou a ter **um** dono, `isComposableSurface` no
+  `frame-composer`, lido também pela transação.
+
+**A regra que sai daí, e ela é mais geral que o export:** quando um estado é
+conduzido de fora, o que se espera é o **estado**, nunca o evento que o pediu.
+Evento diz "recebi"; só predicado diz "estou", e só o segundo é verificável.
+
+**E o `verify:phase8` não era idempotente em relação ao reload.** Rodá-lo logo
+depois de recarregar o renderer dava **6/7 no código sem nenhuma mudança** —
+`activateViewportTab` voltava assim que o canvas existia no DOM, e o MapLibre cria
+o canvas na hora, com o fallback de 400×300 e sem ter pintado. Agora ele espera
+canvas com tamanho de CSS, repintura forçada e leitura não-nula. É a mesma família
+do critério que dependia da ordem em que outro verificador rodou: **verificador que
+depende de quão recente foi o último reload não é verificador.**
+
+Duas correções a armadilhas já escritas neste arquivo, e as duas custaram tempo
+agora:
+
+- **A 4.11 está incompleta.** `preserveDrawingBuffer: true` é necessário e **não é
+  suficiente**: medido nesta sessão, com a flag ligada, `drawImage` do canvas do
+  MapLibre ocioso devolveu **soma 0**, e a mesma leitura logo depois de
+  `triggerRepaint()` devolveu **96637**. A flag preserva entre frames; ela não
+  ressuscita um canvas que não pintou. Quem lê pixel do mapa **pede a repintura
+  antes**, como as sondas já faziam.
+- **`isStyleLoaded()` não serve de porta.** Ele devolveu `false` com o mapa
+  carregado, pintando, nove camadas no estilo e `areTilesLoaded()` verdadeiro.
+  Usá-lo como guarda travou o verificador por 20 s num mapa perfeitamente pronto.
+  Quem responde "dá para capturar?" é a leitura de volta.
+
+E a armadilha 4.1 mordeu de novo, na terceira forma: **backtick dentro de template
+literal**. Um comentário com `` `isStyleLoaded()` `` dentro da string que o CDP
+avalia fechou o template e produziu `SyntaxError` a dezenas de linhas de distância.
+Comentário que mora dentro de template não leva acento grave — vale para shader e
+vale para expressão de verificador.
+
+Limite conhecido que fica: por um ou dois frames depois de um export, o canvas Pixi
+do preview ainda está no tamanho da composição enquanto o mapa já voltou ao do
+painel. Converge sozinho, e o `surfacesBusy` torna isso inofensivo para o arquivo —
+mas quem olhar a tela nesse instante vê o overlay fora de medida.
 
 ### Pontos de interesse do palco (ADR-015): entregue e provado
 

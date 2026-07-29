@@ -56,6 +56,11 @@ export const EXCLUDED_SURFACE_SELECTORS: readonly string[] = Object.freeze([
   // propriedade desta lista, não consequência de o usuário lembrar de desligar o
   // modo de marcação antes de exportar.
   ".studio-viewport__markers",
+  // Moldura da composição no palco (ADR-022). Mesma razão dos marcadores, e em
+  // superfície separada deles: o critério 5 do verify:phase7e3 mede a tinta do
+  // canvas de marcadores e exige que ela suma ao desligar a marcação — a moldura
+  // não some, porque o aviso de enquadramento é permanente.
+  ".studio-viewport__guide",
 ]);
 
 /**
@@ -100,6 +105,17 @@ export interface FrameComposerOptions {
   readonly root?: ParentNode;
   /** `false` produz matte RGBA: palco/overlay sobre fundo transparente. */
   readonly includeMap?: boolean;
+  /**
+   * Tamanho do frame, quando o job o conhece — o `output` de
+   * `planExportResolution` ([ADR-022](../../../../docs/adr/ADR-022-export-resolution-from-composition.md)).
+   *
+   * Sem ele o frame herda o tamanho da primeira superfície, que é como o export
+   * funcionava quando o tamanho vinha da janela. Com ele o arquivo tem
+   * exatamente a resolução que o painel de fila prometeu — inclusive no caso em
+   * que `output` é um pixel menor que o layout, porque a composição tem lado
+   * ímpar e o H.264 exige dimensão par.
+   */
+  readonly size?: SurfaceSize;
 }
 
 /** O mínimo que a regra de seleção precisa saber de uma superfície. */
@@ -115,6 +131,22 @@ export interface SurfaceSize {
 const UNSIZED_CANVAS: SurfaceSize = { width: 300, height: 150 };
 
 /**
+ * Esta superfície entra num frame de export?
+ *
+ * A regra em uma função porque ela tem **dois** consumidores, e eles não podem
+ * discordar. O segundo é a transação de tamanho do ADR-022: uma superfície que o
+ * compositor ignora não pode travar o export esperando chegar ao tamanho da
+ * composição — e o caso real é o palco sem nó `studio.stage`, que nunca chama
+ * `setSize` e fica nos 300×150 de fábrica. Custou uma rodada inteira do
+ * `verify:phase8` parada em "superfícies não chegaram ao tamanho: studio".
+ */
+export function isComposableSurface(surface: SurfaceSize | null | undefined): boolean {
+  if (surface === null || surface === undefined) return false;
+  if (surface.width <= 1 || surface.height <= 1) return false;
+  return !(surface.width === UNSIZED_CANVAS.width && surface.height === UNSIZED_CANVAS.height);
+}
+
+/**
  * Quais superfícies entram na composição — a regra, separada do DOM.
  *
  * Vive aparte porque é a parte que **decide** e a parte que pode dar errado em
@@ -127,12 +159,7 @@ export function selectExportSurfaces<T extends SurfaceSize>(
 ): readonly T[] {
   const chosen: T[] = [];
   for (const surface of surfaces) {
-    if (surface === null || surface === undefined) continue;
-    if (surface.width <= 1 || surface.height <= 1) continue;
-    if (surface.width === UNSIZED_CANVAS.width && surface.height === UNSIZED_CANVAS.height) {
-      continue;
-    }
-    chosen.push(surface);
+    if (isComposableSurface(surface)) chosen.push(surface as T);
   }
   return chosen;
 }
@@ -151,10 +178,12 @@ export class FrameComposer {
   #context: CanvasRenderingContext2D | null = null;
   readonly #root: ParentNode;
   readonly #includeMap: boolean;
+  readonly #size: SurfaceSize | null;
 
   constructor(options: FrameComposerOptions = {}) {
     this.#root = options.root ?? document;
     this.#includeMap = options.includeMap ?? true;
+    this.#size = options.size ?? null;
   }
 
   /**
@@ -169,8 +198,11 @@ export class FrameComposer {
     const surfaces = this.#surfaces();
     if (surfaces.length === 0) return null;
     const first = surfaces[0] as HTMLCanvasElement;
-    const width = first.width;
-    const height = first.height;
+    // O tamanho pedido pelo job ganha da medida da superfície. A superfície ainda
+    // decide quando o job não sabe — que é o caminho antigo, e o que sobra para
+    // quem chama o compositor sem plano de resolução.
+    const width = this.#size?.width ?? first.width;
+    const height = this.#size?.height ?? first.height;
     if (width <= 1 || height <= 1) return null;
 
     const context = this.#ensureCanvas(width, height);
@@ -186,6 +218,28 @@ export class FrameComposer {
 
     const data = context.getImageData(0, 0, width, height).data;
     return { width, height, rgba: new Uint8Array(data.buffer, data.byteOffset, data.byteLength) };
+  }
+
+  /**
+   * Alguma superfície que este compositor usaria está fora do tamanho do frame?
+   *
+   * É a condição que o pump espera antes de capturar. Mora aqui porque aqui está
+   * a única peça que sabe as duas metades: **quais** superfícies entram (pela
+   * detecção de modo, que muda com a aba) e **qual** é o tamanho do frame (pelo
+   * plano do job). Qualquer outro lugar teria de reimplementar uma das duas, e a
+   * cópia divergiria — foi assim que uma superfície atrasada virou frame
+   * esticado.
+   *
+   * Sem tamanho planejado a resposta é sempre `false`: o frame herda o tamanho da
+   * primeira superfície, então não existe "fora de medida".
+   */
+  surfacesResizing(): boolean {
+    const target = this.#size;
+    if (target === null) return false;
+    for (const surface of this.#surfaces()) {
+      if (surface.width !== target.width || surface.height !== target.height) return true;
+    }
+    return false;
   }
 
   dispose(): void {

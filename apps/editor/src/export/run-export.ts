@@ -37,6 +37,24 @@ export interface ExportHost {
    * que o settle normal do mapa, sobretudo na primeira execução.
    */
   readonly assetsBusy: () => boolean;
+  /**
+   * Verdadeiro enquanto alguma superfície composta ainda não está no tamanho do
+   * frame ([ADR-022](../../../../docs/adr/ADR-022-export-resolution-from-composition.md)).
+   *
+   * Existe porque o tamanho das superfícies deixou de ser o do painel e passou a
+   * ser conduzido pelo job, e **a condução não é instantânea**: o mapa
+   * redimensiona de forma síncrona, o overlay Pixi só chega ao tamanho novo
+   * depois de `ResizeObserver` → `setState` → efeito de render. Sem esta
+   * condição, um redimensionamento atrasado — inclusive o da RESTAURAÇÃO do
+   * export anterior — cai no meio deste, o compositor **escala** a superfície
+   * fora de medida dentro do frame planejado, e o arquivo sai plausível e
+   * diferente entre execuções. Medido: fazia o critério 6 do `verify:phase8`
+   * oscilar entre 5/7 e 7/7 com o mesmo código.
+   *
+   * Não tem orçamento próprio: um redimensionamento que não converge em 4 s é
+   * defeito, não trabalho legítimo, e o teto comum já o nomeia.
+   */
+  readonly surfacesBusy: () => boolean;
   /** Pixels do frame atual, ou `null` se não há o que compor. */
   readonly compose: () => ComposedFrame | null;
   readonly writeFrame: (
@@ -173,7 +191,9 @@ async function waitForQuiet(
   while (true) {
     const now = performance.now();
     const observed = host.observe();
-    const mapBusy = host.mapBusy();
+    // Superfície fora de medida entra junto com o mapa: as duas significam "o
+    // que eu capturaria agora não é o frame final".
+    const mapBusy = host.mapBusy() || host.surfacesBusy();
     const assetsBusy = host.assetsBusy();
     if (assetsBusy) {
       if (now - startedAt >= ASSET_SETTLE_TIMEOUT_MS) {

@@ -54,6 +54,7 @@ function host(overrides: Partial<ExportHost> & { rendersPorFrame?: number } = {}
     },
     mapBusy: () => false,
     assetsBusy: () => false,
+    surfacesBusy: () => false,
     compose: () => FRAME,
     writeFrame: (filename, frame) => {
       written.push({ filename, width: frame.width, height: frame.height });
@@ -97,6 +98,24 @@ describe("runExport", () => {
       // Ocupado nas primeiras observações: um tile chegando sem ter causado
       // repintura ainda. Sem esta condição o export capturaria o mapa incompleto.
       mapBusy: () => {
+        chamadas += 1;
+        return chamadas < 8;
+      },
+    });
+    const report = await runExport({ plan: { ...PLAN, durationFrames: 1 }, host: h.host });
+    expect(report.written).toBe(1);
+    expect(chamadas).toBeGreaterThanOrEqual(8);
+  });
+
+  it("superfície fora de medida impede a captura, como o mapa ocupado", async () => {
+    // A regressão que este predicado fecha: o redimensionamento da RESTAURAÇÃO do
+    // export anterior chega atrasado e cai no meio deste. Sem esperar, o
+    // compositor escala uma superfície de 2360×800 dentro de um frame de
+    // 1920×1080 — plausível, e diferente entre execuções. Fazia o critério 6 do
+    // verify:phase8 oscilar entre 5/7 e 7/7 com o mesmo código.
+    let chamadas = 0;
+    const h = host({
+      surfacesBusy: () => {
         chamadas += 1;
         return chamadas < 8;
       },

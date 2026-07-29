@@ -1,4 +1,6 @@
-import { useState, useSyncExternalStore, type ReactNode } from "react";
+import { describeExportResolution, EXPORT_SCALES, planExportResolution } from "@theatrum/export";
+import type { Composition } from "@theatrum/schema";
+import { useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   type ExportFormat,
   estimatedSecondsLeft,
@@ -46,6 +48,46 @@ const FORMAT_HINT: Record<ExportFormat, string> = {
   "png-alpha": "Um PNG RGBA sem perda por frame, sem mapa e com transparência.",
 };
 
+/** Rótulo de cada escala oferecida. Meia resolução existe para revisão rápida. */
+const SCALE_LABEL: Record<string, string> = {
+  "0.5": "½ · rascunho",
+  "1": "1× · a composição",
+  "2": "2× · alta",
+};
+
+/**
+ * A resolução de saída, ou por que ela não existe.
+ *
+ * O número na tela é **mitigação declarada** do ADR-022, não enfeite: com o
+ * tamanho vindo da composição, o preview deixa de ser o enquadramento quando a
+ * proporção do painel difere da dela. Sem isto o usuário só descobriria a
+ * resolução abrindo o arquivo.
+ *
+ * A recusa também aparece aqui, e antes de escolher a pasta: `planExportResolution`
+ * estoura acima do teto de 4096 px por eixo em vez de cortar em silêncio, e a
+ * mensagem dele já nomeia o teto.
+ */
+function describeOutput(
+  composition: Composition | undefined,
+  scale: number,
+): { readonly ok: boolean; readonly text: string } {
+  if (composition === undefined) return { ok: false, text: "nenhuma composição" };
+  try {
+    return {
+      ok: true,
+      text: describeExportResolution(
+        planExportResolution({
+          compositionWidth: composition.width,
+          compositionHeight: composition.height,
+          scale,
+        }),
+      ),
+    };
+  } catch (error: unknown) {
+    return { ok: false, text: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 export function RenderQueuePanel(): ReactNode {
   const job = useSyncExternalStore(subscribeExportJob, getExportJobSnapshot);
   const session = useEditorSession();
@@ -53,6 +95,8 @@ export function RenderQueuePanel(): ReactNode {
     (candidate) => candidate.id === session.selectedCompositionId,
   );
   const [format, setFormat] = useState<ExportFormat>("mp4");
+  const [scale, setScale] = useState(1);
+  const output = useMemo(() => describeOutput(composition, scale), [composition, scale]);
 
   const running = job.status === "running";
   const percent = job.total === 0 ? 0 : Math.round((100 * job.done) / job.total);
@@ -77,11 +121,26 @@ export function RenderQueuePanel(): ReactNode {
               </option>
             ))}
           </select>
+          <select
+            className="render-queue__scale"
+            aria-label="Escala de exportação"
+            value={String(scale)}
+            disabled={running}
+            onChange={(event) => setScale(Number(event.target.value))}
+          >
+            {EXPORT_SCALES.map((value) => (
+              <option key={value} value={String(value)}>
+                {SCALE_LABEL[String(value)] ?? `${value}×`}
+              </option>
+            ))}
+          </select>
           <Button
             size="sm"
             variant="primary"
-            onClick={() => void startExportJob({ format })}
-            disabled={running || !isExportReady() || composition === undefined}
+            onClick={() => void startExportJob({ format, scale })}
+            // Escala que não cabe desabilita o botão em vez de deixar o export
+            // estourar depois do diálogo de pasta.
+            disabled={running || !isExportReady() || composition === undefined || !output.ok}
             aria-label={`Exportar ${FORMAT_LABEL[format]}`}
           >
             Exportar
@@ -101,6 +160,18 @@ export function RenderQueuePanel(): ReactNode {
           {composition === undefined
             ? "nenhuma composição"
             : `${composition.name} · ${composition.duration} frames a ${composition.fps} fps`}
+          {/* A resolução de saída vive ao lado da duração porque as duas são o
+              contrato do arquivo. Vermelha quando a escala não cabe: o teto de
+              4096 px por eixo é do MapLibre, e ele é a razão de o export recusar
+              em vez de entregar 4K quando se pediu 8K. */}
+          <span
+            className={
+              output.ok ? "render-queue__output" : "render-queue__output render-queue__bad"
+            }
+          >
+            {" · "}
+            {output.text}
+          </span>
         </span>
       }
     >
