@@ -9,8 +9,10 @@ import {
   useState,
   type PointerEvent,
   type ReactNode,
+  type SetStateAction,
   type WheelEvent,
 } from "react";
+import { useWorkspaceContentMode } from "../../app/workspace-content-mode.js";
 import { editorActions } from "../../document/editor-session.js";
 import { useEditorSession } from "../../document/useEditorSession.js";
 import { Button, Panel } from "../../ui/index.js";
@@ -27,12 +29,18 @@ import {
   type TimelineViewState,
   type TimelineViewport,
 } from "./timeline-canvas.js";
+import { buildStudioTimelineProjection, findStudioStageNodeId } from "./studio-timeline-model.js";
 import {
   TIMELINE_ROW_HEIGHT,
   TIMELINE_RULER_HEIGHT,
   buildTimelineModel,
   type TimelineModel,
 } from "./timeline-model.js";
+import {
+  enterTimelineComposition,
+  updateTimelineSessionState,
+  useTimelineSessionState,
+} from "./timeline-session-state.js";
 import "./TimelinePanel.css";
 
 const BUILTIN_REGISTRY = createBuiltinNodeTypeRegistry();
@@ -50,6 +58,7 @@ type DragState =
 
 export function TimelinePanel({ registry = BUILTIN_REGISTRY }: TimelinePanelProps): ReactNode {
   const session = useEditorSession();
+  const contentMode = useWorkspaceContentMode();
   const composition = useMemo(
     () =>
       session.document.compositions.find(
@@ -57,14 +66,12 @@ export function TimelinePanel({ registry = BUILTIN_REGISTRY }: TimelinePanelProp
       ) ?? session.document.compositions[0],
     [session.document, session.selectedCompositionId],
   );
-  const [expandedNodeIds, setExpandedNodeIds] = useState<ReadonlySet<string>>(
-    () => new Set(composition === undefined ? [] : [composition.root]),
+  const stageNodeId = useMemo(
+    () => (composition === undefined ? null : findStudioStageNodeId(composition)),
+    [composition],
   );
-  const [view, setView] = useState<TimelineViewState>({
-    startFrame: 0,
-    pixelsPerFrame: 2,
-  });
-  const [scrollY, setScrollY] = useState(0);
+  const timelineState = useTimelineSessionState(contentMode);
+  const { expandedNodeIds, scrollY, view } = timelineState;
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [size, setSize] = useState({ width: 1, height: 1 });
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -73,16 +80,23 @@ export function TimelinePanel({ registry = BUILTIN_REGISTRY }: TimelinePanelProp
   const frameStateRef = useRef<TimelineFrameState>(EMPTY_FRAME_STATE);
 
   useEffect(() => {
-    if (composition === undefined) return;
-    setExpandedNodeIds((current) => new Set([...current, composition.root]));
-    setView((current) => ({ ...current, startFrame: 0 }));
-    setScrollY(0);
-  }, [composition?.id]);
+    enterTimelineComposition(
+      contentMode,
+      composition?.id ?? null,
+      composition === undefined
+        ? []
+        : contentMode === "studio"
+          ? stageNodeId === null
+            ? []
+            : [stageNodeId]
+          : [composition.root],
+    );
+  }, [composition?.id, composition?.root, contentMode, stageNodeId]);
 
   useEffect(() => {
     if (session.selectedNodeIds.length === 0) return;
     setExpandedNodeIds((current) => new Set([...current, ...session.selectedNodeIds]));
-  }, [session.selectedNodeIds]);
+  }, [contentMode, session.selectedNodeIds]);
 
   useEffect(() => {
     const element = canvasPaneRef.current;
@@ -100,16 +114,44 @@ export function TimelinePanel({ registry = BUILTIN_REGISTRY }: TimelinePanelProp
     return () => observer.disconnect();
   }, []);
 
-  const model = useMemo<TimelineModel>(
-    () =>
-      composition === undefined
-        ? EMPTY_MODEL
-        : buildTimelineModel(composition, registry, {
-            expandedNodeIds,
-            selectedNodeIds: new Set(session.selectedNodeIds),
-            behaviorLabels: BEHAVIOR_LABELS,
-          }),
-    [composition, expandedNodeIds, registry, session.selectedNodeIds],
+  const projection = useMemo<TimelineProjection>(() => {
+    if (composition === undefined) return EMPTY_PROJECTION;
+    const options = {
+      expandedNodeIds,
+      selectedNodeIds: new Set(session.selectedNodeIds),
+      behaviorLabels: BEHAVIOR_LABELS,
+    };
+    if (contentMode === "studio") {
+      return buildStudioTimelineProjection(composition, registry, options);
+    }
+    return {
+      model: buildTimelineModel(composition, registry, options),
+      diagnostic: null,
+    };
+  }, [composition, contentMode, expandedNodeIds, registry, session.selectedNodeIds]);
+  const model = projection.model;
+  const diagnostic = projection.diagnostic;
+  const setExpandedNodeIds = (update: SetStateAction<ReadonlySet<string>>): void => {
+    updateTimelineSessionState(contentMode, (current) => ({
+      ...current,
+      expandedNodeIds: resolveStateAction(update, current.expandedNodeIds),
+    }));
+  };
+  const setView = (update: SetStateAction<TimelineViewState>): void => {
+    updateTimelineSessionState(contentMode, (current) => ({
+      ...current,
+      view: resolveStateAction(update, current.view),
+    }));
+  };
+  const setScrollY = (update: SetStateAction<number>): void => {
+    updateTimelineSessionState(contentMode, (current) => ({
+      ...current,
+      scrollY: resolveStateAction(update, current.scrollY),
+    }));
+  };
+  const cueCount = useMemo(
+    () => model.tracks.reduce((total, track) => total + track.cues.length, 0),
+    [model],
   );
   const viewport = useMemo<TimelineViewport>(
     () => ({
@@ -137,10 +179,10 @@ export function TimelinePanel({ registry = BUILTIN_REGISTRY }: TimelinePanelProp
     renderTimeline(context, model, viewport, session.playheadFrame, readTheme());
   }, [model, session.playheadFrame, size.height, size.width, viewport]);
 
-  frameStateRef.current = { model, viewport };
+  frameStateRef.current = { model, viewport, contentMode, diagnostic };
 
   useEffect(() => {
-    if (!import.meta.env.DEV) return;
+    if (!(import.meta.env.DEV || import.meta.env.VITE_THEATRUM_VERIFY === "1")) return;
     const debug: TimelineDebugSurface = Object.freeze({
       summary: () => describeTimeline(frameStateRef.current),
       measureRedraw: (samples = 120, options: TimelineRedrawOptions = {}) => {
@@ -226,6 +268,9 @@ export function TimelinePanel({ registry = BUILTIN_REGISTRY }: TimelinePanelProp
     0,
     model.tracks.length * TIMELINE_ROW_HEIGHT - (size.height - TIMELINE_RULER_HEIGHT),
   );
+  useEffect(() => {
+    if (scrollY > maxScroll) setScrollY(maxScroll);
+  }, [contentMode, maxScroll, scrollY]);
   const firstVisibleTrack = Math.max(0, Math.floor(scrollY / TIMELINE_ROW_HEIGHT));
   const lastVisibleTrack = Math.min(
     model.tracks.length,
@@ -325,7 +370,7 @@ export function TimelinePanel({ registry = BUILTIN_REGISTRY }: TimelinePanelProp
 
   return (
     <Panel
-      title="Timeline"
+      title={contentMode === "studio" ? "Timeline · Palco" : "Timeline · Mapa"}
       scroll={false}
       toolbar={
         <>
@@ -402,13 +447,16 @@ export function TimelinePanel({ registry = BUILTIN_REGISTRY }: TimelinePanelProp
       footer={
         <span>
           {model.tracks.length} trilhas · {countKeyframes(model)} keyframes ·{" "}
+          {cueCount > 0 ? `${String(cueCount)} paradas · ` : ""}
           {view.pixelsPerFrame.toFixed(2)} px/frame
         </span>
       }
     >
-      <div className="timeline-panel" onWheel={onWheel}>
+      <div className="timeline-panel" data-mode={contentMode} onWheel={onWheel}>
         <div className="timeline-panel__headers" aria-label="Cabeçalhos das trilhas">
-          <div className="timeline-panel__corner">Camadas</div>
+          <div className="timeline-panel__corner">
+            {contentMode === "studio" ? "Palco" : "Camadas"}
+          </div>
           <div
             className="timeline-panel__header-list"
             style={{ height: model.tracks.length * TIMELINE_ROW_HEIGHT }}
@@ -480,6 +528,10 @@ export function TimelinePanel({ registry = BUILTIN_REGISTRY }: TimelinePanelProp
                         ◆
                       </button>
                     </>
+                  ) : track.kind === "guide" ? (
+                    <span className="timeline-panel__guide-dot" aria-hidden="true">
+                      ◎
+                    </span>
                   ) : (
                     <span className="timeline-panel__property-dot" aria-hidden="true" />
                   )}
@@ -529,6 +581,11 @@ export function TimelinePanel({ registry = BUILTIN_REGISTRY }: TimelinePanelProp
             }}
           />
           <AccessibleKeyframes model={model} />
+          {diagnostic !== null && (
+            <p className="timeline-panel__empty" role="status">
+              {diagnostic}
+            </p>
+          )}
         </div>
       </div>
     </Panel>
@@ -544,6 +601,7 @@ const AccessibleKeyframes = memo(function AccessibleKeyframes({
     track.keyframes.map((keyframe) => ({ track, keyframe })),
   );
   const shown = keyframes.slice(0, 200);
+  const cues = model.tracks.flatMap((track) => track.cues);
   return (
     <div className="timeline-panel__accessible" aria-label="Keyframes acessíveis">
       {shown.map(({ track, keyframe }) => (
@@ -558,6 +616,15 @@ const AccessibleKeyframes = memo(function AccessibleKeyframes({
       {keyframes.length > shown.length && (
         <span>{keyframes.length - shown.length} keyframes adicionais; use a busca e o zoom.</span>
       )}
+      {cues.map((cue) => (
+        <button
+          type="button"
+          key={cue.id}
+          onClick={() => editorActions.setPlayhead(cue.arrivalFrame)}
+        >
+          Parada {cue.ordinal}, {cue.label}, frame {cue.arrivalFrame}
+        </button>
+      ))}
     </div>
   );
 });
@@ -565,15 +632,28 @@ const AccessibleKeyframes = memo(function AccessibleKeyframes({
 interface TimelineFrameState {
   readonly model: TimelineModel;
   readonly viewport: TimelineViewport;
+  readonly contentMode: "map" | "studio";
+  readonly diagnostic: string | null;
 }
 
 interface TimelineSummary {
+  readonly mode: "map" | "studio";
   readonly tracks: number;
   readonly keyframes: number;
+  readonly cues: number;
   readonly duration: number;
   readonly pixelsPerFrame: number;
   readonly width: number;
   readonly height: number;
+  readonly diagnostic: string | null;
+  readonly rows: readonly {
+    readonly id: string;
+    readonly kind: "node" | "property" | "guide";
+    readonly nodeId: string;
+    readonly propertyPath: string | null;
+    readonly label: string;
+    readonly cues: number;
+  }[];
 }
 
 interface TimelineRedrawReport extends TimelineSummary {
@@ -616,12 +696,23 @@ declare global {
 
 function describeTimeline(state: TimelineFrameState): TimelineSummary {
   return {
+    mode: state.contentMode,
     tracks: state.model.tracks.length,
     keyframes: countKeyframes(state.model),
+    cues: state.model.tracks.reduce((total, track) => total + track.cues.length, 0),
     duration: state.model.duration,
     pixelsPerFrame: state.viewport.pixelsPerFrame,
     width: state.viewport.width,
     height: state.viewport.height,
+    diagnostic: state.diagnostic,
+    rows: state.model.tracks.map((track) => ({
+      id: track.id,
+      kind: track.kind,
+      nodeId: track.nodeId,
+      propertyPath: track.propertyPath,
+      label: track.label,
+      cues: track.cues.length,
+    })),
   };
 }
 
@@ -684,4 +775,20 @@ const EMPTY_FRAME_STATE: TimelineFrameState = Object.freeze({
     pixelsPerFrame: 2,
     scrollY: 0,
   }),
+  contentMode: "map",
+  diagnostic: null,
 });
+
+interface TimelineProjection {
+  readonly model: TimelineModel;
+  readonly diagnostic: string | null;
+}
+
+const EMPTY_PROJECTION: TimelineProjection = Object.freeze({
+  model: EMPTY_MODEL,
+  diagnostic: null,
+});
+
+function resolveStateAction<T>(update: SetStateAction<T>, current: T): T {
+  return typeof update === "function" ? (update as (value: T) => T)(current) : update;
+}

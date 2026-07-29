@@ -32,6 +32,8 @@ export interface TimelineTheme {
   readonly playhead: string;
   readonly workArea: string;
   readonly markerFallback: string;
+  readonly tourHold: string;
+  readonly tourTravel: string;
   readonly disabledAlpha: number;
 }
 
@@ -61,6 +63,7 @@ export interface TimelineRenderStats {
   readonly tracksDrawn: number;
   readonly keyframesVisited: number;
   readonly keyframesDrawn: number;
+  readonly cuesDrawn: number;
   readonly markersDrawn: number;
 }
 
@@ -93,6 +96,8 @@ export const DEFAULT_TIMELINE_THEME: TimelineTheme = Object.freeze({
   playhead: "#cf5a4f",
   workArea: "#4f9d5f",
   markerFallback: "#c9963f",
+  tourHold: "#c9963f",
+  tourTravel: "#6f7c88",
   disabledAlpha: 0.35,
 });
 
@@ -120,6 +125,7 @@ export function renderTimeline(
   let tracksDrawn = 0;
   let keyframesVisited = 0;
   let keyframesDrawn = 0;
+  let cuesDrawn = 0;
   let markersDrawn = 0;
 
   context.save();
@@ -143,7 +149,7 @@ export function renderTimeline(
       const y = rulerHeight + trackIndex * rowHeight - viewport.scrollY;
       tracksDrawn += 1;
       drawTrackBackground(context, trackIndex, y, viewport.width, rowHeight, theme);
-      drawTrack(context, track, y, rowHeight, viewport, theme);
+      cuesDrawn += drawTrack(context, track, y, rowHeight, viewport, theme);
 
       if (track.kind === "property") {
         const keyframes = track.keyframes;
@@ -204,6 +210,7 @@ export function renderTimeline(
     tracksDrawn,
     keyframesVisited,
     keyframesDrawn,
+    cuesDrawn,
     markersDrawn,
   });
 }
@@ -268,6 +275,10 @@ export function snapFrame(
   for (const track of model.tracks) {
     consider(track.timeRange[0]);
     consider(track.timeRange[1]);
+    for (const cue of track.cues) {
+      consider(cue.arrivalFrame);
+      consider(cue.departureFrame);
+    }
     for (const keyframe of track.keyframes) {
       if (keyframe.id !== excludedKeyframeId) consider(keyframe.frame);
     }
@@ -423,7 +434,7 @@ function drawTrack(
   rowHeight: number,
   viewport: TimelineViewport,
   theme: TimelineTheme,
-): void {
+): number {
   context.globalAlpha = track.enabled ? 1 : theme.disabledAlpha;
   if (track.kind === "node") {
     const start = clamp(frameToX(track.timeRange[0], viewport), -1, viewport.width + 1);
@@ -432,6 +443,10 @@ function drawTrack(
       context.fillStyle = track.selected ? theme.barSelected : theme.bar;
       context.fillRect(start, y + 5, Math.max(1, end - start), Math.max(3, rowHeight - 10));
     }
+  } else if (track.kind === "guide") {
+    const drawn = drawTourGuide(context, track, y, rowHeight, viewport, theme);
+    context.globalAlpha = 1;
+    return drawn;
   } else if (track.keyframes.length > 1) {
     const first = track.keyframes[0];
     const last = track.keyframes.at(-1);
@@ -447,6 +462,52 @@ function drawTrack(
     }
   }
   context.globalAlpha = 1;
+  return 0;
+}
+
+function drawTourGuide(
+  context: TimelineCanvasContext,
+  track: TimelineTrack,
+  y: number,
+  rowHeight: number,
+  viewport: TimelineViewport,
+  theme: TimelineTheme,
+): number {
+  let drawn = 0;
+  let previousDeparture: number | null = null;
+  const centerY = alignPixel(y + rowHeight / 2);
+
+  for (const cue of track.cues) {
+    if (previousDeparture !== null && cue.arrivalFrame > previousDeparture) {
+      const travelStart = clamp(frameToX(previousDeparture, viewport), -1, viewport.width + 1);
+      const travelEnd = clamp(frameToX(cue.arrivalFrame, viewport), -1, viewport.width + 1);
+      if (travelEnd > travelStart) {
+        context.strokeStyle = theme.tourTravel;
+        context.lineWidth = 2;
+        context.beginPath();
+        context.moveTo(travelStart, centerY);
+        context.lineTo(travelEnd, centerY);
+        context.stroke();
+      }
+    }
+
+    const rawStart = frameToX(cue.arrivalFrame, viewport);
+    const rawEnd = frameToX(cue.departureFrame, viewport);
+    previousDeparture = cue.departureFrame;
+    if (rawEnd < 0 || rawStart > viewport.width) continue;
+    const start = clamp(rawStart, -1, viewport.width + 1);
+    const end = clamp(rawEnd, -1, viewport.width + 1);
+    const width = Math.max(2, end - start);
+    context.fillStyle = theme.tourHold;
+    context.fillRect(start, y + 4, width, Math.max(4, rowHeight - 8));
+    if (width >= 36) {
+      context.fillStyle = theme.background;
+      context.fillText(`${String(cue.ordinal)} · ${cue.label}`, start + 4, y + 5);
+    }
+    drawn += 1;
+  }
+
+  return drawn;
 }
 
 function drawKeyframe(

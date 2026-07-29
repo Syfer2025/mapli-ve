@@ -60,6 +60,10 @@
   color: var(--fg-faint);
 }
 
+.timeline-panel__track-header[data-kind="guide"] {
+  color: var(--warning);
+}
+
 .timeline-panel__disclosure,
 .timeline-panel__flag,
 .timeline-panel__track-name {
@@ -117,6 +121,15 @@
   background: var(--accent);
 }
 
+.timeline-panel__guide-dot {
+  flex: none;
+  width: 15px;
+  margin-inline: 2px;
+  color: var(--warning);
+  font-size: 11px;
+  text-align: center;
+}
+
 .timeline-panel__canvas-pane {
   position: relative;
   min-width: 0;
@@ -135,6 +148,20 @@
 
 .timeline-panel__canvas:focus-visible {
   box-shadow: inset var(--focus-ring);
+}
+
+.timeline-panel__empty {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg-panel) 90%, transparent);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
 }
 
 .timeline-panel__toggle {

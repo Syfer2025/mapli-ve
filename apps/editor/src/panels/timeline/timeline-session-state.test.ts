@@ -78,4 +78,16 @@ describe("estado de sessão da Timeline", () => {
     expect(listener).not.toHaveBeenCalled();
     unsubscribe();
   });
+
+  it("não reabre uma linha que o usuário recolheu ao reencontrar a mesma composição", () => {
+    enterTimelineComposition("studio", "cmp_a", ["stage"]);
+    updateTimelineSessionState("studio", (current) => ({
+      ...current,
+      expandedNodeIds: new Set(),
+    }));
+
+    enterTimelineComposition("studio", "cmp_a", ["stage"]);
+
+    expect([...getTimelineSessionState("studio").expandedNodeIds]).toEqual([]);
+  });
 });

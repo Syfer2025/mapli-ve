@@ -26,9 +26,19 @@ export interface TimelineKeyframe {
   readonly easing: "hold" | "linear" | "bezier";
 }
 
+/** Parada prevista do roteiro do Palco; não é keyframe nem alvo de edição. */
+export interface TimelineCue {
+  readonly id: string;
+  readonly nodeId: string;
+  readonly label: string;
+  readonly ordinal: number;
+  readonly arrivalFrame: number;
+  readonly departureFrame: number;
+}
+
 export interface TimelineTrack {
   readonly id: string;
-  readonly kind: "node" | "property";
+  readonly kind: "node" | "property" | "guide";
   readonly nodeId: string;
   readonly propertyPath: string | null;
   readonly label: string;
@@ -39,6 +49,7 @@ export interface TimelineTrack {
   readonly labelColor: string;
   readonly timeRange: readonly [number, number];
   readonly keyframes: readonly TimelineKeyframe[];
+  readonly cues: readonly TimelineCue[];
 }
 
 export interface TimelineMarker {
@@ -173,6 +184,7 @@ function nodeTrack(node: Node, depth: number, selected: boolean): TimelineTrack 
     labelColor: node.label,
     timeRange: frozenRange(node.timeRange.in, node.timeRange.out),
     keyframes: EMPTY_KEYFRAMES,
+    cues: EMPTY_CUES,
   });
 }
 
@@ -197,6 +209,7 @@ function propertyTrack(
     keyframes: Object.freeze(
       property.keyframes.map((keyframe) => timelineKeyframe(node.id, descriptor.path, keyframe)),
     ),
+    cues: EMPTY_CUES,
   });
 }
 
@@ -261,3 +274,4 @@ function frozenRange(start: number, end: number): readonly [number, number] {
 const EMPTY_IDS: ReadonlySet<string> = Object.freeze(new Set<string>());
 const EMPTY_PATH: readonly string[] = Object.freeze([]);
 const EMPTY_KEYFRAMES: readonly TimelineKeyframe[] = Object.freeze([]);
+const EMPTY_CUES: readonly TimelineCue[] = Object.freeze([]);

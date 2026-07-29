@@ -51,6 +51,57 @@ describe("timeline canvas", () => {
     expect(hits.hitTest(-500, -500)).toBeNull();
   });
 
+  it("desenha e faz snap na guia, mas nunca a põe no hit-test de keyframe", () => {
+    const base = syntheticModel(1, 1);
+    const guide: TimelineTrack = {
+      id: "guide:stage:tour",
+      kind: "guide",
+      nodeId: "stage",
+      propertyPath: null,
+      label: "Roteiro previsto",
+      depth: 0,
+      enabled: true,
+      locked: true,
+      selected: false,
+      labelColor: "#c9963f",
+      timeRange: [10, 90],
+      keyframes: [],
+      cues: [
+        {
+          id: "cue:a",
+          nodeId: "a",
+          label: "Cabine",
+          ordinal: 1,
+          arrivalFrame: 10,
+          departureFrame: 40,
+        },
+        {
+          id: "cue:b",
+          nodeId: "b",
+          label: "Míssil",
+          ordinal: 2,
+          arrivalFrame: 60,
+          departureFrame: 90,
+        },
+      ],
+    };
+    const model: TimelineModel = { ...base, tracks: [...base.tracks, guide] };
+    const viewport: TimelineViewport = {
+      width: 200,
+      height: 80,
+      startFrame: 0,
+      pixelsPerFrame: 2,
+      scrollY: 0,
+    };
+
+    const stats = renderTimeline(noOpContext(), model, viewport, 0);
+    const hits = buildTimelineHitIndex(model, viewport);
+
+    expect(stats.cuesDrawn).toBe(2);
+    expect(snapFrame(59.7, model, 10)).toBe(60);
+    expect(hits.hitTest(120, 57, 8)).toBeNull();
+  });
+
   it("redesenha logicamente 200 trilhas e 3000 keyframes abaixo de 4 ms no p95", () => {
     const model = syntheticModel(200, 15);
     const viewport: TimelineViewport = {
@@ -105,6 +156,7 @@ function syntheticModel(trackCount: number, keyframesPerTrack: number): Timeline
       labelColor: "blue",
       timeRange: [0, 1_200],
       keyframes,
+      cues: [],
     });
   }
   return {

@@ -6,7 +6,12 @@
 
 import { describe, expect, it } from "vitest";
 import { normalizeDegrees, shortestAngleDelta } from "@theatrum/core-math";
-import { compileStudioTour, unwrapAzimuths, type TourStop } from "./studio-tour.js";
+import {
+  buildStudioTourSchedule,
+  compileStudioTour,
+  unwrapAzimuths,
+  type TourStop,
+} from "./studio-tour.js";
 
 function stop(id: string, overrides: Partial<TourStop> = {}): TourStop {
   return {
@@ -24,6 +29,46 @@ function stop(id: string, overrides: Partial<TourStop> = {}): TourStop {
 }
 
 const TIMING = { startFrame: 0, travelFrames: 30, holdFrames: 60 };
+
+describe("buildStudioTourSchedule", () => {
+  it("é a fonte única de chegada, partida e fim do roteiro", () => {
+    const schedule = buildStudioTourSchedule(["a", "b", "c"], {
+      startFrame: 10,
+      travelFrames: 20,
+      holdFrames: 30,
+    });
+
+    expect(
+      schedule.entries.map(({ item, index, arrivalFrame, departureFrame }) => ({
+        item,
+        index,
+        arrivalFrame,
+        departureFrame,
+      })),
+    ).toEqual([
+      { item: "a", index: 0, arrivalFrame: 10, departureFrame: 40 },
+      { item: "b", index: 1, arrivalFrame: 60, departureFrame: 90 },
+      { item: "c", index: 2, arrivalFrame: 110, departureFrame: 140 },
+    ]);
+    expect(schedule.endFrame).toBe(140);
+  });
+
+  it("normaliza tempos uma vez e lista vazia termina no início", () => {
+    const schedule = buildStudioTourSchedule([], {
+      startFrame: -4.6,
+      travelFrames: 0,
+      holdFrames: -8,
+    });
+
+    expect(schedule.timing).toEqual({
+      startFrame: 0,
+      travelFrames: 1,
+      holdFrames: 0,
+    });
+    expect(schedule.entries).toEqual([]);
+    expect(schedule.endFrame).toBe(0);
+  });
+});
 
 describe("unwrapAzimuths", () => {
   /**

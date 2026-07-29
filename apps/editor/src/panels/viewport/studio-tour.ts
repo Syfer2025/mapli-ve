@@ -73,6 +73,25 @@ export interface TourTiming {
   readonly holdFrames: number;
 }
 
+export interface NormalizedTourTiming {
+  readonly startFrame: number;
+  readonly travelFrames: number;
+  readonly holdFrames: number;
+}
+
+export interface TourScheduleEntry<T> {
+  readonly item: T;
+  readonly index: number;
+  readonly arrivalFrame: number;
+  readonly departureFrame: number;
+}
+
+export interface TourSchedule<T> {
+  readonly timing: NormalizedTourTiming;
+  readonly entries: readonly TourScheduleEntry<T>[];
+  readonly endFrame: number;
+}
+
 export interface TourPropertyWrite {
   /** Caminho na prop do `studio.stage`, ex.: `props.azimuthDeg`. */
   readonly path: string;
@@ -94,7 +113,7 @@ export interface CompiledTour {
  * As seis props de câmera que uma visita escreve — as mesmas que o `studio.stage`
  * já anima. Nenhuma prop nova: é isso que faz o roteiro caber no que já existe.
  */
-const CAMERA_PATHS = Object.freeze([
+export const STUDIO_CAMERA_PROPERTY_PATHS = Object.freeze([
   "props.targetX",
   "props.targetY",
   "props.targetZ",
@@ -117,6 +136,44 @@ const EASE_IN_HANDLE: readonly [number, number] = [0.75, 1];
 
 export const MIN_TRAVEL_FRAMES = 1;
 export const MIN_HOLD_FRAMES = 0;
+
+/**
+ * A única aritmética de agenda do roteiro.
+ *
+ * O compilador a usa depois de descartar paradas que não resolvem; a Timeline
+ * do Palco a usa sobre as paradas previstas pelo documento. Compartilhar esta
+ * função impede que chegada e partida ganhem duas fórmulas quase iguais
+ * ([ADR-019](../../../../../docs/adr/ADR-019-studio-aware-timeline.md)).
+ */
+export function buildStudioTourSchedule<T>(
+  items: readonly T[],
+  timing: TourTiming,
+): TourSchedule<T> {
+  const normalized = normalizeStudioTourTiming(timing);
+  const entries = items.map((item, index) => {
+    const arrivalFrame =
+      normalized.startFrame + index * (normalized.holdFrames + normalized.travelFrames);
+    return Object.freeze({
+      item,
+      index,
+      arrivalFrame,
+      departureFrame: arrivalFrame + normalized.holdFrames,
+    });
+  });
+  return Object.freeze({
+    timing: normalized,
+    entries: Object.freeze(entries),
+    endFrame: entries.at(-1)?.departureFrame ?? normalized.startFrame,
+  });
+}
+
+export function normalizeStudioTourTiming(timing: TourTiming): NormalizedTourTiming {
+  return Object.freeze({
+    startFrame: Math.max(0, Math.round(timing.startFrame)),
+    travelFrames: Math.max(MIN_TRAVEL_FRAMES, Math.round(timing.travelFrames)),
+    holdFrames: Math.max(MIN_HOLD_FRAMES, Math.round(timing.holdFrames)),
+  });
+}
 
 /**
  * Passo de amostragem do alvo, em frames, quando o objeto se mexe.
@@ -355,9 +412,9 @@ export function compileStudioTour(
   resolve: StopPointResolver = IDENTITY_RESOLVER,
 ): CompiledTour {
   const diagnostics: string[] = [];
-  const start = Math.max(0, Math.round(timing.startFrame));
-  const travel = Math.max(MIN_TRAVEL_FRAMES, Math.round(timing.travelFrames));
-  const hold = Math.max(MIN_HOLD_FRAMES, Math.round(timing.holdFrames));
+  const normalizedTiming = normalizeStudioTourTiming(timing);
+  const start = normalizedTiming.startFrame;
+  const hold = normalizedTiming.holdFrames;
 
   if (stops.length === 0) {
     return Object.freeze({
@@ -405,19 +462,22 @@ export function compileStudioTour(
 
   const azimuths = unwrapAzimuths(visited.map((entry) => entry.stop.azimuthDeg));
 
-  const columns = new Map<string, Keyframe<number>[]>(CAMERA_PATHS.map((path) => [path, []]));
+  const columns = new Map<string, Keyframe<number>[]>(
+    STUDIO_CAMERA_PROPERTY_PATHS.map((path) => [path, []]),
+  );
 
-  visited.forEach((entry, index) => {
+  const schedule = buildStudioTourSchedule(visited, normalizedTiming);
+  schedule.entries.forEach(({ item: entry, index, arrivalFrame, departureFrame }) => {
     const { stop } = entry;
-    const arrival = start + index * (hold + travel);
-    const departure = arrival + hold;
+    const arrival = arrivalFrame;
+    const departure = departureFrame;
     // Passagem 2. O recuo para a sondagem cobre o resolvedor que responde num
     // frame e não noutro; hoje não acontece, porque a existência do dono não
     // depende do tempo, e é recuo em vez de erro para não transformar uma
     // mudança futura do resolvedor em keyframe `NaN`.
     const point = resolve(stop, arrival) ?? entry.probe;
     const departurePoint = hold === 0 ? point : (resolve(stop, departure) ?? point);
-    const values: Readonly<Record<(typeof CAMERA_PATHS)[number], number>> = {
+    const values: Readonly<Record<(typeof STUDIO_CAMERA_PROPERTY_PATHS)[number], number>> = {
       "props.targetX": point[0],
       "props.targetY": point[1],
       "props.targetZ": point[2],
@@ -444,7 +504,7 @@ export function compileStudioTour(
      */
     const tracked = hold === 0 ? [] : trackedTargetFrames(stop, arrival, departure, resolve);
 
-    for (const path of CAMERA_PATHS) {
+    for (const path of STUDIO_CAMERA_PROPERTY_PATHS) {
       const column = columns.get(path);
       if (column === undefined) continue;
       column.push({
@@ -501,7 +561,7 @@ export function compileStudioTour(
     }
   });
 
-  const writes = CAMERA_PATHS.map((path) => ({
+  const writes = STUDIO_CAMERA_PROPERTY_PATHS.map((path) => ({
     path,
     keyframes: Object.freeze(columns.get(path) ?? []),
   }));
@@ -510,7 +570,7 @@ export function compileStudioTour(
     writes: Object.freeze(writes),
     // Sobre as paradas que entraram, não sobre as que existiam: um ponto órfão não
     // reserva tempo de vídeo para uma visita que a câmera não faz.
-    endFrame: start + (visited.length - 1) * (hold + travel) + hold,
+    endFrame: schedule.endFrame,
     stops: visited.length,
     skipped,
     diagnostics: Object.freeze(diagnostics),

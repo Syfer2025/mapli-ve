@@ -52,8 +52,8 @@ export function updateTimelineSessionState(
 
 /**
  * Composição nova começa no frame zero e com as linhas essenciais abertas.
- * Reencontrar a mesma composição apenas acrescenta ids obrigatórios: não apaga
- * as escolhas que o usuário já fez naquele modo.
+ * Reencontrar a mesma composição não faz nada: reabrir um id "obrigatório"
+ * apagaria a escolha explícita de recolhê-lo.
  */
 export function enterTimelineComposition(
   mode: WorkspaceContentMode,
@@ -61,17 +61,13 @@ export function enterTimelineComposition(
   initiallyExpanded: readonly string[],
 ): void {
   updateTimelineSessionState(mode, (current) => {
-    if (current.compositionId !== compositionId) {
-      return {
-        compositionId,
-        view: { startFrame: 0, pixelsPerFrame: 2 },
-        scrollY: 0,
-        expandedNodeIds: new Set(initiallyExpanded),
-      };
-    }
-    const expandedNodeIds = new Set(current.expandedNodeIds);
-    for (const id of initiallyExpanded) expandedNodeIds.add(id);
-    return { ...current, expandedNodeIds };
+    if (current.compositionId === compositionId) return current;
+    return {
+      compositionId,
+      view: { startFrame: 0, pixelsPerFrame: 2 },
+      scrollY: 0,
+      expandedNodeIds: new Set(initiallyExpanded),
+    };
   });
 }
 
