@@ -4,6 +4,7 @@ import { bridge } from "../bridge/index.js";
 import { WORKSPACE_VERSION, type WorkspaceState } from "@theatrum/shell";
 import { applyDefaultLayout } from "./default-layout.js";
 import { PANEL_DEFINITIONS } from "./panels.js";
+import { bindWorkspaceContentMode } from "./workspace-content-mode.js";
 
 const SAVE_DEBOUNCE_MS = 400;
 const MAX_LAYOUT_WAIT_FRAMES = 120;
@@ -88,6 +89,7 @@ export interface WorkspaceLayout {
  */
 export function useWorkspaceLayout(): WorkspaceLayout {
   const apiRef = useRef<DockviewApi | null>(null);
+  const contentModeBinding = useRef<{ dispose(): void } | null>(null);
   const saveTimer = useRef<number | null>(null);
   const pendingSave = useRef<WorkspaceState | null>(null);
   const [restored, setRestored] = useState(false);
@@ -144,6 +146,8 @@ export function useWorkspaceLayout(): WorkspaceLayout {
       const mine = ++generation.current;
       const isStale = (): boolean => generation.current !== mine;
 
+      contentModeBinding.current?.dispose();
+      contentModeBinding.current = null;
       apiRef.current = event.api;
 
       void (async () => {
@@ -183,6 +187,7 @@ export function useWorkspaceLayout(): WorkspaceLayout {
 
         if (isStale()) return;
         setRestored(true);
+        contentModeBinding.current = bindWorkspaceContentMode(event.api);
 
         // Só assina DEPOIS de restaurar, senão a própria restauração
         // dispararia um save e sobrescreveria o layout com o padrão.
@@ -200,6 +205,8 @@ export function useWorkspaceLayout(): WorkspaceLayout {
     if (api === null) return;
     api.clear();
     applyDefaultLayout(api);
+    contentModeBinding.current?.dispose();
+    contentModeBinding.current = bindWorkspaceContentMode(api);
     persist(api);
   }, [persist]);
 
@@ -219,6 +226,8 @@ export function useWorkspaceLayout(): WorkspaceLayout {
     return () => {
       window.removeEventListener("beforeunload", flushForExit);
       window.removeEventListener("pagehide", flushForExit);
+      contentModeBinding.current?.dispose();
+      contentModeBinding.current = null;
       flushPendingSave();
     };
   }, [flushCurrentWorkspace, flushPendingSave]);
