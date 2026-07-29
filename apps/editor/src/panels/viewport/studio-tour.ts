@@ -45,6 +45,12 @@ export interface TourStop {
   readonly distanceMeters: number;
   readonly azimuthDeg: number;
   readonly elevationDeg: number;
+  /** Lente da parada. É o zoom, que a distância sozinha não produz. */
+  readonly fovDeg: number;
+  /** Graus de azimute que a câmera percorre DURANTE a pausa. 0 = parada morta. */
+  readonly driftDeg: number;
+  /** Pausa própria em frames. 0 herda a global do palco. */
+  readonly holdFrames: number;
 }
 
 /**
@@ -120,6 +126,10 @@ export const STUDIO_CAMERA_PROPERTY_PATHS = Object.freeze([
   "props.distanceMeters",
   "props.azimuthDeg",
   "props.elevationDeg",
+  // A lente entra na sétima posição, e é o que faltava para existir zoom.
+  // Distância aproxima e muda a perspectiva; lente comprime o fundo e isola a
+  // peça sem se mover. São efeitos diferentes, e o roteiro só sabia o primeiro.
+  "props.fovDeg",
 ] as const);
 
 /**
@@ -148,16 +158,32 @@ export const MIN_HOLD_FRAMES = 0;
 export function buildStudioTourSchedule<T>(
   items: readonly T[],
   timing: TourTiming,
+  /**
+   * Pausa desta parada, em frames, quando ela tem uma própria.
+   *
+   * Opcional para não quebrar quem já chama — sem ela toda parada usa a pausa
+   * global, que é o comportamento de antes, frame a frame. Existe porque o texto
+   * de cada parada tem tamanho diferente: falar do radar leva menos tempo que
+   * falar da cabine, e um número único obriga a escolher entre pressa numa e
+   * silêncio na outra.
+   */
+  holdOf?: (item: T, index: number) => number,
 ): TourSchedule<T> {
   const normalized = normalizeStudioTourTiming(timing);
+  // Acumulado, não `index × passo`: com pausas diferentes por parada o passo
+  // deixa de ser constante, e a fórmula antiga passaria a mentir na terceira.
+  let cursor = normalized.startFrame;
   const entries = items.map((item, index) => {
-    const arrivalFrame =
-      normalized.startFrame + index * (normalized.holdFrames + normalized.travelFrames);
+    const own = holdOf === undefined ? 0 : Math.max(0, Math.round(holdOf(item, index)));
+    const hold = own > 0 ? own : normalized.holdFrames;
+    const arrivalFrame = cursor;
+    const departureFrame = arrivalFrame + hold;
+    cursor = departureFrame + normalized.travelFrames;
     return Object.freeze({
       item,
       index,
       arrivalFrame,
-      departureFrame: arrivalFrame + normalized.holdFrames,
+      departureFrame,
     });
   });
   return Object.freeze({
@@ -244,6 +270,12 @@ export function documentStudioPois(composition: Composition): readonly TourStop[
       distanceMeters: Math.max(0.01, baseValue(node.props, "distanceMeters", 12)),
       azimuthDeg: baseValue(node.props, "azimuthDeg", 35),
       elevationDeg: Math.max(-89, Math.min(89, baseValue(node.props, "elevationDeg", 18))),
+      // Recuo para os padrões do tipo: um POI salvo antes destas props existirem
+      // compila com a lente do palco, sem deriva e herdando a pausa global — que
+      // é exatamente o comportamento que ele tinha.
+      fovDeg: Math.max(5, Math.min(120, baseValue(node.props, "fovDeg", 38))),
+      driftDeg: baseValue(node.props, "driftDeg", 0),
+      holdFrames: Math.max(0, baseValue(node.props, "holdFrames", 0)),
     });
   }
   return stops;
@@ -414,7 +446,8 @@ export function compileStudioTour(
   const diagnostics: string[] = [];
   const normalizedTiming = normalizeStudioTourTiming(timing);
   const start = normalizedTiming.startFrame;
-  const hold = normalizedTiming.holdFrames;
+  // A pausa global não é mais lida aqui: com pausa por parada ela deixou de ser
+  // um número só, e cada parada recebe a sua da agenda (`departure - arrival`).
 
   if (stops.length === 0) {
     return Object.freeze({
@@ -466,11 +499,18 @@ export function compileStudioTour(
     STUDIO_CAMERA_PROPERTY_PATHS.map((path) => [path, []]),
   );
 
-  const schedule = buildStudioTourSchedule(visited, normalizedTiming);
+  const schedule = buildStudioTourSchedule(
+    visited,
+    normalizedTiming,
+    (entry) => entry.stop.holdFrames,
+  );
   schedule.entries.forEach(({ item: entry, index, arrivalFrame, departureFrame }) => {
     const { stop } = entry;
     const arrival = arrivalFrame;
+    // A pausa é DESTA parada, não a global: com pausa própria os dois números
+    // divergem, e usar a global aqui poria a partida no lugar errado.
     const departure = departureFrame;
+    const hold = departureFrame - arrivalFrame;
     // Passagem 2. O recuo para a sondagem cobre o resolvedor que responde num
     // frame e não noutro; hoje não acontece, porque a existência do dono não
     // depende do tempo, e é recuo em vez de erro para não transformar uma
@@ -484,6 +524,7 @@ export function compileStudioTour(
       "props.distanceMeters": stop.distanceMeters,
       "props.azimuthDeg": azimuths[index] ?? stop.azimuthDeg,
       "props.elevationDeg": stop.elevationDeg,
+      "props.fovDeg": stop.fovDeg,
     };
     /**
      * O alvo acompanha objeto que se mexe durante a pausa.
@@ -550,6 +591,24 @@ export function compileStudioTour(
       if (axis !== undefined) {
         const coordinate = departurePoint[axis];
         if (coordinate !== undefined) departureValue = coordinate;
+      }
+      /**
+       * **Deriva na pausa.** Chegada e partida com o mesmo azimute fazem a
+       * velocidade da câmera cair a zero exato e ficar lá durante toda a pausa —
+       * tecnicamente é o que "pausa" quer dizer, e visualmente é o que faz a
+       * apresentação parecer máquina. O dono relatou assim: _"movimentação muito
+       * seca, travadona"_.
+       *
+       * Somar a deriva só na partida faz a câmera continuar girando devagar
+       * enquanto o narrador fala, e a chegada da próxima parada parte de um
+       * movimento já em curso em vez de um arranque parado. `driftDeg: 0`
+       * devolve a parada morta, então projeto salvo antes disto não muda.
+       *
+       * Só o azimute: derivar a distância entraria em conflito com a lente, e
+       * derivar a elevação sobe o horizonte de um jeito que se nota.
+       */
+      if (path === "props.azimuthDeg" && stop.driftDeg !== 0) {
+        departureValue += stop.driftDeg;
       }
       column.push({
         id: `tour:${String(index)}:${path}:out`,

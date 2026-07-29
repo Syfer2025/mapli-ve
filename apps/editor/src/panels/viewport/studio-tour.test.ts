@@ -24,6 +24,12 @@ function stop(id: string, overrides: Partial<TourStop> = {}): TourStop {
     distanceMeters: 12,
     azimuthDeg: 0,
     elevationDeg: 18,
+    // Padrões neutros: lente do palco, sem deriva e herdando a pausa global. É o
+    // que faz os testes escritos antes destas props continuarem descrevendo o
+    // mesmo comportamento.
+    fovDeg: 38,
+    driftDeg: 0,
+    holdFrames: 0,
     ...overrides,
   };
 }
@@ -111,7 +117,7 @@ describe("compileStudioTour", () => {
     expect(tour.diagnostics[0]).toContain("Nenhum ponto");
   });
 
-  it("escreve as seis props de câmera do palco, e só elas", () => {
+  it("escreve as sete props de câmera do palco, e só elas", () => {
     const tour = compileStudioTour([stop("a")], TIMING);
     expect(tour.writes.map((write) => write.path)).toEqual([
       "props.targetX",
@@ -120,7 +126,55 @@ describe("compileStudioTour", () => {
       "props.distanceMeters",
       "props.azimuthDeg",
       "props.elevationDeg",
+      "props.fovDeg",
     ]);
+  });
+
+  /**
+   * O zoom que o dono relatou faltar: _"não tem zoom in nem out"_. Distância e
+   * lente produzem imagens diferentes — a primeira muda a perspectiva, a segunda
+   * comprime o fundo sem se mover — e antes disto o roteiro só sabia a primeira.
+   */
+  it("a lente de cada parada vira keyframe, então existe zoom", () => {
+    const tour = compileStudioTour(
+      [stop("largo", { fovDeg: 55 }), stop("fechado", { fovDeg: 18 })],
+      TIMING,
+    );
+    const fov = tour.writes.find((write) => write.path === "props.fovDeg");
+    expect(fov?.keyframes.map((keyframe) => keyframe.value)).toEqual([55, 55, 18, 18]);
+  });
+
+  /**
+   * A "movimentação seca" relatada pelo dono. Chegada e partida com o mesmo
+   * azimute zeram a velocidade da câmera durante toda a pausa, e isso lê como
+   * máquina. Com deriva ela continua girando devagar enquanto o narrador fala.
+   */
+  it("a deriva faz a câmera continuar se movendo durante a pausa", () => {
+    const tour = compileStudioTour([stop("a", { azimuthDeg: 10, driftDeg: 6 })], TIMING);
+    const azimuth = tour.writes.find((write) => write.path === "props.azimuthDeg");
+    expect(azimuth?.keyframes.map((keyframe) => keyframe.value)).toEqual([10, 16]);
+  });
+
+  it("deriva zero devolve a parada morta, e projeto salvo antes não muda", () => {
+    const tour = compileStudioTour([stop("a", { azimuthDeg: 10, driftDeg: 0 })], TIMING);
+    const azimuth = tour.writes.find((write) => write.path === "props.azimuthDeg");
+    expect(azimuth?.keyframes.map((keyframe) => keyframe.value)).toEqual([10, 10]);
+  });
+
+  /**
+   * Pausa por parada: falar do radar leva menos tempo que falar da cabine, e um
+   * número único para todas obriga a escolher entre pressa numa e silêncio na
+   * outra. Zero herda a global — é o que mantém o roteiro antigo intacto.
+   */
+  it("pausa própria adianta as paradas seguintes, e zero herda a global", () => {
+    const tour = compileStudioTour(
+      [stop("curta", { holdFrames: 10 }), stop("herda"), stop("longa", { holdFrames: 120 })],
+      TIMING,
+    );
+    const frames = tour.writes[0]?.keyframes.map((keyframe) => keyframe.frame);
+    // 0→10 (pausa própria), voo 30 → 40→100 (herda 60), voo 30 → 130→250.
+    expect(frames).toEqual([0, 10, 40, 100, 130, 250]);
+    expect(tour.endFrame).toBe(250);
   });
 
   /**

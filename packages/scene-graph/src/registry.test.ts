@@ -252,7 +252,17 @@ describe("builtin node type registry", () => {
       "props.distanceMeters",
       "props.azimuthDeg",
       "props.elevationDeg",
+      "props.fovDeg",
+      "props.driftDeg",
+      "props.holdFrames",
     ]);
+    // A pausa própria é entrada do compilador do roteiro, como os tempos do
+    // palco: uma trilha de "duração da pausa" variando no tempo não significaria
+    // nada, porque a pausa que ela descreve já virou keyframes.
+    expect(
+      definition?.properties.find((descriptor) => descriptor.path === "props.holdFrames")
+        ?.animatable,
+    ).toBe(false);
     /**
      * A unidade de `pointX/Y/Z` **depende** de `ownerId` (ADR-016): metros de palco
      * sem dono, fração do vão do modelo com dono. Declarar `unit: "meters"` faria o
@@ -284,6 +294,11 @@ describe("builtin node type registry", () => {
       distanceMeters: { value: 12, keyframes: [], expression: null },
       azimuthDeg: { value: 35, keyframes: [], expression: null },
       elevationDeg: { value: 18, keyframes: [], expression: null },
+      // Nasce com a lente do palco: uma lente diferente faria toda visita dar um
+      // salto óptico que ninguém pediu.
+      fovDeg: { value: 38, keyframes: [], expression: null },
+      driftDeg: { value: 4, keyframes: [], expression: null },
+      holdFrames: { value: 0, keyframes: [], expression: null },
     });
   });
 

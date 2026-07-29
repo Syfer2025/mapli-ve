@@ -469,6 +469,32 @@ const StudioPoiPropsSchema = z
     distanceMeters: PositiveNumberPropertySchema,
     azimuthDeg: NumberPropertySchema,
     elevationDeg: NumberPropertySchema,
+    /**
+     * Campo de visão da parada — o **zoom**, que a distância sozinha não dá.
+     *
+     * Aproximar a câmera (distância) e fechar a lente (fov) produzem imagens
+     * diferentes: a distância muda a perspectiva, a lente não. Fechar a lente
+     * comprime o fundo e isola a peça; aproximar exagera o volume dela. Sem esta
+     * prop o roteiro só sabia fazer o primeiro, e o dono relatou o resultado:
+     * _"não tem zoom in nem out"_.
+     */
+    fovDeg: PositiveNumberPropertySchema,
+    /**
+     * Quanto a câmera deriva durante a pausa, em graus de azimute.
+     *
+     * Câmera que chega e trava lê como máquina. Um objeto de cinema quase nunca
+     * para de todo — ele desacelera, respira e sai. Zero devolve a parada morta
+     * de antes, e é o que mantém a compatibilidade com projeto já salvo.
+     */
+    driftDeg: NumberPropertySchema,
+    /**
+     * Pausa desta parada, em frames. Zero herda o valor global do palco.
+     *
+     * Existe porque o texto de cada parada tem tamanho diferente: falar do radar
+     * leva menos que falar da cabine, e um número único para todas obriga a
+     * escolher entre pressa numa e silêncio na outra.
+     */
+    holdFrames: NonNegativeNumberPropertySchema,
   })
   .passthrough();
 
@@ -2358,6 +2384,14 @@ export const STUDIO_POI_NODE_TYPE = defineNodeType({
     distanceMeters: animatable(12),
     azimuthDeg: animatable(35),
     elevationDeg: animatable(18),
+    // 38° é o mesmo padrão do palco: um ponto nasce com a lente que a cena já
+    // usa, e quem quiser fechar para isolar a peça muda daí. Nascer diferente
+    // faria toda visita dar um salto de lente sem ninguém ter pedido.
+    fovDeg: animatable(38),
+    // 4° de deriva em ~2 s de pausa é movimento que se sente e não distrai.
+    driftDeg: animatable(4),
+    // 0 = herda a pausa global do palco.
+    holdFrames: animatable(0),
   },
   propertySchema: StudioPoiPropsSchema,
   properties: [
@@ -2436,6 +2470,39 @@ export const STUDIO_POI_NODE_TYPE = defineNodeType({
       max: 89,
       step: 2,
       unit: "degrees",
+    }),
+    property({
+      path: "props.fovDeg",
+      label: "Lente da visita",
+      kind: "number",
+      group: "layout",
+      binding: "animatable",
+      animatable: true,
+      min: 5,
+      max: 120,
+      step: 1,
+      unit: "degrees",
+    }),
+    property({
+      path: "props.driftDeg",
+      label: "Deriva na pausa",
+      kind: "number",
+      group: "layout",
+      binding: "animatable",
+      animatable: true,
+      step: 1,
+      unit: "degrees",
+    }),
+    // Não animável: é entrada do compilador do roteiro, como os tempos do palco.
+    property({
+      path: "props.holdFrames",
+      label: "Pausa própria · 0 herda do palco",
+      kind: "number",
+      group: "content",
+      binding: "animatable",
+      animatable: false,
+      min: 0,
+      step: 1,
     }),
   ],
   supportsChildren: false,
