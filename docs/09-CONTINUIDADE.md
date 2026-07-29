@@ -83,6 +83,9 @@ mudanças reservadas ao dono (`settleFailedFrames` e `tools/demo-missao.mjs`):
 | `505ae7d` | fluxo de autoria do palco: POI, câmera, drop, atmosfera, tour e anotação |
 | `16e1ffa` | provas ao vivo 7–12 e verificadores independentes da aba persistida      |
 | `c79e25f` | comentário do vínculo de POI junto à ação que ele documenta              |
+| `80e0311` | ADR-018: escolhe o espelho planar e declara custo e limite               |
+| `368bb39` | reflexo determinístico, compatibilidade, profiler e prova 14/14 × 2      |
+| `8decdfe` | resultado medido no ADR, roteiro e passagem de bastão                    |
 
 Entregue nesta sessão, em sete commits:
 

@@ -9,10 +9,11 @@ Effects, 100% local e offline. Remote `https://github.com/Syfer2025/mapli-ve`, b
 
 ## Primeiro: preserve as duas mudanças que continuam fora dos commits
 
-A grande sessão que estava sobre `af91230` já foi incorporada em cinco blocos locais:
+A grande sessão que estava sobre `af91230` já foi incorporada em oito blocos locais:
 `2bb9ca3` (ADRs), `19dc320` (contrato de asset), `505ae7d` (fluxo do palco),
-`16e1ffa` (provas ao vivo) e `c79e25f` (correção documental no código). Confirme com
-`git log -6 --oneline` e rode `git status` antes de qualquer coisa.
+`16e1ffa` (provas ao vivo), `c79e25f` (correção documental no código), `80e0311`
+(decisão do reflexo), `368bb39` (reflexo e provas) e `8decdfe` (resultado medido).
+Confirme com `git log -9 --oneline` e rode `git status` antes de qualquer coisa.
 
 Duas mudanças continuam deliberadamente fora desses commits porque são do dono —
 preserve:
@@ -29,12 +30,13 @@ Nunca use `git add -A` ou `git add .`: adicione caminhos explicitamente e confir
 1. `docs/09-CONTINUIDADE.md` — passagem de bastão. **§1** onde parou, **§3** o que falta e as
    seções novas desta sessão, **§4** as 18 armadilhas antigas, **§5** como verificar de
    verdade, **§8** o estilo de trabalho combinado com o dono.
-2. `docs/08-ROADMAP.md` — **§7F** é a seção nova: os nove pedidos do dono sobre o Palco 3D,
-   com o estado medido de cada um e quais já fecharam (7F.1 a 7F.6). A seção **7A+** tem
-   afirmações riscadas, derrubadas por medição no 7A++.
-3. `docs/adr/` — **ADR-016** (POI ancorado no objeto) e **ADR-017** (câmera de autoria) são os
-   mais recentes. O ADR-016 tem **nota de implementação** com três desvios da letra dele. O
-   ADR-015 está marcado como emendado pelo 016.
+2. `docs/08-ROADMAP.md` — **§7F** é a seção nova: os nove pedidos do dono sobre o Palco 3D.
+   7F.1 a 7F.6 e 7F.8 estão fechados; a Timeline do Palco é o próximo bloco. A seção
+   **7A+** tem afirmações riscadas, derrubadas por medição no 7A++.
+3. `docs/adr/` — **ADR-018** é a decisão e a prova final do reflexo planar. Leia também o
+   **ADR-016** (POI ancorado no objeto) e o **ADR-017** (câmera de autoria), porque a
+   Timeline terá de representar exatamente essas duas estruturas. O ADR-016 tem **nota de
+   implementação** com três desvios da letra dele; o ADR-015 está marcado como emendado pelo 016.
 
 ## Bootstrap
 
@@ -54,12 +56,13 @@ segundo **precisa de tsx**, `node` puro falha com `ERR_MODULE_NOT_FOUND`.
 Nesta máquina o bootstrap de dados **já está completo**: 37 assets íntegros, malha geo
 compilada e verificada.
 
-Estado esperado: **1.135 testes em 112 arquivos, verde**; 355 módulos e 952 dependências sem
+Estado esperado: **1.162 testes em 115 arquivos, verde**; 362 módulos e 963 dependências sem
 violação de camada.
 
 ## Onde o projeto está
 
-Fases 0–6 concluídas, bloco 7 fechado (exceção declarada: 7E.4, VFX, adiado pelo dono),
+Fases 0–6 concluídas, roteiro técnico original do bloco 7 fechado (exceção declarada:
+7E.4, VFX, adiado pelo dono), rodada adicional 7F com a Timeline do Palco pendente, e
 **Fase 8 produzindo MP4 H.264, GIF, ProRes 4444 e PNG byte-idênticos**.
 
 O gate desta retomada repetiu 7b, 7d, 7e3, 8 e 8-video; o 7e3 passou duas vezes
@@ -72,13 +75,13 @@ histórica de outra máquina, mas não roda aqui sem FFmpeg e ffprobe:
 | `verify:phase7b`        | `ok: true` · repetido                |
 | `verify:phase7c`        | verde · handoff anterior             |
 | `verify:phase7d`        | 4/4 · repetido                       |
-| `verify:phase7e3`       | **12/12 duas vezes · repetido**      |
+| `verify:phase7e3`       | **14/14 duas vezes · repetido**      |
 | `verify:phase8`         | 7/7 · repetido                       |
 | `verify:phase8-video`   | 6/6 · repetido                       |
 | `verify:phase8-formats` | **5/5 histórico; indisponível aqui** |
 
-O `verify:phase7e3` ganhou **seis critérios novos** nesta sessão (7 a 12) e é onde está a
-prova do palco. Ele é **idempotente**: rodar duas vezes seguidas dá 12/12 nas duas.
+O `verify:phase7e3` é onde está a prova do palco. Ele é **idempotente**: depois do
+reflexo, duas rodadas seguidas deram 14/14 nas duas.
 
 **`verify:phase8-formats` não é regressão — é ambiente.** FFmpeg e ffprobe estão
 ausentes. O verificador aceita `THEATRUM_FFMPEG_PATH` e
@@ -129,37 +132,40 @@ continua sendo trabalho pequeno e pendente.
 - **Sombra direcional.** Era projetada de cima, com a luz assumida vertical — mancha, não
   sombra. Agora vem da direção da luz, com props `keyAzimuthDeg`/`keyElevationDeg`. Critério
   12: girar a luz meia volta desloca o centroide da sombra em 93 px.
+- **Reflexo planar determinístico (ADR-018).** A câmera espelhada em `y = 0` desenha o
+  equipamento num target RGBA16F linear; o quad do piso amostra, filtra e aplica ACES,
+  Fresnel e queda por distância. Projeto antigo continua pixel-idêntico com intensidade 0;
+  nó novo nasce em 0,3. Reflexo e sombra restauram integralmente o estado do renderer em
+  `finally`, e a sombra não guarda mais cache de assinatura incompleta.
+- **Orçamento medido, sem travar a GPU.** O critério 13b alterna 40 frames OFF e 40 ON em
+  ABBA, com `EXT_disjoint_timer_query_webgl2` assíncrona. Duas rodadas 14/14 mediram p95
+  CPU ON de 1,20/1,00 ms e GPU Three ON de 0,35/0,37 ms num canvas físico 1951×1129,
+  target 976×565 e zero disjoints. A GPU não inclui Pixi nem o compositor.
 
 ## O que fazer, na ordem
 
-1. **Reflexo no piso do palco** (roteiro 7F/8b). É o único pedaço do pedido "luz, sombra e
-   reflexos melhorados" que ficou. O piso é um **quad de fundo** com `depthTest` desligado, e
-   não geometria — então reflexo pede espelho planar: renderizar a cena de uma câmera
-   espelhada no plano do piso para um render target e amostrar no shader do piso por
-   coordenada de tela, com queda por distância. A máquina de render target já existe em
-   `studio-shadow.ts`; copie o padrão, não invente outro.
-2. **Timeline própria do modo palco** (pedido 2 do dono). `TimelinePanel.tsx` e
+1. **Timeline própria do modo palco** (pedido 2 do dono). `TimelinePanel.tsx` e
    `timeline-model.ts` não têm **nenhuma** referência a studio/stage. Decida e documente:
    painel separado, ou o mesmo painel com modelo ciente do modo — o segundo é mais consistente
    com o resto do editor. No palco o que interessa são as props de câmera, os POIs e o roteiro,
    não as camadas do mapa.
-3. **Contornos do mapa "meio grosseiros"** (queixa do dono, mensagem cortada). **Pergunte onde
+2. **Contornos do mapa "meio grosseiros"** (queixa do dono, mensagem cortada). **Pergunte onde
    antes de mexer**: no Viewport, no vídeo exportado, ou num zoom específico. Suspeitos a
    medir: quantização da malha pré-compilada em Int32 (ADR-010), antialias do traço no Pixi,
    largura de linha em tela HiDPI, e o recorte Sutherland–Hodgman (§4.9).
-4. **Fase 9 — Scene Script.** É a resposta certa ao pedido "integração com qualquer IA":
+3. **Fase 9 — Scene Script.** É a resposta certa ao pedido "integração com qualquer IA":
    `docs/00-VISION.md` declara como **não-objetivo** o editor chamar modelo nenhum, e
    `docs/05-SCENE-SCRIPT.md` diz "o editor não contém IA, contém um compilador".
    `packages/scripting` é stub de 9 linhas. Critérios de saída já escritos no roteiro.
-5. **Resolução acima do tamanho da janela.** Gatilho declarado do ADR-013 para a janela de
+4. **Resolução acima do tamanho da janela.** Gatilho declarado do ADR-013 para a janela de
    render oculta, e a decisão que deve fechar o `packages/engine` — hoje stub de 9 linhas
    enquanto `apps/editor` importa L2/L3 direto.
-6. **Motion blur, checkpoint e retomada.**
-7. **Duas decisões pendentes por omissão, não por escolha:** o orçamento de tempo do
+5. **Motion blur, checkpoint e retomada.**
+6. **Duas decisões pendentes por omissão, não por escolha:** o orçamento de tempo do
    `tools/eslint-rules/rules.test.ts` sob contenção de workers, e a semente do `fc.assert`.
    Esta sessão usou `{ seed: 20260728 }` **num arquivo só** (`studio-anchor.test.ts`), com o
    motivo escrito; o resto da base segue com semente livre.
-8. **Operacional:** rodar `pnpm dist:win` de novo para incorporar os exemplos ao instalador.
+7. **Operacional:** rodar `pnpm dist:win` de novo para incorporar os exemplos ao instalador.
 
 ### Dados de mapa que faltam, e o dono adiou de propósito
 
@@ -225,10 +231,21 @@ ausente`.
 9. **Ângulo é modular dos dois lados** — de quem afirma (§4.17) e de quem escreve o keyframe
    (`unwrapAzimuths`).
 10. **Captura de tela não prova sozinha** (§4.5). Meça em pixel, ou leia o estado pelo CDP.
+11. **Câmera refletida right-handed inverte X de tela.** Um ponto do piso preserva Y entre
+    a câmera real e a espelhada, mas X troca de orientação. Exigir UV completo igual produz
+    uma prova matematicamente errada com aparência convincente.
+12. **Render offscreen é uma transação completa.** Target inclui face e mip; também restaure
+    viewport, scissor/teste, máscaras de escrita, clear, background, override, XR, shadow map
+    e visibilidade em `finally`. Cache de sombra com assinatura parcial quebra a pureza de
+    `(documento, frame)`; por isso a sombra repinta todo frame.
+13. **Debug não pode vazar para produção.** As superfícies do CDP só são montadas em dev ou
+    com `VITE_THEATRUM_VERIFY=1`; depois do build normal, procure pelos nomes no bundle e
+    exija zero ocorrência.
 
-## Superfícies de diagnóstico do palco (só em dev)
+## Superfícies de diagnóstico do palco (dev ou build explícito de verificação)
 
-`window.__theatrumStudio` ganhou três coisas nesta sessão, e o verificador depende delas:
+`window.__theatrumStudio` é exposta em dev ou com `VITE_THEATRUM_VERIFY=1`; o build de
+produção normal foi inspecionado e não contém ela nem as superfícies das fases 2/4:
 
 - `pois()` — os pontos do frame com a **ancoragem já resolvida** em mundo, mais `ownerId` e
   `orphan`. Existe porque `props.pointX` deixou de ser metros de palco quando o ponto tem
@@ -238,6 +255,10 @@ ausente`.
 - `pick(x, y)` e `project(point)` já existiam, e o critério 5 agora acha os pixels de sondagem
   por **varredura** com `pick`, em vez de coordenadas fixas — antes ele dependia da silhueta
   do F/A-18 e ficava vermelho em máquina cuja `library-roots.json` serve outro modelo.
+- `profile` — coleta CPU e GPU Three ON/OFF de forma assíncrona; GPU não inclui o canvas
+  Pixi nem o compositor do Chromium.
 
-Comece confirmando `git status`, a suíte verde e os quatro verificadores. Depois relate o que
-encontrou antes de tocar no `settle` ou no caminho de export.
+Comece confirmando `git status`, a suíte verde e os verificadores `phase7e3` (duas vezes),
+`phase8` e `phase8-video`. `phase8-formats` deve parar em `ffmpeg ENOENT` nesta máquina;
+não baixe nada. Relate o que encontrou antes de tocar no `settle` ou no caminho de export.
+Depois escreva o ADR-019 da Timeline do Palco **antes** do primeiro código.
