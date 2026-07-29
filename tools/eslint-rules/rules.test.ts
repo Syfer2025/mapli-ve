@@ -295,7 +295,25 @@ describe("tabela de camadas", () => {
  * ESLint. Os RuleTester acima provam que as regras funcionam; este prova que
  * elas estão de fato ligadas na config — desligar uma delas faz este falhar.
  */
-describe("integração com a config real do ESLint", () => {
+/**
+ * Orçamento de 30 s, decidido de propósito — não é teste lento tolerado.
+ *
+ * Estes casos carregam e rodam o **ESLint de verdade**, com a config do projeto
+ * e o parser de TypeScript: 3 a 4 s sozinho nesta máquina, e acima de 5 s quando
+ * a suíte inteira disputa CPU com os outros workers. Com o teto padrão de 5 s a
+ * suíte ficava **vermelha conforme a carga da máquina**, e vermelho intermitente
+ * é pior que vermelho constante — ensina a ignorar o placar.
+ *
+ * O que **não** foi afrouxado: nenhuma asserção. O que estes casos afirmam
+ * continua idêntico; o que mudou é o relógio, que estava errado. Afrouxar a
+ * asserção para ficar verde é o erro que este projeto não comete
+ * (09-CONTINUIDADE § 8); dar tempo realista a trabalho de I/O é outra coisa.
+ *
+ * Se algum dia passar de 30 s, aí é regressão de verdade e o teto acusa.
+ */
+const LINT_REAL_TIMEOUT_MS = 30_000;
+
+describe("integração com a config real do ESLint", { timeout: LINT_REAL_TIMEOUT_MS }, () => {
   const lint = async (code: string, filename: string) => {
     const eslint = new ESLint({ cwd: ROOT });
     const [result] = await eslint.lintText(code, { filePath: filename });
