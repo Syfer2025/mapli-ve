@@ -614,6 +614,18 @@ const CalloutPropsSchema = z
     dotColor: ColorPropertySchema,
     leaderProgress: UnitNumberPropertySchema,
     textReveal: UnitNumberPropertySchema,
+    /**
+     * Parada do roteiro do palco que este rótulo acompanha ([ADR-015](../../../docs/adr/ADR-015-studio-points-of-interest.md)).
+     *
+     * Preenchido com o id de um `studio.poi`, **Compilar roteiro** passa a animar
+     * também a entrada e a saída deste rótulo: a guia cresce da bolinha até a
+     * caixa quando a câmera chega, e recolhe quando ela sai. Vazio — o padrão —
+     * o rótulo é seu, e a compilação não toca nele.
+     *
+     * Não animável: um rótulo que trocasse de parada no meio do vídeo teria duas
+     * revelações disputando a mesma trilha.
+     */
+    stopId: StringPropertySchema,
   })
   .passthrough();
 
@@ -1972,6 +1984,10 @@ export const LABEL_CALLOUT_NODE_TYPE = defineNodeType({
     // ser ligada para o que acabou de criar aparecer.
     leaderProgress: animatable(1),
     textReveal: animatable(1),
+    // Vazio: o rótulo não pertence a parada nenhuma, e a compilação do roteiro
+    // não mexe nele. Quem quiser que a guia acompanhe a chegada da câmera aponta
+    // o ponto aqui.
+    stopId: animatable(""),
   },
   propertySchema: CalloutPropsSchema,
   properties: [
@@ -2150,6 +2166,14 @@ export const LABEL_CALLOUT_NODE_TYPE = defineNodeType({
       max: 1,
       step: 0.05,
       unit: "percent",
+    }),
+    property({
+      path: "props.stopId",
+      label: "Parada do roteiro",
+      kind: "text",
+      group: "content",
+      binding: "animatable",
+      animatable: false,
     }),
     property({
       path: "props.textReveal",

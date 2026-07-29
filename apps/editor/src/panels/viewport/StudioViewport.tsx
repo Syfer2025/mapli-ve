@@ -63,7 +63,13 @@ import {
   type StudioMarker,
 } from "./studio-markers.js";
 import { createStudioProjectorPort, withStudioProjection } from "./studio-projector.js";
-import { compileStudioTour, documentStudioPois, documentStudioTourTiming } from "./studio-tour.js";
+import {
+  compileStudioLabels,
+  compileStudioTour,
+  documentStudioLabels,
+  documentStudioPois,
+  documentStudioTourTiming,
+} from "./studio-tour.js";
 import { anchorToWorld, worldToAnchor, type AnchorFrame } from "./studio-anchor.js";
 import {
   DRAG_THRESHOLD_PX,
@@ -1144,7 +1150,16 @@ export function StudioViewport(): ReactNode {
       setStatus("compilação cancelada · a câmera atual foi mantida");
       return;
     }
-    const ok = editorActions.writeStudioTour(stage.nodeId, tour.writes);
+    /**
+     * Os rótulos entram na mesma compilação.
+     *
+     * Um `label.callout` com `props.stopId` apontando para uma parada ganha
+     * entrada e saída alinhadas à visita, com a guia crescendo da bolinha até a
+     * caixa. Sem `stopId` — o padrão — nada é escrito nele: compilar o roteiro
+     * não pode mexer numa legenda que alguém animou à mão.
+     */
+    const labelWrites = compileStudioLabels(documentStudioLabels(composition), tour.arrivals);
+    const ok = editorActions.writeStudioTour(stage.nodeId, [...tour.writes, ...labelWrites]);
     setStatus(
       ok
         ? `roteiro compilado · ${String(tour.stops)} parada(s) até o frame ${String(tour.endFrame)}` +

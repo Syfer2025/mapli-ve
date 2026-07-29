@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import { normalizeDegrees, shortestAngleDelta } from "@theatrum/core-math";
 import {
   buildStudioTourSchedule,
+  compileStudioLabels,
   compileStudioTour,
   unwrapAzimuths,
   type TourStop,
@@ -462,5 +463,63 @@ describe("compileStudioTour com ponto ancorado", () => {
     expect(tour.stops).toBe(1);
     expect(tour.skipped).toBe(1);
     expect(targetOf(tour, "X")).toEqual([7, 7]);
+  });
+});
+
+describe("compileStudioLabels", () => {
+  const AGENDA = new Map([
+    ["poi-a", { arrival: 100, departure: 190 }],
+    ["poi-b", { arrival: 280, departure: 370 }],
+  ]);
+
+  /**
+   * A ordem conta a história: a bolinha aparece no ponto, a linha sai dela e só
+   * então a caixa termina de surgir. Por isso a guia leva mais frames que a
+   * opacidade para chegar a 1 — crescer junto mostraria a legenda antes de o
+   * espectador saber do que ela fala.
+   */
+  it("a guia demora mais que a caixa para se revelar", () => {
+    const writes = compileStudioLabels([{ nodeId: "rot", stopId: "poi-a" }], AGENDA);
+    const caixa = writes.find((write) => write.path === "transform.opacity");
+    const guia = writes.find((write) => write.path === "props.leaderProgress");
+    const cheia = (write: (typeof writes)[number] | undefined) =>
+      write?.keyframes.find((keyframe) => keyframe.value === 1)?.frame ?? -1;
+    expect(cheia(guia)).toBeGreaterThan(cheia(caixa));
+    expect(cheia(caixa)).toBeGreaterThan(100);
+  });
+
+  it("entra antes da chegada e sai depois da partida, nos dois nós", () => {
+    const writes = compileStudioLabels(
+      [
+        { nodeId: "rot-a", stopId: "poi-a" },
+        { nodeId: "rot-b", stopId: "poi-b" },
+      ],
+      AGENDA,
+    );
+    expect(new Set(writes.map((write) => write.nodeId))).toEqual(new Set(["rot-a", "rot-b"]));
+    const primeiro = writes.find((write) => write.nodeId === "rot-a");
+    expect(primeiro?.keyframes[0]?.frame).toBe(90);
+    expect(primeiro?.keyframes.at(-1)?.frame).toBe(200);
+    expect(primeiro?.keyframes.at(-1)?.value).toBe(0);
+  });
+
+  /**
+   * Rótulo sem parada é o padrão, e compilar o roteiro não pode tocar numa
+   * legenda que alguém animou à mão.
+   */
+  it("parada inexistente não gera escrita nenhuma", () => {
+    expect(compileStudioLabels([{ nodeId: "rot", stopId: "fantasma" }], AGENDA)).toEqual([]);
+    expect(compileStudioLabels([], AGENDA)).toEqual([]);
+  });
+
+  it("pausa curta não emite dois keyframes no mesmo frame", () => {
+    const writes = compileStudioLabels(
+      [{ nodeId: "rot", stopId: "curta" }],
+      new Map([["curta", { arrival: 0, departure: 4 }]]),
+    );
+    for (const write of writes) {
+      const frames = write.keyframes.map((keyframe) => keyframe.frame);
+      expect(new Set(frames).size, write.path).toBe(frames.length);
+    }
   });
 });

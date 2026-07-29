@@ -603,9 +603,32 @@ export const editorActions = Object.freeze({
    */
   writeStudioTour(
     stageNodeId: string,
-    writes: readonly { readonly path: string; readonly keyframes: readonly unknown[] }[],
+    writes: readonly {
+      readonly path: string;
+      readonly keyframes: readonly unknown[];
+      /**
+       * Rótulo amarrado a uma parada; ausente, é o próprio palco.
+       *
+       * O roteiro deixou de escrever só a câmera: um `label.callout` com
+       * `props.stopId` preenchido ganha a entrada e a saída compiladas junto,
+       * com a guia crescendo da bolinha até a caixa na chegada.
+       */
+      readonly nodeId?: string;
+    }[],
   ): boolean {
-    return this.writeKeyframeTracks(stageNodeId, writes);
+    let ok = true;
+    // Agrupado por nó para preservar a semântica do `writeKeyframeTracks`: ele
+    // troca as trilhas de UM nó, e passar o palco com writes de outro faria a
+    // trilha do rótulo aterrissar na câmera.
+    const byNode = new Map<string, { path: string; keyframes: readonly unknown[] }[]>();
+    for (const write of writes) {
+      const target = write.nodeId ?? stageNodeId;
+      const list = byNode.get(target) ?? [];
+      list.push({ path: write.path, keyframes: write.keyframes });
+      byNode.set(target, list);
+    }
+    for (const [nodeId, list] of byNode) ok = this.writeKeyframeTracks(nodeId, list) && ok;
+    return ok;
   },
 
   /**

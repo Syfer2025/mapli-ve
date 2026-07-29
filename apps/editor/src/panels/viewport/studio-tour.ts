@@ -102,6 +102,109 @@ export interface TourPropertyWrite {
   /** Caminho na prop do `studio.stage`, ex.: `props.azimuthDeg`. */
   readonly path: string;
   readonly keyframes: readonly Keyframe<number>[];
+  /**
+   * Nó de destino, quando não é o palco.
+   *
+   * Ausente, é o `studio.stage` — o caso de todas as sete props de câmera. Os
+   * rótulos amarrados a uma parada preenchem, porque cada um é um nó diferente.
+   */
+  readonly nodeId?: string;
+}
+
+/**
+ * Rótulo que acompanha uma parada, com a revelação da guia.
+ *
+ * A ordem é o que conta a história: a bolinha aparece no ponto, **a linha sai
+ * dela** e só então a caixa termina de surgir. Crescer da caixa para o ponto
+ * mostraria a legenda antes de o espectador saber do que ela fala — e é por isso
+ * que a guia leva mais frames que a opacidade para chegar a 1.
+ */
+export interface TourLabel {
+  readonly nodeId: string;
+  /** `studio.poi` que este rótulo acompanha. */
+  readonly stopId: string;
+}
+
+/** Frames de entrada e saída de um rótulo. Curtos: é pontuação, não cena. */
+const LABEL_FADE_FRAMES = 10;
+const LABEL_BOX_IN_FRAMES = 14;
+const LABEL_LEADER_IN_FRAMES = 20;
+
+/**
+ * Os rótulos do documento que declararam parada, na ordem das camadas.
+ *
+ * `stopId` vazio fica de fora, e isso é a garantia de que compilar o roteiro não
+ * mexe em legenda que o autor animou à mão.
+ */
+export function documentStudioLabels(composition: Composition): readonly TourLabel[] {
+  const labels: TourLabel[] = [];
+  for (const id of topologicalOrder(composition)) {
+    const node = composition.nodes[id];
+    if (node === undefined || node.type !== "label.callout" || node.enabled === false) continue;
+    const property = node.props["stopId"] as AnimatableProperty<unknown> | undefined;
+    const stopId = typeof property?.value === "string" ? property.value : "";
+    if (stopId === "") continue;
+    labels.push({ nodeId: id, stopId });
+  }
+  return labels;
+}
+
+/**
+ * Keyframes de entrada e saída dos rótulos, alinhados às paradas.
+ *
+ * Separado do compilador de câmera de propósito: são nós diferentes, trilhas
+ * diferentes e um pode existir sem o outro — roteiro sem rótulo é comum, e
+ * rótulo sem parada é o padrão.
+ */
+export function compileStudioLabels(
+  labels: readonly TourLabel[],
+  arrivals: ReadonlyMap<string, { readonly arrival: number; readonly departure: number }>,
+): readonly TourPropertyWrite[] {
+  const writes: TourPropertyWrite[] = [];
+  for (const label of labels) {
+    const when = arrivals.get(label.stopId);
+    if (when === undefined) continue;
+    const before = Math.max(0, when.arrival - LABEL_FADE_FRAMES);
+    const out = when.departure + LABEL_FADE_FRAMES;
+    const marks: readonly (readonly [string, readonly (readonly [number, number])[]])[] = [
+      [
+        "transform.opacity",
+        [
+          [before, 0],
+          [when.arrival + LABEL_BOX_IN_FRAMES, 1],
+          [Math.max(when.arrival + LABEL_BOX_IN_FRAMES + 1, when.departure - 8), 1],
+          [out, 0],
+        ],
+      ],
+      [
+        "props.leaderProgress",
+        [
+          [before, 0],
+          [when.arrival + LABEL_LEADER_IN_FRAMES, 1],
+          [Math.max(when.arrival + LABEL_LEADER_IN_FRAMES + 1, when.departure - 8), 1],
+          [out, 0],
+        ],
+      ],
+    ];
+    for (const [path, points] of marks) {
+      writes.push({
+        nodeId: label.nodeId,
+        path,
+        // Dedup por frame: com pausa curta, "chegada + 20" pode passar da
+        // partida, e dois keyframes no mesmo frame é documento inválido.
+        keyframes: points
+          .filter(([frame], index) => points.findIndex(([other]) => other === frame) === index)
+          .map(([frame, value], index) => ({
+            id: `tour:label:${label.nodeId}:${path}:${String(index)}`,
+            frame: Math.max(0, Math.round(frame)),
+            value,
+            in: { kind: "linear" as const },
+            out: { kind: "linear" as const },
+          })),
+      });
+    }
+  }
+  return writes;
 }
 
 export interface CompiledTour {
@@ -112,6 +215,14 @@ export interface CompiledTour {
   readonly stops: number;
   /** Paradas descartadas por dono ausente ([ADR-016](../../../../../docs/adr/ADR-016-poi-anchored-to-object.md)). */
   readonly skipped: number;
+  /**
+   * Quando a câmera chega e sai de cada parada, por id do `studio.poi`.
+   *
+   * É o que permite os rótulos serem compilados **depois** e ainda assim caírem
+   * em cima da visita. Recalcular a agenda do lado de lá seria a segunda fórmula
+   * quase igual que o ADR-019 existe para evitar.
+   */
+  readonly arrivals: ReadonlyMap<string, { readonly arrival: number; readonly departure: number }>;
   readonly diagnostics: readonly string[];
 }
 
@@ -455,6 +566,7 @@ export function compileStudioTour(
       endFrame: start,
       stops: 0,
       skipped: 0,
+      arrivals: new Map(),
       diagnostics: Object.freeze(["Nenhum ponto de interesse na composição."]),
     });
   }
@@ -483,6 +595,7 @@ export function compileStudioTour(
       endFrame: start,
       stops: 0,
       skipped,
+      arrivals: new Map(),
       diagnostics: Object.freeze([
         ...diagnostics,
         "Nenhuma parada pôde ser localizada: o roteiro não foi compilado.",
@@ -632,6 +745,12 @@ export function compileStudioTour(
     endFrame: schedule.endFrame,
     stops: visited.length,
     skipped,
+    arrivals: new Map(
+      schedule.entries.map(({ item, arrivalFrame, departureFrame }) => [
+        item.stop.id,
+        { arrival: arrivalFrame, departure: departureFrame },
+      ]),
+    ),
     diagnostics: Object.freeze(diagnostics),
   });
 }
