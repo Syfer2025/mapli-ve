@@ -357,7 +357,7 @@ Estado medido de cada um no momento do pedido, para a ordem não ser palpite:
 | 6   | Complementos sempre virados para a câmera   | callout é Pixi em tela, já encara; o buraco é `withStudioProjection` projetar **só** `model3d` | **✅ 7F.5**    |
 | 7   | POI travado no espaço, não no objeto        | confirmado: `pointX/Y/Z` absolutos, sem vínculo com as quatro props que movem o modelo         | **✅ ADR-016** |
 | 8   | Luz e sombra melhores                       | a sombra era projetada com a luz assumida **vertical** — mancha embaixo, não sombra            | **✅ 7F.6**    |
-| 8b  | Reflexo no piso                             | não existe; o piso é quad de fundo, então pede espelho planar por render target                | a fazer        |
+| 8b  | Reflexo no piso                             | espelho planar por render target sobre o quad de fundo, conforme o ADR-018                     | **✅ 7F.8**    |
 | 9   | Névoa clara ao fundo, nunca sobre o objeto  | não existe. `THREE.Fog` é por profundidade e lavaria o objeto — tem de ser elemento de fundo   | **✅ 7F.3**    |
 
 #### 7F.1 — POI ancorado no objeto ✅
@@ -481,15 +481,59 @@ Medido no critério 12: girar a luz meia volta desloca o centroide da sombra em 
 Luz rente ao horizonte recua para a projeção vertical, porque a sombra tenderia ao infinito
 e a silhueta sairia com um texel de altura.
 
-**O reflexo no piso ficou de fora** e está na tabela como 8b. O piso é um quad de fundo com
-teste de profundidade desligado, então reflexo pede espelho planar por render target — mesma
-máquina da sombra, trabalho separado.
-
 **Decisão de teste tomada por omissão que virou decisão explícita num arquivo só.**
 `studio-anchor.test.ts` usa `fc.assert` com `{ seed: 20260728 }`, porque o assunto
 dele é uma inversa e propriedade de ida e volta com semente livre é a receita do
 vermelho intermitente de [§ 4.17](09-CONTINUIDADE.md). A decisão para o **resto** da
 suíte continua aberta — ver a lista de pendências por omissão.
+
+#### 7F.8 — Reflexo planar do piso, com orçamento medido ✅
+
+Entregue conforme o [ADR-018](adr/ADR-018-studio-planar-floor-reflection.md).
+O piso continua sendo o quad infinito em espaço de tela; um passe próprio desenha a
+geometria pela câmera espelhada em `y = 0`, com recorte oblíquo, e o shader do piso
+projeta o resultado. Não é uma máscara: cor, material, iluminação e oclusão vêm do
+modelo real.
+
+O target é **RGBA16F linear**, metade da resolução física e com maior lado limitado
+a 1.024 px. Depois do blur curto, o shader desfaz a pré-multiplicação pelo alfa e
+aplica a mesma ACES Filmic do Three com exposição 1. Projetos antigos resolvem
+`reflectionStrength` ausente como **0** e podem editá-la pelo Command Bus, com undo;
+nós novos começam em **0,3**.
+
+O passe também fechou uma dívida da sombra: ambos devolvem todo o estado mutado do
+renderer em `finally`, inclusive máscaras de escrita, background, XR, atualização
+automática da sombra, viewport, scissor, face e mip do target. A sombra não usa
+mais assinatura incompleta de cache: repinta em todo frame, preservando a pureza
+quando modelo, luz ou material mudam.
+
+`verify:phase7e3` passou de 12/12 para **14/14**, em **duas rodadas consecutivas**.
+Além da prova visual — reflexo abaixo do contato, movimento espelhado, resposta à
+luz, target velho ausente e ON/OFF repetíveis — o critério 13b mediu 40 frames com
+o reflexo desligado e 40 com ele ligado, em ordem ABBA. Num canvas físico
+**1951×1129**, target **976×565**, ANGLE/RTX 4090 e zero `GPU_DISJOINT`, o p95 ON
+foi:
+
+| Rodada | CPU, `evaluate` → submissão Pixi | GPU do canvas Three |
+| ------ | -------------------------------- | ------------------- |
+| 1      | 1,20 ms                          | 0,35 ms             |
+| 2      | 1,00 ms                          | 0,37 ms             |
+
+A GPU vem de `EXT_disjoint_timer_query_webgl2`, consultada de forma assíncrona.
+Ela **não** inclui Pixi nem o compositor do Chromium, que vivem fora do contexto
+Three. A CPU inclui avaliação, Three, marcadores e submissão Pixi. Assim, a medição
+prova o risco incremental do reflexo em preview 1080p; não se apresenta como tempo
+GPU completo do frame.
+
+`verify:phase8` permaneceu **7/7** e `verify:phase8-video`, **6/6**. A prova de
+formatos ficou bloqueada por `ffmpeg` ausente (`ENOENT`), sem baixar dependência.
+A medição 4K continua ligada à janela de render dedicada do ADR-013, sem
+extrapolação.
+
+**Próximo bloco real:** timeline própria do modo palco (pedido 2). O ponto de
+partida medido continua o da tabela: `TimelinePanel` e `timeline-model` não sabem
+que `studio.stage` existe. A decisão deve ser documentada antes do código; o mesmo
+painel com modelo ciente do modo é a direção mais consistente com o editor.
 
 ### 7E — Apresentação e contexto visual
 

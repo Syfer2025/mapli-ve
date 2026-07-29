@@ -1,13 +1,13 @@
 # ADR-018 — O reflexo do piso do palco é um espelho planar derivado do frame
 
-**Status:** aceito, condicionado à prova de orçamento · **Data:** 2026-07-28 ·
+**Status:** aceito · **Data:** 2026-07-28 ·
 **Revisar em:** quando houver mais de um plano refletor, piso fora de `y = 0`,
 preview típico 1080p acima de 16,6 ms ou frame de export 4K acima de 250 ms
 
 ## Contexto
 
 O pedido do dono em 7F.8 foi melhorar luz, sombra e reflexos. A sombra direcional
-fechou o 7F.6; o pedaço que falta é o reflexo do equipamento no piso.
+fechou o 7F.6; este ADR fecha o reflexo do equipamento no piso.
 
 O piso do palco não é geometria no mundo. `studio-grid.ts` desenha um quad de tela
 cheia, sem teste nem escrita de profundidade, e cada fragmento desprojeta o raio da
@@ -102,13 +102,17 @@ o custo central, não um detalhe.
 2. espelha posição, direção e `up` no plano `y = 0`;
 3. calcula a matriz de amostragem antes do recorte, e depois aplica o plano como
    near plane oblíquo para cortar geometria do lado errado sem deformar o UV;
-4. oculta o grid e desenha os modelos num target RGBA transparente;
-5. restaura target, clear color/alpha, XR, atualização de shadow map e visibilidade
-   em `finally`;
+4. oculta o grid e desenha os modelos num target RGBA16F transparente, em luz
+   linear;
+5. restaura target, face e mip do cube target, viewport, scissor e seu teste,
+   máscaras de escrita de cor e profundidade, clear color/alpha, background,
+   `overrideMaterial`, XR, atualização de shadow map e visibilidade em `finally`;
 6. entrega ao grid a textura, a matriz `bias × projection × view` e o tamanho de
    texel;
 7. o shader projeta o ponto do piso nessa textura, aplica um filtro curto de
-   rugosidade, Fresnel e queda por distância, e só então recoloca grade e sombra.
+   rugosidade, desfaz a pré-multiplicação pelo alfa depois do blur, usa a mesma
+   curva ACES Filmic do Three com exposição 1, aplica Fresnel e queda por
+   distância, e só então recoloca grade e sombra.
 
 O target acompanha o aspecto do canvas, usa metade da resolução física e limita o
 maior lado a 1.024 px. É uma escolha reversível para conter o segundo passe; o
@@ -118,8 +122,10 @@ assinatura incompleta produziria reflexo atrasado com aparência plausível.
 
 `studio.stage` ganha `reflectionStrength`, animável e limitada a `0..1`. Zero
 desliga o passe, não apenas a mistura no shader. Nó antigo sem a prop usa fallback
-zero e abre pixel-idêntico; o padrão de nó novo é discreto, para assentar o objeto
-sem transformar a vitrine em espelho.
+zero e abre pixel-idêntico; o Inspector mostra esse zero sem materializar uma
+mutação. A primeira edição inicializa a propriedade pelo Command Bus — inclusive
+ao criar keyframe — e continua desfazível. O padrão de nó novo é `0.3`, discreto
+para assentar o objeto sem transformar a vitrine em espelho.
 
 ## Consequências
 
@@ -146,19 +152,25 @@ sem transformar a vitrine em espelho.
 - **Determinismo preservado.** Target, câmera espelhada e mistura são derivados do
   frame corrente. Tamanho vem apenas do canvas capturado, como o restante do
   palco; não há relógio, aleatoriedade nem acumulação temporal.
-- **O precedente da sombra é ciclo de vida, não código para copiar literalmente.**
-  O projetor atual não restaura `clearColor`/alfa e não protege toda a mutação em
-  `finally`. Este bloco corrige essa fuga antes de adicionar o segundo passe
-  offscreen; target, override, viewport, scissor e visibilidade sempre voltam ao
-  estado de entrada, inclusive quando o render lança.
+- **Offscreen é uma transação completa.** Reflexo e sombra devolvem todo o estado
+  mutado do renderer ao valor de entrada, inclusive máscaras, background, XR,
+  atualização automática da sombra, viewport, scissor, face e mip. A sombra
+  também deixou de usar assinatura incompleta de cache: repinta em todo frame, de
+  modo que nenhuma mudança omitida nem target interrompido vira verdade do frame
+  seguinte.
+- **Cor linear custa memória.** RGBA8 cortava highlights acima de 1 antes do tone
+  mapping e fazia o reflexo discordar do modelo direto. RGBA16F preserva o sinal
+  linear; o grid aplica ACES com exposição 1 e só então segue para o encode já
+  existente.
 
 ## Prova
 
 ### Unidade
 
 - câmera e direção são o espelho exato em `y = 0`;
-- um ponto do próprio piso cai nas mesmas coordenadas de tela na câmera real e na
-  câmera espelhada;
+- para um ponto do próprio piso, a câmera refletida mantida _right-handed_
+  preserva a coordenada Y de tela e inverte a orientação de X; não são as mesmas
+  coordenadas completas;
 - a projeção oblíqua permanece finita e corta o lado errado;
 - o tamanho do target preserva aspecto, respeita DPR, escala de 50% e teto de
   1.024 px.
@@ -171,15 +183,38 @@ O critério 13 do `verify:phase7e3` faz um A/B no mesmo frame:
 2. captura o modelo com `reflectionStrength = 0` e `1`;
 3. exige tinta nova apenas na região do piso, abaixo da base projetada;
 4. oculta o modelo e exige que ligar o reflexo sozinho não tinja o piso — prova
-   contra um brilho genérico ou target velho;
-5. restaura o modelo e visita o mesmo frame novamente, exigindo pixels idênticos;
-6. registra tamanho do target e número de passes.
+   contra um brilho genérico ou target velho, antes e depois de semear o target;
+5. reduz luz, preenchimento e ambiente e exige queda da energia refletida — uma
+   máscara geométrica sem material não passa;
+6. restaura o modelo e visita os mesmos estados ON e OFF novamente, exigindo
+   pixels idênticos;
+7. registra tamanho do target e número de passes.
 
-Depois, `verify:phase8` e `verify:phase8-video` continuam verdes para provar que o
-novo passe não contaminou determinismo, composição nem arquivo.
+O critério 13b mede o orçamento sem bloquear a GPU: usa
+`EXT_disjoint_timer_query_webgl2`, recolhe as queries de forma assíncrona, descarta
+época com `GPU_DISJOINT` e alterna 40 frames OFF + 40 ON em ordem ABBA, depois de
+aquecer shader e target. Em duas rodadas consecutivas do build estático de
+verificação, o `verify:phase7e3` deu **14/14** nas duas. O canvas WebGL físico
+mediu **1951×1129**, o target **976×565**, em
+**ANGLE/NVIDIA GeForce RTX 4090**, com **0 disjoints**:
 
-A prova registra o custo com reflexo desligado/ligado. O limite de aceitação vem
-de `docs/06-RENDER-PIPELINE.md`: menos de 16,6 ms no preview típico 1080p e menos
-de 250 ms por frame de export 4K. Nesta máquina a resolução de export ainda
-acompanha a janela; a medição 4K fica obrigatória quando o gatilho do ADR-013
-abrir a janela de render dedicada, em vez de ser inventada por extrapolação.
+| Rodada | CPU ON p95 | GPU Three ON p95 |
+| ------ | ---------- | ---------------- |
+| 1      | 1,20 ms    | 0,35 ms          |
+| 2      | 1,00 ms    | 0,37 ms          |
+
+Os rótulos são deliberadamente estreitos. **CPU** mede do `evaluate` até terminar
+Three, marcadores e a submissão Pixi. **GPU Three** mede só o canvas Three: Pixi
+vive em outro contexto WebGL e o compositor do Chromium fica fora da query.
+Portanto a prova fecha o risco incremental do reflexo dentro do orçamento de
+16,6 ms; não afirma medir a GPU completa do frame apresentado.
+
+Depois, `verify:phase8` deu **7/7** e `verify:phase8-video`, **6/6**, provando que o
+novo passe não contaminou determinismo, composição nem arquivo. O
+`verify:phase8-formats` não foi repetido: parou em `ffmpeg` com `ENOENT`, e esta
+sessão não baixa ferramenta ausente.
+
+O limite de export continua sendo menos de 250 ms por frame 4K. Nesta máquina a
+resolução de export ainda acompanha a janela; a medição 4K fica obrigatória quando
+o gatilho do ADR-013 abrir a janela de render dedicada, em vez de ser inventada
+por extrapolação.

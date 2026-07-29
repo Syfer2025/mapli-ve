@@ -12,8 +12,8 @@ morde, e como não repetir erro já cometido.
 
 ## 1. Onde parou
 
-Cadeia final verde — **1.135 testes funcionais em 112 arquivos**, suíte isolada
-de performance com 6/6 testes, 355 módulos e 952 dependências sem violação de
+Cadeia final verde — **1.162 testes funcionais em 115 arquivos**, suíte isolada
+de performance com 6/6 testes, 362 módulos e 963 dependências sem violação de
 camada; build electron-vite e pacote Windows verificados. Os orçamentos de
 performance ficam isolados dos workers funcionais para medir o motor, não a
 contenção artificial do runner.
@@ -28,7 +28,8 @@ Passe de auditoria em 2026-07-28, sobre o estado que o `77aa7e4` deixou:
 | Bootstrap necessário depois do 7B                         | documentado em [§4.18](#418-bootstrap-pnpm-install-e-geobuild-não-são-opcionais) |
 
 Passe de 2026-07-28, à noite — nove pedidos novos do dono sobre o palco, atacados em
-blocos. Os blocos 7F.1 a 7F.6 estão fechados; o próximo é o reflexo 7F.8b.
+blocos. Os blocos 7F.1 a 7F.6 e o reflexo 7F.8 estão fechados; o próximo é a
+timeline própria do modo palco.
 
 | O quê                                                    | Resultado                                                                                          |
 | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
@@ -36,6 +37,8 @@ blocos. Os blocos 7F.1 a 7F.6 estão fechados; o próximo é o reflexo 7F.8b.
 | Aviso de POI órfão (o que o ADR-015 deixou em aberto)    | fechado, e agora com definição objetiva em vez de heurística                                       |
 | Critério 5 do 7e3 vermelho **antes** de qualquer mudança | era coordenada de clique fixada à silhueta do F/A-18 — [§3](#o-poi-passou-a-ser-do-objeto-adr-016) |
 | `verify:phase8` derrubado por rodar depois do 7e3        | ganhou `activateViewportTab`; os dois viraram independentes de ordem                               |
+| Reflexo do piso era inexistente                          | **ADR-018 entregue e provado** — duas rodadas consecutivas do `verify:phase7e3` em **14/14**       |
+| Orçamento do segundo passe                               | p95 ON de CPU **1,20/1,00 ms** e GPU Three **0,35/0,37 ms**, zero disjoints                        |
 
 Passe anterior, no mesmo dia — o palco 3D, a pedido do dono:
 
@@ -47,27 +50,28 @@ Passe anterior, no mesmo dia — o palco 3D, a pedido do dono:
 | Opacidade do palco reacendia o mapa               | **ADR-014**: palco em painel próprio, quatro etapas provadas       |
 | Pontos de interesse para a câmera de apresentação | **ADR-015 entregue e provado** — `verify:phase7e3` de 5/5 para 6/6 |
 
-Fases 0–6 concluídas. **O bloco 7 inteiro está fechado** (única exceção declarada:
-7E.4, VFX, que o dono mandou adiar) e a **Fase 8 produz MP4 H.264, GIF, ProRes
-4444 e PNG normal/alfa**. Os encoders repetíveis preservam o critério mais
+Fases 0–6 concluídas. O roteiro técnico original do bloco 7 está fechado, com a
+exceção declarada de 7E.4, VFX, que o dono mandou adiar. A rodada adicional 7F
+ainda tem a timeline própria do palco por fazer. A **Fase 8 produz MP4 H.264, GIF,
+ProRes 4444 e PNG normal/alfa**. Os encoders repetíveis preservam o critério mais
 importante do projeto: saída idêntica entre execuções.
 Os verificadores visuais dirigem o Electron real por CDP:
 
-| Bloco                    | Verificador             | Resultado     |
-| ------------------------ | ----------------------- | ------------- |
-| 7A · biblioteca e assets | `verify:phase7a`        | verde         |
-| 7B · camadas geográficas | `verify:phase7b`        | 4/4           |
-| 7C · rotas e setas       | `verify:phase7c`        | verde         |
-| 7D · textos no mapa      | `verify:phase7d`        | 4/4           |
-| 7E.3 · modo estúdio      | `verify:phase7e3`       | 12/12         |
-| 8 · export byte-idêntico | `verify:phase8`         | 7/7           |
-| 8 · arquivo MP4 H.264    | `verify:phase8-video`   | 6/6           |
-| 8 · GIF + ProRes/alfa    | `verify:phase8-formats` | 5/5 histórico |
+| Bloco                    | Verificador             | Resultado      |
+| ------------------------ | ----------------------- | -------------- |
+| 7A · biblioteca e assets | `verify:phase7a`        | verde          |
+| 7B · camadas geográficas | `verify:phase7b`        | 4/4            |
+| 7C · rotas e setas       | `verify:phase7c`        | verde          |
+| 7D · textos no mapa      | `verify:phase7d`        | 4/4            |
+| 7E.3 · modo estúdio      | `verify:phase7e3`       | 14/14 × 2      |
+| 8 · export byte-idêntico | `verify:phase8`         | 7/7            |
+| 8 · arquivo MP4 H.264    | `verify:phase8-video`   | 6/6            |
+| 8 · GIF + ProRes/alfa    | `verify:phase8-formats` | bloqueado aqui |
 
 O `verify:phase8-formats` é diferente dos demais: roda sem Electron e invoca
-FFmpeg e ffprobe diretamente. Nesta máquina ele não pode ser repetido porque ambos
-estão ausentes; os 5/5 são a prova registrada na máquina anterior, não uma execução
-desta retomada.
+FFmpeg e ffprobe diretamente. Nesta retomada parou em `ffmpeg` com `ENOENT`; não
+houve download. Os 5/5 continuam sendo a prova histórica da máquina anterior, não
+uma execução desta retomada.
 
 O passe noturno foi incorporado nestes commits locais, sem incluir as duas
 mudanças reservadas ao dono (`settleFailedFrames` e `tools/demo-missao.mjs`):
@@ -168,24 +172,32 @@ menor.
 
 ## 3. O que vem agora
 
-O bloco 7 está fechado e os **formatos principais da Fase 8 estão entregues**:
-MP4 H.264, GIF, ProRes 4444 com alfa e PNG normal/alfa. Os verificadores são
-`verify:phase8` (7/7), `verify:phase8-video` (6/6) e
-`verify:phase8-formats` (5/5 históricos; não repetidos aqui por falta de FFmpeg
-e ffprobe). O instalador NSIS inclui os 15.034 arquivos de
-dados offline e o FFmpeg fixado; o arquivo de 1,6 GiB passou no teste integral
-do arquivo 7z interno. O fonte passou a incluir também os três exemplos e o
-seletor **Exemplos…** depois dessa prova. Portanto, o instalador que está em
-`release/` deve ser regenerado antes da entrega externa; a tentativa de
-2026-07-28 parou porque a autorização de rede atingiu a cota, não por erro de
-código. Sobra no produto:
+O reflexo planar do piso, último pedaço pendente do pedido de luz/sombra/reflexo,
+está fechado pelo [ADR-018](adr/ADR-018-studio-planar-floor-reflection.md). Os
+formatos principais da Fase 8 também estão entregues: MP4 H.264, GIF, ProRes 4444
+com alfa e PNG normal/alfa. Nesta retomada, `verify:phase8` deu 7/7 e
+`verify:phase8-video`, 6/6; `verify:phase8-formats` ficou bloqueado por
+`ffmpeg ENOENT`, sem download. O instalador NSIS já teve os 15.034 arquivos de
+dados offline e o FFmpeg fixado provados na máquina anterior, mas o arquivo em
+`release/` ainda deve ser regenerado antes da entrega externa.
 
-1. **Resolução acima do tamanho da janela.** Hoje o frame sai no tamanho do
+Ordem que vem agora, conforme o prompt de passagem:
+
+1. **Timeline própria do modo palco.** É o próximo bloco real. `TimelinePanel.tsx`
+   e `timeline-model.ts` não têm referência a `studio.stage`. Decidir e documentar
+   antes do código se será painel separado ou o mesmo painel ciente do modo; a
+   segunda direção é mais consistente com o restante do editor. No palco importam
+   câmera, POIs e roteiro, não as camadas do mapa.
+2. **Contornos do mapa “meio grosseiros”.** Perguntar ao dono _onde_ antes de
+   alterar: Viewport, export ou zoom específico. Quantização da malha, AA do Pixi,
+   largura HiDPI e recorte são apenas suspeitos a medir.
+3. **Fase 9 — Scene Script.** É a integração com qualquer IA por compilador; o
+   editor continua sem chamar modelo.
+4. **Resolução acima do tamanho da janela.** Hoje o frame sai no tamanho do
    viewport, e o H.264 exige dimensão par — 1227×643 vira 1226×642. É o gatilho
    declarado no [ADR-013](adr/ADR-013-export-frame-composition.md) para voltar à
    janela de render oculta.
-2. **Motion blur, checkpoint e retomada.**
-3. **Fase 7 (ações): templates de impacto.** Nada dela ameaça o que já está provado.
+5. **Motion blur, checkpoint e retomada.**
 
 ### Pontos de interesse do palco (ADR-015): entregue e provado
 
@@ -390,9 +402,56 @@ Agora a silhueta é renderizada **da direção da luz**. Três coisas que valem 
 Não há comparação de profundidade, e não precisa: o receptor é um plano e o emissor está
 acima dele, então todo ponto do piso cujo raio de luz atravessa o objeto está na sombra.
 
-**Reflexo no piso ficou de fora** e está no roteiro como 7F/8b. O piso é um quad de fundo com
-`depthTest` desligado, então reflexo pede espelho planar por render target — a mesma máquina
-da sombra, trabalho separado.
+### O reflexo do piso é planar e o orçamento foi medido (ADR-018)
+
+**Fechado em 2026-07-28.** O piso continua sendo um quad de fundo com `depthTest`
+desligado. O reflexo não o transformou em plano geométrico: uma câmera espelhada em
+`y = 0` desenha o modelo num target, e o shader do piso amostra esse target pelo
+ponto de mundo que já reconstruía. O recorte oblíquo remove a geometria enterrada e
+o grid fica oculto no passe, portanto não há recursão.
+
+Três detalhes evitam um reflexo “quase certo”:
+
+- **Target RGBA16F linear.** RGBA8 cortava highlights antes do tone mapping. O
+  shader desfaz a pré-multiplicação pelo alfa depois do blur e aplica a mesma ACES
+  Filmic do Three, com exposição 1.
+- **Compatibilidade é sem mutação implícita.** Projeto antigo resolve
+  `reflectionStrength` ausente como 0; nó novo nasce com 0,3. O Inspector mostra o
+  fallback sem escrever no documento, e a primeira edição ou keyframe inicializa a
+  prop pelo Command Bus, com undo.
+- **Offscreen é transação.** Reflexo e sombra restauram em `finally` target, face e
+  mip, viewport, scissor, máscaras de cor/profundidade, clear, background,
+  `overrideMaterial`, XR, atualização automática da sombra e visibilidade. A
+  sombra não mantém mais assinatura incompleta de cache: repinta em todo frame,
+  preservando a pureza quando muda qualquer entrada.
+
+Na prova geométrica, não repetir a afirmação errada de que um ponto do piso cai nas
+mesmas coordenadas nas duas câmeras. Para manter a câmera refletida _right-handed_,
+a orientação X de tela inverte; a coordenada Y do ponto no piso é preservada.
+
+O critério visual 13 exige geometria abaixo do contato, deslocamento espelhado com
+mudança de altura, queda de energia ao apagar as luzes, ausência de tinta com o
+modelo oculto antes e depois de semear o target e repetição exata de ON e OFF. O
+13b mede 40 frames OFF e 40 ON em ordem ABBA com
+`EXT_disjoint_timer_query_webgl2` assíncrona, descartando épocas disjoint.
+
+Duas rodadas consecutivas em build estático isolado deram **14/14**. Canvas WebGL
+físico **1951×1129**, target **976×565**, ANGLE/RTX 4090, zero disjoints:
+
+| Rodada | CPU ON p95 | GPU Three ON p95 |
+| ------ | ---------- | ---------------- |
+| 1      | 1,20 ms    | 0,35 ms          |
+| 2      | 1,00 ms    | 0,37 ms          |
+
+**A fronteira da medição importa.** CPU vai de `evaluate` até terminar Three,
+marcadores e submissão Pixi. GPU mede só o canvas Three; Pixi usa outro contexto e
+o compositor do Chromium fica fora. Isso prova o custo incremental do reflexo
+dentro dos 16,6 ms de 1080p, não a GPU completa do frame apresentado. A medição 4K
+espera a janela de render do ADR-013; não há extrapolação.
+
+Depois do bloco, `verify:phase8` ficou **7/7** e `verify:phase8-video`, **6/6**.
+`verify:phase8-formats` parou em `ffmpeg ENOENT`; ferramenta ausente não foi
+baixada.
 
 ### O verificador não era idempotente, e o critério 5 pagou
 
@@ -848,7 +907,9 @@ Cada fase tem um verificador que dirige o **Electron real** por CDP na porta 922
 Isso não é opcional neste projeto: teste unitário não pega defeito de projeção,
 de shader nem de composição.
 
-Superfícies de depuração disponíveis apenas em desenvolvimento:
+Superfícies de depuração disponíveis apenas em desenvolvimento ou no build
+estático feito com a flag explícita de verificação; o build distribuído não as
+leva:
 
 | Superfície                   | O que dá                                              |
 | ---------------------------- | ----------------------------------------------------- |
@@ -857,6 +918,7 @@ Superfícies de depuração disponíveis apenas em desenvolvimento:
 | `__theatrumPhase4`           | `getSnapshot()` do frame, `captureExport()`           |
 | `__theatrumScene3d.status()` | Estado da camada Three.js sobre o mapa                |
 | `__theatrumStudio.status()`  | Estado do palco 3D: câmera, modelos, contexto         |
+| `__theatrumStudio.profile`   | Profiler CPU/GPU assíncrono do canvas Three           |
 | `__theatrumPhase4Timeline`   | Métricas de redraw da timeline                        |
 
 Cada nó do `getSnapshot()` traz `screenPx` — a translação da matriz na cena de
@@ -901,12 +963,13 @@ Malha geográfica: `pnpm data:fetch` baixa as origens fixadas por hash e
 
 ## 7. Fases seguintes
 
-Ordem atual do roteiro combinado com o dono: formatos extras e instalador estão
-concluídos; o primeiro passe de **polimento, medição de performance, guia de uso
-e projetos de exemplo** também foi entregue. Os três gates de motor/timeline
-passam em `pnpm test:perf`, e os exemplos são gerados byte-idênticos por
-`pnpm examples:build`. Os blocos 7C/7D e a **Fase 7 de Ações** já foram
-concluídos. A única ação operacional pendente neste bloco é rodar novamente
+Ordem atual do roteiro combinado com o dono: o próximo bloco de produto é a
+**timeline própria do modo palco**, descrita no começo da §3. Formatos extras e
+instalador estão concluídos; o primeiro passe de **polimento, medição de
+performance, guia de uso e projetos de exemplo** também foi entregue. Os três
+gates de motor/timeline passam em `pnpm test:perf`, e os exemplos são gerados
+byte-idênticos por `pnpm examples:build`. Os blocos 7C/7D e a **Fase 7 de Ações**
+já foram concluídos. A ação operacional pendente nesse bloco é rodar novamente
 `pnpm dist:win` quando a autorização externa estiver disponível, para incorporar
 os exemplos ao executável.
 
