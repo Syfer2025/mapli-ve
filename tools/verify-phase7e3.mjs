@@ -1127,7 +1127,12 @@ async function main() {
 
           // Agora o objeto anda 14 m, cresce de 18 para 30 m de vão e gira 55°.
           for (const [path, value] of [
-            ['props.stageX', 20], ['props.scaleMeters', 30], ['props.headingOffset', 55],
+            // Deslocamento GRANDE de proposito. O pick e raycast de TELA: com o
+            // objeto a 18 m de vao, mover 14 m deixava o pixel do ponto solto
+            // ainda em cima da silhueta nova, e o criterio nao conseguia separar
+            // "seguiu o objeto" de "ficou parado" — os dois acertavam geometria.
+            // A 90 m o ponto solto cai em vazio de verdade, e a diferenca aparece.
+            ['props.stageX', 96], ['props.scaleMeters', 30], ['props.headingOffset', 55],
           ]) actions.setPropertyValue(modelId, path, value, false);
           await wait(400);
 
@@ -1154,6 +1159,18 @@ async function main() {
                 : (window.__theatrumStudio.pick(telaControle[0], telaControle[1])?.modelId ?? null),
             orfaoAncorado: ancoradoDepois.orphan,
           };
+        })()`,
+      );
+
+      // Devolve o objeto ao enquadramento. Os 96 m existem só para o pixel do
+      // ponto solto cair fora da silhueta; deixá-lo lá tira o modelo de quadro e
+      // derruba os critérios 8, 9, 10 e 13, que medem pixels dele.
+      await client.evaluate(
+        `(async () => {
+          session().actions.setPropertyValue(${JSON.stringify(modelId)}, 'props.stageX', 20, false);
+          session().actions.setPropertyValue(${JSON.stringify(modelId)}, 'props.scaleMeters', 30, false);
+          await wait(250);
+          return true;
         })()`,
       );
 
@@ -1258,10 +1275,39 @@ async function main() {
           const poisAntes = window.__theatrumStudio.pois().length;
 
           // Um ponto marcado AGORA tem de gravar o azimute da câmera solta.
+          //
+          // E marcar exige o MODO DE MARCACAO ligado: com ele desligado o clique
+          // nao cria nada, o criterio le o ultimo POI que ja existia — marcado
+          // antes do arrasto, com o azimute do documento — e acusa o produto de
+          // gravar o angulo errado. O defeito era deste script, nao do palco.
+          //
+          // Detectado pelo EFEITO, nao pelo atributo: aria-pressed nao chega ao
+          // DOM (o componente Button nao repassa a prop), entao ler o atributo
+          // devolve null, o script clica "para ligar" e na verdade DESLIGA o modo
+          // que ja estava ligado. Marcador so e desenhado com o modo ligado, entao
+          // a contagem de markers() responde a pergunta de verdade.
+          const botaoMarcar = studioTool('Marcar pontos');
+          if (botaoMarcar === null) throw new Error('botao "Marcar pontos" ausente');
+          const marcando = () => window.__theatrumStudio.markers().length > 0;
+          if (!marcando()) {
+            botaoMarcar.click();
+            await wait(250);
+            if (!marcando()) { botaoMarcar.click(); await wait(250); }
+          }
+          await wait(150);
+
           let alvo = null;
           const canvas = studioCanvas().getBoundingClientRect();
           for (let y = Math.round(canvas.height * 0.2); y < canvas.height * 0.85 && alvo === null; y += 16) {
             for (let x = Math.round(canvas.width * 0.2); x < canvas.width * 0.8; x += 16) {
+              // Longe de marcador existente: clique dentro do raio de um marcador
+              // SELECIONA aquele ponto em vez de criar um novo, e o criterio leria
+              // o POI antigo achando que acabou de marcar. Com quatro pontos ja na
+              // tela isso deixou de ser hipotese.
+              const perto = window.__theatrumStudio
+                .markers()
+                .some((m) => Math.hypot(m.screen[0] - x, m.screen[1] - y) < 28);
+              if (perto) continue;
               if (window.__theatrumStudio.pick(x, y) !== null) { alvo = [x, y]; break; }
             }
           }
@@ -1310,6 +1356,10 @@ async function main() {
             await wait(300);
             const palco = composition().nodes[${JSON.stringify(stageId)}];
             return {
+              // Sem isto o criterio nao distingue "gravou o angulo errado" de
+              // "nao marcou nada e eu li um ponto velho" — foi a confusao que
+              // custou uma correcao no produto que o produto nao precisava.
+              poisDepois: pontos.length,
               azimutePonto: ultimo === undefined ? null : ultimo.props.azimuthDeg.value,
               azimuteCamera: camera === null ? null : camera.azimuthDeg,
               gravado: chaves.map((key) => palco.props[key].value),
@@ -1318,6 +1368,15 @@ async function main() {
                 camera.distanceMeters, camera.azimuthDeg, camera.elevationDeg,
               ],
               soltaDepoisDeGravar: window.__theatrumStudio.camera()?.authoring ?? null,
+              // Desliga a marcacao ao sair. Sem isto os marcadores continuam
+              // desenhados e os criterios seguintes medem pixels que nao sao do
+              // palco — foi assim que o 13, do reflexo, comecou a falhar depois
+              // que este criterio passou a ligar o modo de verdade.
+              marcacaoDesligada: (() => {
+                const b = studioTool('Marcar pontos');
+                if (b !== null && window.__theatrumStudio.markers().length > 0) b.click();
+                return true;
+              })(),
             };
           })()`,
         );
@@ -1331,8 +1390,13 @@ async function main() {
         autoria.cameraSolta !== null &&
         antesDoArrasto.camera !== null &&
         Math.abs(autoria.cameraSolta.azimuthDeg - antesDoArrasto.camera.azimuthDeg) > 1;
+      // O clique criou um ponto NOVO. Sem esta linha, ler "o último POI" e achar
+      // o azimute do documento é indistinguível de não ter marcado nada.
+      const marcouDeVerdade =
+        enquadramento !== null && enquadramento.poisDepois > autoria.poisAntes;
       // O ponto gravou o ângulo da câmera solta, não o do documento.
       const pontoSeguiuACamera =
+        marcouDeVerdade &&
         enquadramento !== null &&
         enquadramento.azimutePonto !== null &&
         enquadramento.azimuteCamera !== null &&
@@ -1359,6 +1423,7 @@ async function main() {
         `arrasto girou o azimute de ${antesDoArrasto.camera?.azimuthDeg.toFixed(1)}° para ` +
           `${autoria.cameraSolta?.azimuthDeg.toFixed(1)}°, imagem ${imagemMudou ? "mudou" : "NÃO mudou"}, ` +
           `props do palco ${documentoIntacto ? "intactas" : "ALTERADAS"}; ` +
+          `POIs ${autoria.poisAntes}→${enquadramento?.poisDepois ?? "—"}; ` +
           `ponto marcado gravou ${enquadramento?.azimutePonto?.toFixed(1) ?? "—"}° ` +
           `contra ${enquadramento?.azimuteCamera?.toFixed(1) ?? "—"}° da câmera; ` +
           `gravar foi ${gravouExato ? "exato nas seis props" : "INEXATO"}`,
