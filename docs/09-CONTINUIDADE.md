@@ -190,7 +190,40 @@ conversa e escritos em [11-VISAO-FUTURA](11-VISAO-FUTURA.md) — nenhum deles en
 antes de esta lista zerar. A instrução do dono foi explícita: _"vamos tentar
 finalizar o que já temos antes de criar mais e mais módulos"_.
 
-### Limite conhecido: o reflexo planar não repete pixel a pixel
+### O reflexo foi absolvido; sobra ruído de borda no render base
+
+**Fechado em 2026-07-29.** A seção abaixo ficou registrada como estava escrita
+porque o caminho até a resposta vale mais que a resposta.
+
+A acusação era do **verificador**, pela terceira vez na mesma sessão — depois dos
+critérios 7 e 8. O `capture()` do critério 13 chamava `atFrame(0)` com o playhead
+**já em 0**, o que não força repintura alguma: o `atFrame` voltava na hora, com o
+estado anterior, e o único guarda real era um `wait(180)` fixo. Sob carga os
+180 ms não bastavam e a captura lia o frame velho.
+
+Trocado por espera até o contador de renders do palco **passar** do valor de antes
+da mudança e então estabilizar — o mesmo sinal que o `atFrame` usa. Resultado:
+
+```
+antes:  ON/OFF repetidos diferem em 0/68 px   (e o placar oscilava 10/13/14)
+depois: ON/OFF repetidos diferem em 0/36 px   (consistente)
+```
+
+**O lado ON passou a dar zero.** O reflexo planar é determinístico, e a suspeita
+sobre o export com reflexo cai junto.
+
+O que sobra é o lado **OFF**: dois frames com o reflexo desligado diferem em 36 px
+de ~2,2 milhões, ou 0,002%. Isso não passa perto do reflexo — é ruído de borda do
+render base, provável antialias do canvas de preview. O caminho de **export** não
+tem esse ruído: `verify:phase8` exporta duas vezes e compara hash arquivo por
+arquivo, com 3D na cena, e dá idêntico há sessões.
+
+Pendência honesta que fica: o critério exige zero nos dois lados, então continua
+vermelho por 36 px. Decidir se a régua certa é zero absoluto ou uma tolerância
+declarada é decisão a tomar de propósito — e **não** deve ser afrouxada sem antes
+explicar de onde vêm os 36 px.
+
+### Registro do diagnóstico anterior (mantido)
 
 **Isolado em 2026-07-29, não corrigido.** O critério 13 do `verify:phase7e3`
 falha de forma intermitente — três rodadas seguidas deram 10/14, 13/14 e 14/14

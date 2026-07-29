@@ -1979,11 +1979,37 @@ async function main() {
             }
           }
 
+          /**
+           * Captura depois de o palco REPINTAR de verdade.
+           *
+           * A versão anterior chamava atFrame(0) com o playhead **já em 0** — o
+           * que não força repintura nenhuma, então o atFrame voltava na hora
+           * com o estado ANTERIOR — e confiava num wait(180) fixo para cobrir o
+           * efeito do React mais o passe planar. Sob carga os 180 ms não bastavam
+           * e a captura lia o frame velho: era essa a intermitência do critério,
+           * que aparecia como "ON/OFF repetidos diferem em 68 px" e acusava o
+           * reflexo de não ser determinístico.
+           *
+           * Agora espera o contador de renders **passar** do valor de antes da
+           * mudança e então estabilizar. É o mesmo sinal que o atFrame usa, pela
+           * mesma razão: o palco repinta por efeito, não em laço.
+           */
           const capture = async () => {
-            await atFrame(0);
-            // O target planar é outro passe WebGL. O silêncio do palco mais esta
-            // margem cobre a atualização de estado do React que pediu o passe.
-            await wait(180);
+            const before = studio().renders;
+            actions.setPlayhead(0);
+            const deadline = Date.now() + 8000;
+            let quietSince = null;
+            let last = -1;
+            while (Date.now() < deadline) {
+              const renders = studio().renders;
+              if (renders !== last) {
+                last = renders;
+                quietSince = Date.now();
+              } else if (renders > before && quietSince !== null && Date.now() - quietSince >= 150) {
+                break;
+              }
+              await wait(24);
+            }
             return studioPixels();
           };
           const reflectionPasses = () => studio().reflection?.renders ?? null;
