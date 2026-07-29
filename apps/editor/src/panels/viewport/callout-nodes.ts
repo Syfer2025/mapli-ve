@@ -26,6 +26,15 @@ import type { ScreenNode, ScreenScene } from "@theatrum/renderer";
 
 const CALLOUT_TYPE = "label.callout";
 
+/**
+ * Respiro entre a borda da silhueta e a caixa de texto, em pixels.
+ *
+ * Vinte e quatro é o bastante para a guia ser visível como linha, e não como um
+ * traço colado. Zero deixaria a caixa encostada, que lê como erro de layout
+ * mesmo quando tecnicamente não cobre nada.
+ */
+const CLEAR_MARGIN_PX = 24;
+
 export interface CalloutDiagnostic {
   readonly nodeId: string;
   readonly message: string;
@@ -151,11 +160,41 @@ export function expandCalloutNodes(
      * o alvo. Ambos em coordenada local do nó, porque é assim que a primitiva os
      * consome — e a matriz do layout põe tudo no lugar.
      */
+    /**
+     * **A caixa nunca cobre o objeto.**
+     *
+     * O dono viu isto no primeiro vídeo de apresentação: _"os text box estão
+     * cobrindo a aeronave em certos momentos, isso NÃO pode acontecer"_. O
+     * afastamento é fixo e escolhido uma vez; a **silhueta do objeto muda a cada
+     * frame** conforme a câmera orbita, então um afastamento que estava livre de
+     * um ângulo cai em cima da fuselagem de outro.
+     *
+     * A regra é o espelho: se a caixa caiu do lado em que o objeto se estende,
+     * ela vai para o lado oposto. Isso resolve por frame, sem o autor precisar
+     * adivinhar o ângulo — e é possível agora porque `withStudioProjection`
+     * passou a preencher `bounds` com a área real em vez de um ponto.
+     *
+     * Espelha só o eixo horizontal. Vertical é onde o rótulo costuma querer ficar
+     * (acima do objeto), e inverter ali jogaria o texto para baixo da linha do
+     * horizonte, que é pior do que o problema.
+     */
+    const targetBounds = targetId === "" ? undefined : layout.layouts.get(targetId)?.bounds;
+    const halfWidth = (targetBounds?.width ?? 0) / 2;
+    const clearX =
+      // Afastamento **zero é intenção**, não descuido: quem escreveu 0 quer a
+      // caixa em cima do alvo — legenda centrada num ícone, número sobre uma
+      // unidade. Empurrar isso seria o editor discordando de uma escolha
+      // explícita do autor, que é pior que o problema que este trecho resolve.
+      target === null || halfWidth <= 0 || offsetX === 0
+        ? offsetX
+        : // Com lado escolhido, o módulo tem de ser pelo menos o meio-vão mais a
+          // margem — senão a caixa fica dentro do objeto, do lado "certo".
+          Math.sign(offsetX) * Math.max(Math.abs(offsetX), halfWidth + CLEAR_MARGIN_PX);
     const boxScreen: Vec2 =
       target === null
         ? [own.anchorPx[0], own.anchorPx[1]]
-        : [target[0] + offsetX, target[1] + offsetY];
-    const leader: Vec2 | null = target === null ? null : [-offsetX, -offsetY];
+        : [target[0] + clearX, target[1] + offsetY];
+    const leader: Vec2 | null = target === null ? null : [-clearX, -offsetY];
 
     if (target === null) loose += 1;
     else anchored += 1;

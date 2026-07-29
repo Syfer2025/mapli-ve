@@ -124,6 +124,66 @@ describe("rótulo com guia", () => {
     expect(run([250, 180])).toEqual([250, 180]);
   });
 
+  /**
+   * O defeito que o dono viu no primeiro vídeo de apresentação: _"os text box
+   * estão cobrindo a aeronave em certos momentos, isso NÃO pode acontecer"_.
+   *
+   * O afastamento é escolhido uma vez, mas a silhueta muda a cada frame conforme
+   * a câmera orbita: um deslocamento livre de um ângulo cai sobre a fuselagem de
+   * outro. A caixa é empurrada para fora da área do alvo, mantendo o lado que o
+   * autor pediu.
+   */
+  it("a caixa é empurrada para fora da silhueta do alvo, mantendo o lado", () => {
+    const boxFor = (offsetX: number) =>
+      expandCalloutNodes(
+        scene([node("aviao", "model3d"), node("rot", "label.callout")]),
+        evaluatedOf([
+          ["aviao", {}],
+          ["rot", { targetId: "aviao", offsetX, offsetY: -40 }],
+        ]),
+        layoutOf([
+          ["aviao", [400, 300]],
+          ["rot", [0, 0]],
+        ]),
+        NO_PATHS,
+        IDENTITY,
+        project,
+      ).scene.nodes.get("rot")?.layout.matrix[4];
+
+    // Alvo de 64 px de vão: meio-vão 32, mais a margem de 24, dá 56 de folga
+    // mínima. Um afastamento de 10 px cairia dentro da silhueta e é corrigido.
+    expect(boxFor(10)).toBe(400 + 56);
+    // Do outro lado, o mesmo — e o LADO escolhido pelo autor é preservado.
+    expect(boxFor(-10)).toBe(400 - 56);
+    // Afastamento já suficiente não é mexido: o autor sabe o que quer.
+    expect(boxFor(200)).toBe(400 + 200);
+    expect(boxFor(-200)).toBe(400 - 200);
+  });
+
+  /**
+   * Zero é intenção, não descuido: legenda centrada num ícone, número sobre uma
+   * unidade. Empurrar seria o editor discordando de uma escolha explícita.
+   */
+  it("afastamento zero mantém a caixa sobre o alvo", () => {
+    const box = expandCalloutNodes(
+      scene([node("aviao", "model3d"), node("rot", "label.callout")]),
+      evaluatedOf([
+        ["aviao", {}],
+        ["rot", { targetId: "aviao", offsetX: 0, offsetY: 0 }],
+      ]),
+      layoutOf([
+        ["aviao", [400, 300]],
+        ["rot", [0, 0]],
+      ]),
+      NO_PATHS,
+      IDENTITY,
+      project,
+    )
+      .scene.nodes.get("rot")
+      ?.layout.matrix.slice(4);
+    expect(box).toEqual([400, 300]);
+  });
+
   it("alvo ausente do frame vira diagnóstico e rótulo sem guia, não sumiço", () => {
     const result = expandCalloutNodes(
       scene([node("rot", "label.callout")]),

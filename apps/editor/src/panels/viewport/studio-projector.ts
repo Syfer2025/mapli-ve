@@ -104,11 +104,30 @@ export function withStudioProjection(
       layouts.set(id, { ...current, culled: true });
       return;
     }
+    /**
+     * A caixa é a **área que o objeto ocupa na tela**, não um ponto.
+     *
+     * Era `width: 0, height: 0`, e essa era a razão de o rótulo cobrir a
+     * aeronave: quem decide onde pôr a caixa de texto lê `bounds` do alvo, e um
+     * alvo sem área nunca está no caminho de nada. Com o raio projetado, o passe
+     * de rótulo passa a ter o que comparar.
+     *
+     * `anchorPx` continua sendo o **centro**: é para onde a guia aponta, e mudar
+     * isso faria o rótulo mirar o canto da caixa em vez do objeto. Ponto de
+     * interesse não tem raio e continua com caixa de área zero, que é correto —
+     * um ponto não ocupa área.
+     */
+    const radius = studio.screenRadius(id, size[0], size[1]) ?? 0;
     layouts.set(id, {
       ...current,
       matrix: mat2d.translate(screen[0], screen[1]),
       anchorPx: screen,
-      bounds: { x: screen[0], y: screen[1], width: 0, height: 0 },
+      bounds: {
+        x: screen[0] - radius,
+        y: screen[1] - radius,
+        width: radius * 2,
+        height: radius * 2,
+      },
       culled: false,
     });
   };

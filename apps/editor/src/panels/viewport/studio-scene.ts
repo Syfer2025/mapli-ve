@@ -691,6 +691,43 @@ export class StudioSceneRuntime {
     return subjects;
   }
 
+  /**
+   * Raio do modelo **em pixels de tela**, no frame corrente.
+   *
+   * É o que faltava para um rótulo saber que está cobrindo a aeronave. Até agora
+   * o modelo entrava no layout como um ponto — `bounds` de largura e altura zero
+   * — e o passe de rótulo não tinha como escolher o lado livre: para ele o caça
+   * não ocupava área nenhuma.
+   *
+   * Medido projetando o centro e um ponto a um raio de distância na direção
+   * **direita da câmera**. Assim o número já vem com a perspectiva embutida: o
+   * mesmo objeto rende mais pixels perto que longe, que é o comportamento certo.
+   * A esfera envolvente é generosa — a silhueta real cabe dentro dela — e essa
+   * folga é a favor, porque o rótulo se afasta um pouco mais do que o necessário
+   * em vez de encostar.
+   */
+  screenRadius(id: string, width: number, height: number): number | null {
+    const model = this.models.find((candidate) => candidate.id === id);
+    const radius = this.modelRadius(id);
+    if (model === undefined || radius === null || width <= 0 || height <= 0) return null;
+    const center = this.project(model.position, width, height);
+    if (center === null) return null;
+    const forward = new THREE.Vector3();
+    this.camera.getWorldDirection(forward);
+    const right = forward.clone().cross(this.camera.up).normalize();
+    const edge = this.project(
+      [
+        model.position[0] + right.x * radius,
+        model.position[1] + right.y * radius,
+        model.position[2] + right.z * radius,
+      ],
+      width,
+      height,
+    );
+    if (edge === null) return null;
+    return Math.hypot(edge[0] - center[0], edge[1] - center[1]);
+  }
+
   /** Raio em metros do modelo carregado, para o enquadramento automático. */
   modelRadius(id: string): number | null {
     const instance = this.instances.get(id);
