@@ -323,7 +323,7 @@ tamanho da composição e `pixelRatio` igual à escala:
 | composição, escala 2   | 3840 × 2160 | 8,29 | **idênticas**  | 0              | 79 ms |
 
 Cinco hashes distintos entre os cinco frames em todas as linhas — não é export
-congelado. Sonda em `scratchpad/probe-export-real-pump.mjs`. Ou seja: **a ligação
+congelado. Sonda em `tools/probes/probe-export-real-pump.mjs`. Ou seja: **a ligação
 que falta é encanamento, não risco.** O que ela tem de fazer é o que a sonda faz à
 mão — pôr o container no tamanho da composição, chamar `map.resize()` e
 `map.setPixelRatio(escala)`, e devolver tudo em `finally`.

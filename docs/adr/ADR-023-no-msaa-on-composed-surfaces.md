@@ -22,7 +22,7 @@ painel — **1248 × 566 nesta máquina, 0,71 MP**, abaixo do limiar. O
 ## Medição
 
 Máquina: Windows 10, Electron 43, ANGLE/D3D11, NVIDIA RTX 3060 Ti. Sondas em
-`scratchpad/probe-export-resolution-6a.mjs` e `scratchpad/probe-studio-msaa.mjs`.
+`tools/probes/probe-export-resolution-6a.mjs` e `tools/probes/probe-studio-msaa.mjs`.
 
 O método: pôr o container num tamanho, esperar `settle` e quietude do overlay,
 ler o canvas, forçar repintura, ler de novo, comparar SHA-256. Sem tocar no

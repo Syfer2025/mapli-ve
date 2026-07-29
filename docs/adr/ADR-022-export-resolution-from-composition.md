@@ -38,7 +38,7 @@ resolução é a causa.
 ## Medição
 
 Máquina: Windows 10, Electron 43, ANGLE/D3D11, NVIDIA RTX 3060 Ti,
-`devicePixelRatio` 1. Sondas em `scratchpad/probe-export-resolution*.mjs`.
+`devicePixelRatio` 1. Sondas em `tools/probes/`.
 
 ### Teto
 
@@ -114,7 +114,7 @@ decisão — layout no tamanho da composição, `pixelRatio` igual à escala:
 | composição, escala 2 (`setPixelRatio(2)`) | 3840 × 2160 | 8,29 | **idênticas**  | 0              | 79 ms         |
 
 Cinco hashes distintos entre os cinco frames em todas as linhas, então não é
-export congelado. Sonda em `scratchpad/probe-export-real-pump.mjs`. É o critério 2
+export congelado. Sonda em `tools/probes/probe-export-real-pump.mjs`. É o critério 2
 da Fase 8 valendo em 4K, pelo caminho que esta decisão escolheu, com o
 [ADR-023](ADR-023-no-msaa-on-composed-surfaces.md) em vigor.
 
