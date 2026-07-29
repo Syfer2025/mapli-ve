@@ -9,11 +9,13 @@ Effects, 100% local e offline. Remote `https://github.com/Syfer2025/mapli-ve`, b
 
 ## Primeiro: preserve as duas mudanças que continuam fora dos commits
 
-A grande sessão que estava sobre `af91230` já foi incorporada em oito blocos locais:
-`2bb9ca3` (ADRs), `19dc320` (contrato de asset), `505ae7d` (fluxo do palco),
-`16e1ffa` (provas ao vivo), `c79e25f` (correção documental no código), `80e0311`
-(decisão do reflexo), `368bb39` (reflexo e provas) e `8decdfe` (resultado medido).
-Confirme com `git log -9 --oneline` e rode `git status` antes de qualquer coisa.
+A grande sessão que estava sobre `af91230` já foi incorporada em commits locais. Os
+marcos são `2bb9ca3` (ADRs), `19dc320` (contrato de asset), `505ae7d` (fluxo do
+palco), `16e1ffa` (provas ao vivo), `c79e25f` (correção documental no código),
+`35e6e55` (primeiro handoff), `80e0311` (decisão do reflexo), `368bb39` (reflexo e
+provas) e `8decdfe` (resultado medido); os commits do próprio handoff vêm depois
+deles. Confirme a sequência com `git log -12 --oneline` e rode `git status` antes
+de qualquer coisa.
 
 Duas mudanças continuam deliberadamente fora desses commits porque são do dono —
 preserve:
@@ -35,8 +37,8 @@ Nunca use `git add -A` ou `git add .`: adicione caminhos explicitamente e confir
    **7A+** tem afirmações riscadas, derrubadas por medição no 7A++.
 3. `docs/adr/` — **ADR-018** é a decisão e a prova final do reflexo planar. Leia também o
    **ADR-016** (POI ancorado no objeto) e o **ADR-017** (câmera de autoria), porque a
-   Timeline terá de representar exatamente essas duas estruturas. O ADR-016 tem **nota de
-   implementação** com três desvios da letra dele; o ADR-015 está marcado como emendado pelo 016.
+   Timeline terá de representar exatamente essas duas estruturas. O ADR-015 tem **nota de
+   implementação** com três desvios da letra dele e está marcado como emendado pelo ADR-016.
 
 ## Bootstrap
 
@@ -88,6 +90,23 @@ ausentes. O verificador aceita `THEATRUM_FFMPEG_PATH` e
 `THEATRUM_FFPROBE_PATH`; preparar somente o sidecar do aplicativo não basta,
 porque a prova também inspeciona os arquivos com ffprobe. Não baixe nada sem o
 dono pedir. Os 5/5 registrados no roteiro vêm de outra máquina.
+
+### Verificação segura nesta máquina
+
+Nunca aponte Electron ou HMR para o perfil padrão enquanto estiver verificando. Um
+reload já substituiu a sessão visível, que precisou ser restaurada. Use somente um
+**build estático de verificação** com `VITE_THEATRUM_VERIFY=1` e
+`--user-data-dir` descartável sob `%TEMP%`, num caminho **sem espaços**. Não ponha o
+perfil sob o workspace OneDrive: o argumento já foi truncado em
+`C:\Users\alexm\OneDrive\Área`.
+
+Antes e depois de qualquer rodada, os hashes da recuperação do dono têm de continuar:
+
+- `base.json`: `575579602023C31925FE4E140B498F5BD8A326025161923C41DE0CA4649DF206`
+- `session.json`: `3B7817FC441F6B06D1EFF4DE662973FE1C458C3F01511CCF734E294A8EF33567`
+
+Ao terminar, remova a flag, reconstrua o build normal e prove no bundle distribuído
+que nenhuma superfície `__theatrum*` nem o nome `VITE_THEATRUM_VERIFY` permaneceu.
 
 ### O painel persistido tornava os verificadores visuais dependentes da ordem
 
@@ -241,6 +260,10 @@ ausente`.
 13. **Debug não pode vazar para produção.** As superfícies do CDP só são montadas em dev ou
     com `VITE_THEATRUM_VERIFY=1`; depois do build normal, procure pelos nomes no bundle e
     exija zero ocorrência.
+14. **A Timeline ainda é a exceção ao build estático.** `__theatrumPhase4Timeline` hoje é
+    guardada apenas por `DEV`. Se o novo gate da Timeline usar o build estático seguro,
+    inclua essa superfície na flag de verificação e depois repita a prova de ausência no
+    bundle normal.
 
 ## Superfícies de diagnóstico do palco (dev ou build explícito de verificação)
 
