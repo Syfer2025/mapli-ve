@@ -9,8 +9,8 @@
 import { BrowserWindow, shell } from "electron";
 import path from "node:path";
 
-const MIN_WIDTH = 1024;
-const MIN_HEIGHT = 640;
+const MIN_WIDTH = 900;
+const MIN_HEIGHT = 600;
 
 export interface EditorWindowOptions {
   readonly preloadPath: string;

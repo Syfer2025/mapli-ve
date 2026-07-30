@@ -33,6 +33,15 @@ export interface ManifestDiagnostic {
 const PLUGIN_ID_PATTERN = /^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+$/;
 const SEMVER_PATTERN =
   /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+const MANIFEST_FIELDS = new Set([
+  "id",
+  "name",
+  "version",
+  "apiVersion",
+  "entry",
+  "description",
+  "contributes",
+]);
 
 export function parsePluginManifest(
   input: unknown,
@@ -40,6 +49,14 @@ export function parsePluginManifest(
   const diagnostics: ManifestDiagnostic[] = [];
   if (!isRecord(input)) {
     return err([{ path: "", message: "O manifest deve ser um objeto JSON." }]);
+  }
+  for (const key of Object.keys(input)) {
+    if (!MANIFEST_FIELDS.has(key)) {
+      diagnostics.push({
+        path: `/${key}`,
+        message: `Campo desconhecido no manifest: "${key}".`,
+      });
+    }
   }
 
   const id = readString(input, "id", diagnostics);
@@ -123,7 +140,18 @@ function parseContributes(
       });
       continue;
     }
-    result[key] = Object.freeze(value.map((item) => item.trim()));
+    const normalized = value.map((item) => item.trim());
+    const seen = new Set<string>();
+    normalized.forEach((item, index) => {
+      if (seen.has(item)) {
+        diagnostics.push({
+          path: `/contributes/${key}/${index}`,
+          message: `Identificador duplicado neste ponto de extensão: "${item}".`,
+        });
+      }
+      seen.add(item);
+    });
+    result[key] = Object.freeze(normalized);
   }
   return Object.freeze(result);
 }
@@ -134,11 +162,7 @@ function isExtensionPointName(value: string): value is ExtensionPointName {
 
 function isSafeRelativePath(value: string): boolean {
   const normalized = value.replaceAll("\\", "/");
-  if (
-    normalized.length === 0 ||
-    normalized.startsWith("/") ||
-    /^[A-Za-z]:/.test(normalized)
-  ) {
+  if (normalized.length === 0 || normalized.startsWith("/") || /^[A-Za-z]:/.test(normalized)) {
     return false;
   }
   return normalized.split("/").every((part) => part !== ".." && part !== "");

@@ -4,6 +4,7 @@ import type { SceneScript } from "@theatrum/schema";
 import { describe, expect, it } from "vitest";
 import {
   compileScene,
+  createLlmAuthoringExampleInput,
   exportDocumentToSceneScript,
   generateLlmAuthoringMarkdown,
   sceneVerbRegistry,
@@ -22,7 +23,7 @@ const ALEXANDER: SceneScript = {
   map: {
     style: "historical-parchment",
     projection: "mercator",
-    terrain: { enabled: true, exaggeration: 1.2 },
+    terrain: { enabled: false },
   },
   defaults: {
     unitSize: 56,
@@ -146,7 +147,7 @@ const ALEXANDER: SceneScript = {
     {
       at: "72s",
       do: "area.highlight",
-      region: "persian-empire",
+      region: "c:IRN",
       faction: "macedon",
       duration: "8s",
       fade: "in",
@@ -459,6 +460,155 @@ describe("compileScene", () => {
     );
   });
 
+  it("encadeia destinos a partir do movimento anterior sem teleporte", async () => {
+    const result = await compileScene({
+      format: "theatrum-scene",
+      version: 1,
+      meta: {
+        title: "Movimento encadeado",
+        fps: 60,
+        resolution: "1920x1080",
+        duration: "3s",
+      },
+      units: [{ id: "u", kind: "armor", at: [0, 0] }],
+      timeline: [
+        { at: "0s", do: "unit.advance", unit: "u", to: [1, 0], duration: "1s" },
+        { at: "1s", do: "unit.advance", unit: "u", to: [2, 0], duration: "1s" },
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const generated = Object.values(result.document.paths).filter(
+      (path) => path.name === "unit.advance",
+    );
+    expect(generated.map((path) => path.vertices.map(({ point }) => point))).toEqual([
+      [
+        [0, 0],
+        [1, 0],
+      ],
+      [
+        [1, 0],
+        [2, 0],
+      ],
+    ]);
+  });
+
+  it("anima transferência territorial e contador em vez de emitir estado final estático", async () => {
+    const result = await compileScene({
+      format: "theatrum-scene",
+      version: 1,
+      meta: {
+        title: "Propriedades animadas",
+        fps: 60,
+        resolution: "1920x1080",
+        duration: "5s",
+      },
+      factions: {
+        a: { color: "#0000ffff", label: "A" },
+        b: { color: "#ff0000ff", label: "B" },
+      },
+      timeline: [
+        {
+          at: "0s",
+          do: "area.transfer",
+          region: "c:IRN",
+          from: "a",
+          to: "b",
+          duration: "2s",
+        },
+        {
+          at: "2s",
+          do: "text.counter",
+          from: 0,
+          to: 100,
+          label: "Vitórias",
+          duration: "2s",
+        },
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const nodes = Object.values(result.document.compositions[0]?.nodes ?? {});
+    const territory = nodes.find((node) => node.name === "c:IRN");
+    const fill = territory?.props["fill"];
+    expect(fill).toMatchObject({
+      value: "#0000ffff",
+      keyframes: [{ value: "#0000ffff" }, { value: "#ff0000ff" }],
+    });
+    const counter = nodes.find((node) => node.name === "Vitórias 0");
+    const text = counter?.props["text"];
+    expect(text).toMatchObject({ value: "Vitórias 0" });
+    const counterKeyframes = Array.isArray((text as { keyframes?: unknown } | undefined)?.keyframes)
+      ? (text as { keyframes: { value: unknown }[] }).keyframes
+      : [];
+    expect(counterKeyframes.length).toBeGreaterThan(2);
+    expect(counterKeyframes[0]?.value).toBe("Vitórias 0");
+    expect(counterKeyframes.at(-1)?.value).toBe("Vitórias 100");
+  });
+
+  it("rejeita projeção e terrain que o viewport não executa", async () => {
+    const base = {
+      format: "theatrum-scene",
+      version: 1,
+      meta: {
+        title: "Mapa não suportado",
+        fps: 60,
+        resolution: "1920x1080",
+        duration: "5s",
+      },
+      timeline: [],
+    };
+    const [projection, terrain] = await Promise.all([
+      compileScene({ ...base, map: { projection: "globe" } }),
+      compileScene({ ...base, map: { terrain: { enabled: true } } }),
+    ]);
+
+    expect(projection.ok).toBe(false);
+    expect(projection.diagnostics).toContainEqual(
+      expect.objectContaining({
+        severity: "error",
+        code: "unsupported-feature",
+        path: "/map/projection",
+      }),
+    );
+    expect(terrain.ok).toBe(false);
+    expect(terrain.diagnostics).toContainEqual(
+      expect.objectContaining({
+        severity: "error",
+        code: "unsupported-feature",
+        path: "/map/terrain/enabled",
+      }),
+    );
+  });
+
+  it("diagnostica verbos que ainda têm emissão aproximada", async () => {
+    const result = await compileScene({
+      format: "theatrum-scene",
+      version: 1,
+      meta: {
+        title: "Follow aproximado",
+        fps: 60,
+        resolution: "1920x1080",
+        duration: "3s",
+      },
+      units: [{ id: "u", kind: "air", at: [5, 5] }],
+      timeline: [{ at: "1s", do: "camera.follow", unit: "u", duration: "1s" }],
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        severity: "warning",
+        code: "unsupported-feature",
+        path: "/timeline/0",
+      }),
+    );
+    if (!result.ok) return;
+    expect(result.document.compositions[0]?.camera.center.keyframes).toHaveLength(2);
+  });
+
   it("informa quando uma unidade declarada não é usada", async () => {
     const result = await compileScene({
       format: "theatrum-scene",
@@ -527,6 +677,19 @@ describe("registry e guia gerado", () => {
     expect(sceneVerbRegistry.list()).toHaveLength(43);
     for (const verb of sceneVerbRegistry.list()) {
       expect(first).toContain(`#### \`${verb.name}\``);
+    }
+    expect(first).toContain("## Declarações e referências");
+    expect(first).toContain("exatamente um de `along` ou `to`");
+  });
+
+  it("compila todos os exemplos publicados no guia", async () => {
+    for (const verb of sceneVerbRegistry.list()) {
+      const compiled = await compileScene(createLlmAuthoringExampleInput(verb), {
+        semanticWarnings: false,
+      });
+      expect(compiled.ok, `${verb.name}: ${JSON.stringify(compiled.diagnostics, null, 2)}`).toBe(
+        true,
+      );
     }
   });
 });

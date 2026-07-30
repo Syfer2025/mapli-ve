@@ -2,7 +2,7 @@ import { BUILTIN_BEHAVIORS } from "@theatrum/behaviors";
 import { hashObject } from "@theatrum/core-utils";
 import { format, frame, timeBase } from "@theatrum/core-time";
 import type { ReferenceAudioAnalysis } from "@theatrum/engine";
-import { createBuiltinNodeTypeRegistry, type NodeTypeRegistry } from "@theatrum/scene-graph";
+import type { NodeTypeRegistry } from "@theatrum/scene-graph";
 import { assetDisplayName } from "@theatrum/assets";
 import {
   useEffect,
@@ -16,8 +16,11 @@ import {
   type WheelEvent,
 } from "react";
 import { useWorkspaceContentMode } from "../../app/workspace-content-mode.js";
-import { loadReferenceAudioAnalysis } from "../../audio/reference-audio-analysis.js";
-import { editorActions } from "../../document/editor-session.js";
+import {
+  clearReferenceAudioAnalysisCache,
+  loadReferenceAudioAnalysis,
+} from "../../audio/reference-audio-analysis.js";
+import { editorActions, nodeTypeRegistry } from "../../document/editor-session.js";
 import { useEditorSession } from "../../document/useEditorSession.js";
 import { cachedPreviewFrames, subscribePreviewCache } from "../../preview/preview-cache-session.js";
 import { Button, Panel } from "../../ui/index.js";
@@ -50,7 +53,6 @@ import { visibleWaveformBars } from "./reference-audio-waveform.js";
 import { previewFrameRanges } from "./preview-cache-ranges.js";
 import "./TimelinePanel.css";
 
-const BUILTIN_REGISTRY = createBuiltinNodeTypeRegistry();
 const AUDIO_WAVEFORM_HEIGHT = 44;
 
 /** Rótulo de comportamento vem do registry; a timeline só recebe o mapa pronto. */
@@ -64,7 +66,13 @@ export interface TimelinePanelProps {
 type DragState =
   { readonly kind: "playhead" } | { readonly kind: "keyframe"; readonly hit: TimelineHit };
 
-export function TimelinePanel({ registry = BUILTIN_REGISTRY }: TimelinePanelProps): ReactNode {
+type AudioAnalysisStatus =
+  | { readonly kind: "idle"; readonly message: "" }
+  | { readonly kind: "loading" | "ready" | "error"; readonly message: string };
+
+const IDLE_AUDIO_STATUS: AudioAnalysisStatus = Object.freeze({ kind: "idle", message: "" });
+
+export function TimelinePanel({ registry = nodeTypeRegistry }: TimelinePanelProps): ReactNode {
   const session = useEditorSession();
   const contentMode = useWorkspaceContentMode();
   const composition = useMemo(
@@ -83,7 +91,7 @@ export function TimelinePanel({ registry = BUILTIN_REGISTRY }: TimelinePanelProp
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [size, setSize] = useState({ width: 1, height: 1 });
   const [audioAnalysis, setAudioAnalysis] = useState<ReferenceAudioAnalysis | null>(null);
-  const [audioStatus, setAudioStatus] = useState("");
+  const [audioStatus, setAudioStatus] = useState<AudioAnalysisStatus>(IDLE_AUDIO_STATUS);
   const [previewCacheVersion, setPreviewCacheVersion] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const audioCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -161,17 +169,20 @@ export function TimelinePanel({ registry = BUILTIN_REGISTRY }: TimelinePanelProp
     const reference = composition?.referenceAudio;
     if (composition === undefined || reference === undefined || reference === null) {
       setAudioAnalysis(null);
-      setAudioStatus("");
+      setAudioStatus(IDLE_AUDIO_STATUS);
       return;
     }
     if (referenceAudioAsset === undefined) {
       setAudioAnalysis(null);
-      setAudioStatus("O áudio de referência não está disponível na Biblioteca.");
+      setAudioStatus({
+        kind: "error",
+        message: "O áudio de referência não está disponível na Biblioteca.",
+      });
       return;
     }
     let cancelled = false;
     setAudioAnalysis(null);
-    setAudioStatus("Analisando áudio de referência…");
+    setAudioStatus({ kind: "loading", message: "Analisando áudio de referência…" });
     void loadReferenceAudioAnalysis({
       assetSrc: reference.assetSrc,
       name: assetDisplayName(referenceAudioAsset),
@@ -181,17 +192,23 @@ export function TimelinePanel({ registry = BUILTIN_REGISTRY }: TimelinePanelProp
       (analysis) => {
         if (cancelled) return;
         setAudioAnalysis(analysis);
-        setAudioStatus(`Waveform pronta: ${analysis.track.durationFrames} frames, sem reprodução.`);
+        setAudioStatus({
+          kind: "ready",
+          message: `Waveform pronta: ${analysis.track.durationFrames} frames, sem reprodução.`,
+        });
       },
       (error: unknown) => {
         if (cancelled) return;
-        setAudioStatus(
-          error instanceof Error ? `Áudio indisponível: ${error.message}` : "Áudio indisponível.",
-        );
+        setAudioStatus({
+          kind: "error",
+          message:
+            error instanceof Error ? `Áudio indisponível: ${error.message}` : "Áudio indisponível.",
+        });
       },
     );
     return () => {
       cancelled = true;
+      clearReferenceAudioAnalysisCache(reference.assetSrc);
     };
   }, [composition?.fps, composition?.referenceAudio, referenceAudioAsset]);
 
@@ -707,11 +724,19 @@ export function TimelinePanel({ registry = BUILTIN_REGISTRY }: TimelinePanelProp
             })}
           </div>
           {hasReferenceAudio && (
-            <div className="timeline-panel__audio-header" title={audioStatus}>
+            <div
+              className="timeline-panel__audio-header"
+              data-status={audioStatus.kind}
+              title={audioStatus.message}
+              role={audioStatus.kind === "error" ? "alert" : "status"}
+              aria-live="polite"
+            >
               ♫{" "}
-              {referenceAudioAsset === undefined
-                ? "Áudio ausente"
-                : assetDisplayName(referenceAudioAsset)}
+              {audioStatus.kind === "loading" || audioStatus.kind === "error"
+                ? audioStatus.message
+                : referenceAudioAsset === undefined
+                  ? "Áudio ausente"
+                  : assetDisplayName(referenceAudioAsset)}
             </div>
           )}
         </div>
@@ -757,10 +782,6 @@ export function TimelinePanel({ registry = BUILTIN_REGISTRY }: TimelinePanelProp
                   session.playheadFrame + (event.key === "ArrowLeft" ? -1 : 1),
                 );
               }
-              if (event.key === " ") {
-                event.preventDefault();
-                editorActions.togglePlayback();
-              }
             }}
           />
           {hasReferenceAudio && (
@@ -771,7 +792,7 @@ export function TimelinePanel({ registry = BUILTIN_REGISTRY }: TimelinePanelProp
             />
           )}
           <output className="timeline-panel__accessible" aria-live="polite">
-            {audioStatus}
+            {audioStatus.message}
           </output>
           <AccessibleKeyframes model={model} />
           {diagnostic !== null && (

@@ -31,23 +31,50 @@ export function useShortcutPreferences(): ShortcutPreferencesController {
   const [error, setError] = useState<string | null>(null);
   const overridesRef = useRef<ShortcutOverrides>(EMPTY_OVERRIDES);
   const mutations = useRef(0);
+  const persistenceTail = useRef<Promise<void>>(Promise.resolve());
+  const persistenceRevision = useRef(0);
 
   const replace = useCallback((next: ShortcutOverrides): void => {
     overridesRef.current = next;
     setOverrides(next);
   }, []);
 
-  const save = useCallback((next: ShortcutOverrides): void => {
-    void bridge.preferences
-      .save({
-        version: SHORTCUT_PREFERENCES_VERSION,
-        shortcutOverrides: next,
-      })
-      .then(() => setError(null))
-      .catch((reason: unknown) => {
-        setError(`Não foi possível salvar os atalhos: ${errorMessage(reason)}`);
-      });
-  }, []);
+  const enqueuePersistence = useCallback(
+    (operation: () => Promise<void>, failurePrefix: string): Promise<void> => {
+      const revision = ++persistenceRevision.current;
+      const execution = persistenceTail.current.then(operation, operation);
+      persistenceTail.current = execution.then(
+        () => undefined,
+        () => undefined,
+      );
+      void execution.then(
+        () => {
+          if (persistenceRevision.current === revision) setError(null);
+        },
+        (reason: unknown) => {
+          if (persistenceRevision.current === revision) {
+            setError(`${failurePrefix}: ${errorMessage(reason)}`);
+          }
+        },
+      );
+      return execution;
+    },
+    [],
+  );
+
+  const save = useCallback(
+    (next: ShortcutOverrides): void => {
+      void enqueuePersistence(
+        () =>
+          bridge.preferences.save({
+            version: SHORTCUT_PREFERENCES_VERSION,
+            shortcutOverrides: next,
+          }),
+        "Não foi possível salvar os atalhos",
+      );
+    },
+    [enqueuePersistence],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -104,14 +131,18 @@ export function useShortcutPreferences(): ShortcutPreferencesController {
 
   const resetAll = useCallback(async (): Promise<void> => {
     mutations.current += 1;
+    const mutation = mutations.current;
     try {
-      await bridge.preferences.reset();
-      replace(EMPTY_OVERRIDES);
-      setError(null);
-    } catch (reason: unknown) {
-      setError(`Não foi possível restaurar os atalhos: ${errorMessage(reason)}`);
+      await enqueuePersistence(
+        () => bridge.preferences.reset(),
+        "Não foi possível restaurar os atalhos",
+      );
+      if (mutations.current === mutation) replace(EMPTY_OVERRIDES);
+    } catch {
+      // `enqueuePersistence` já publicou o erro somente se esta ainda é a
+      // operação mais recente; uma falha antiga não pode apagar o estado novo.
     }
-  }, [replace]);
+  }, [enqueuePersistence, replace]);
 
   return {
     ready,

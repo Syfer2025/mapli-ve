@@ -87,12 +87,12 @@ export class RamPreviewCache {
   put(key: string, bytes: Uint8Array): PreviewCachePutResult {
     validKey(key);
     validBytes(bytes);
-    const copy = bytes.slice();
     const previous = this.#records.get(key);
     if (previous !== undefined) this.#remove(key);
-    if (copy.byteLength > this.#budgetBytes) {
+    if (bytes.byteLength > this.#budgetBytes) {
       return Object.freeze({ stored: false, reason: "over-budget", evicted: Object.freeze([]) });
     }
+    const copy = bytes.slice();
     this.#records.set(key, { bytes: copy, checksum: checksumBytes(copy) });
     this.#usedBytes += copy.byteLength;
     this.#writes += 1;
@@ -246,11 +246,10 @@ export class PreviewDiskCacheAdapter {
   put(key: string, bytes: Uint8Array): Promise<PreviewCachePutResult> {
     validKey(key);
     validBytes(bytes);
-    const copy = bytes.slice();
     return this.#exclusive(async () => {
       await this.#initialize();
       const previous = this.#records.get(key);
-      if (copy.byteLength > this.#budgetBytes) {
+      if (bytes.byteLength > this.#budgetBytes) {
         if (previous !== undefined) {
           await this.#storage.remove(key);
           this.#forget(key);
@@ -262,6 +261,7 @@ export class PreviewDiskCacheAdapter {
         });
       }
 
+      const copy = bytes.slice();
       const record: PreviewDiskRecord = {
         key,
         bytes: copy,

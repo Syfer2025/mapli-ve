@@ -16,24 +16,20 @@ _theatrum belli_ — teatro de operações.
 
 ## Estado atual
 
-**Estado em 2026-07-30:** as Fases 8–10 têm suas fundações de produto
-implementadas e a Fase 11 está parcial. O mapa salvo no projeto é a fonte de
+**Estado em 2026-07-30:** as Fases 8–10 estão implementadas e a Fase 11 tem sua
+integração funcional concluída, restando a prova formal de estabilidade. O mapa salvo no projeto é a fonte de
 verdade para estilo e câmera; o export falha fechado por padrão, publica arquivos
 únicos por renomeação atômica e oferece fila persistente e checkpoints; o Scene
-Script v1 compila e importa de forma transacional; e o catálogo empacotado de
-unidades aparece na Biblioteca. O agente ChatGPT/Codex desta conversa pode
-controlar o editor aberto pela ponte local do Maestro, aplicando Scene Script ou
-comandos pontuais validados e lendo os diagnósticos de volta. O aplicativo não
-embute um modelo e não pede chave de API. A Fase 11 já possui expressões seguras e os
-núcleos determinísticos de cache de preview e waveform de referência.**
+Script v1 compila e importa de forma transacional; plugins locais podem ser
+descobertos, ativados e descarregados pela UI; e unidades, bandeiras, paletas e
+presets aparecem na Biblioteca. A Fase 11 possui expressões seguras, cache de
+preview visível, waveform de referência, atalhos e presets de workspace.
 
 Ainda faltam as provas integradas finais, inclusive o ensaio de 90 s em
 4K/60 e a sessão contínua de quatro horas. A retomada de MP4 H.264 reinicia o
 stream; checkpoints reutilizam frames apenas nos formatos baseados em sequência.
-O Inspector já permite editar/remover expressões e mostra falhas recuperáveis;
-cache de preview e waveform ainda não têm a integração visual completa.
-Atalhos configuráveis e presets locais de workspace também estão ligados ao
-editor. O instalador não fez parte deste ciclo e não é tratado aqui como
+O Inspector permite editar/remover expressões e a barra de status mostra falhas
+recuperáveis. O instalador não fez parte deste ciclo e não é tratado aqui como
 artefato pronto. O estado detalhado está em
 [docs/09-CONTINUIDADE.md](docs/09-CONTINUIDADE.md).
 
@@ -45,7 +41,7 @@ assets importados, não procedurais.
 
 O monorepo, os guardrails arquiteturais, o núcleo matemático/temporal, o shell
 Electron e o workspace dockável estão implementados. O viewport já é um painel
-real: MapLibre + PMTiles offline, quatro estilos mundiais, mapa regional detalhado
+real: MapLibre + PMTiles offline, três estilos mundiais, mapa regional detalhado
 Irã–Hormuz, satélite local, busca geográfica e câmera animável com transporte.
 `composition.map.styleId` e `composition.camera` persistem no documento; gestos
 do mapa passam pelo Command Bus e salvar, reabrir, desfazer e refazer preservam a
@@ -116,27 +112,27 @@ As rotas, por sua vez, não eram 3D em nenhum sentido: eram traçadas com
 polilinha 2D continua existindo como **guia de autoria** — tracejada, e só para
 caminho que ainda não tem `route3d` montado.
 
-| Fase | Escopo                                    | Estado                                     |
-| ---: | ----------------------------------------- | ------------------------------------------ |
-|    0 | Arquitetura e especificações              | ✅ concluída                               |
-|    1 | Fundação (monorepo, shell, tooling)       | ✅ concluída                               |
-|    2 | Mapa + Câmera                             | ✅ concluída                               |
-|    3 | Documento + Comandos + Undo               | ✅ concluída                               |
-|    4 | Objetos + Timeline                        | ✅ concluída                               |
-|    5 | Animação avançada (bezier, graph, paths)  | ✅ concluída                               |
-|    6 | Efeitos e partículas (congelada)          | ✅ concluída                               |
-|   7A | Biblioteca de ativos (import)             | ✅ concluída                               |
-|  7A+ | Preview 3D no viewport (model3d)          | ✅ concluída                               |
-| 7A++ | 3D com volume + rotas 3D (route3d)        | ✅ concluída                               |
-|   7B | Camadas geo: contornos, estados, estradas | ✅ concluída                               |
-|   7C | Rotas e setas de avanço                   | ✅ concluída                               |
-|   7D | Textos e rótulos no mapa                  | ✅ concluída                               |
-|   7E | Satélite, rótulo com guia, modo estúdio   | ✅ 3 de 4                                  |
-|    7 | Ações / simulações                        | ✅ concluída                               |
-|    8 | Exportação (PNG, MP4, GIF, ProRes 4444)   | 🟨 implementação; aceite final pendente    |
-|    9 | Scene Script + Maestro                    | 🟨 implementação; prova visual pendente    |
-|   10 | Plugins + conteúdo empacotado             | 🟨 fundação e catálogo; integração parcial |
-|   11 | Polimento e performance                   | 🟨 fundações parciais                      |
+| Fase | Escopo                                    | Estado                                              |
+| ---: | ----------------------------------------- | --------------------------------------------------- |
+|    0 | Arquitetura e especificações              | ✅ concluída                                        |
+|    1 | Fundação (monorepo, shell, tooling)       | ✅ concluída                                        |
+|    2 | Mapa + Câmera                             | ✅ concluída                                        |
+|    3 | Documento + Comandos + Undo               | ✅ concluída                                        |
+|    4 | Objetos + Timeline                        | ✅ concluída                                        |
+|    5 | Animação avançada (bezier, graph, paths)  | ✅ concluída                                        |
+|    6 | Efeitos e partículas (congelada)          | ✅ concluída                                        |
+|   7A | Biblioteca de ativos (import)             | ✅ concluída                                        |
+|  7A+ | Preview 3D no viewport (model3d)          | ✅ concluída                                        |
+| 7A++ | 3D com volume + rotas 3D (route3d)        | ✅ concluída                                        |
+|   7B | Camadas geo: contornos, estados, estradas | ✅ concluída                                        |
+|   7C | Rotas e setas de avanço                   | ✅ concluída                                        |
+|   7D | Textos e rótulos no mapa                  | ✅ concluída                                        |
+|   7E | Satélite, rótulo com guia, modo estúdio   | ✅ 3 de 4                                           |
+|    7 | Ações / simulações                        | ✅ concluída                                        |
+|    8 | Exportação (PNG, MP4, GIF, ProRes 4444)   | ✅ implementação concluída; provas longas pendentes |
+|    9 | Scene Script (autoria por IA)             | ✅ implementação concluída                          |
+|   10 | Plugins + conteúdo empacotado             | ✅ integração concluída                             |
+|   11 | Polimento e performance                   | 🟨 funcional; soak formal de 4 h pendente           |
 
 Roteiro detalhado com critérios de saída: [docs/08-ROADMAP.md](docs/08-ROADMAP.md).
 

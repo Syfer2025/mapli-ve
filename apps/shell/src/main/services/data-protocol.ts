@@ -25,6 +25,7 @@ const MIME_TYPES: Readonly<Record<string, string>> = {
   ".pbf": "application/x-protobuf",
   ".pmtiles": "application/vnd.pmtiles",
   ".png": "image/png",
+  ".svg": "image/svg+xml",
   ".txt": "text/plain; charset=utf-8",
   ".webp": "image/webp",
 };

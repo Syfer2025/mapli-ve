@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { DockviewReact } from "dockview-react";
 import { APP_NAME } from "@theatrum/schema";
 import type { SceneDiagnostic } from "@theatrum/scripting";
@@ -23,24 +23,38 @@ import { ShortcutPreferencesDialog } from "./ShortcutPreferencesDialog.js";
 import { bridge, isElectron } from "../bridge/index.js";
 import { editorActions, initializeEditorSession } from "../document/editor-session.js";
 import { useEditorSession } from "../document/useEditorSession.js";
+import {
+  getRuntimeDiagnosticsSnapshot,
+  subscribeRuntimeDiagnostics,
+} from "../diagnostics/runtime-diagnostics.js";
+import { PluginManagerDialog } from "../plugins/PluginManagerDialog.js";
+import { initializeEditorPluginRuntime } from "../plugins/editor-plugin-runtime.js";
 import { compileScene, formatSceneDiagnostics } from "../scripting/scene-script-import.js";
 import { Button } from "../ui/index.js";
 import "./App.css";
 
 export function App(): ReactNode {
-  const { onReady, restored, workspacePresetId, applyPreset, resetLayout } = useWorkspaceLayout();
+  const { onReady, workspaceRef, restored, workspacePresetId, applyPreset, resetLayout } =
+    useWorkspaceLayout();
   const shortcuts = useShortcutPreferences();
 
   useEffect(() => {
     void initializeEditorSession();
+    void initializeEditorPluginRuntime();
     return bridge.menu.onAction((action) => editorActions.handleMenu(action));
   }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.defaultPrevented) return;
       const commandId = shortcuts.registry.resolveKeyboardEvent(event);
       if (commandId === null) return;
-      if (isTextEntry(event.target) && commandDefinition(commandId).scope !== "global") return;
+      if (
+        commandDefinition(commandId).scope !== "global" &&
+        isInteractiveKeyboardTarget(event.target)
+      ) {
+        return;
+      }
       event.preventDefault();
       executeEditorCommand(commandId);
     };
@@ -59,9 +73,10 @@ export function App(): ReactNode {
       />
       <RecoveryBanner />
 
-      <main className="app__workspace" data-restored={restored || undefined}>
+      <main ref={workspaceRef} className="app__workspace" data-restored={restored || undefined}>
         <DockviewReact
           components={PANEL_COMPONENTS}
+          disableAutoResizing
           onReady={onReady}
           theme={THEATRUM_DOCKVIEW_THEME}
         />
@@ -91,6 +106,7 @@ function TopBar({
   const [examples, setExamples] = useState<readonly ProjectExampleInfo[]>([]);
   const [sceneScriptOpen, setSceneScriptOpen] = useState(false);
   const [shortcutSettingsOpen, setShortcutSettingsOpen] = useState(false);
+  const [pluginManagerOpen, setPluginManagerOpen] = useState(false);
   const [layoutError, setLayoutError] = useState<string | null>(null);
   const mac = navigator.platform.toLowerCase().includes("mac");
 
@@ -187,6 +203,9 @@ function TopBar({
       <Button size="sm" variant="ghost" onClick={() => setShortcutSettingsOpen(true)}>
         Atalhos…
       </Button>
+      <Button size="sm" variant="ghost" onClick={() => setPluginManagerOpen(true)}>
+        Plugins…
+      </Button>
       <Button
         size="sm"
         variant="ghost"
@@ -208,6 +227,9 @@ function TopBar({
           controller={shortcuts}
           onClose={() => setShortcutSettingsOpen(false)}
         />
+      ) : null}
+      {pluginManagerOpen ? (
+        <PluginManagerDialog onClose={() => setPluginManagerOpen(false)} />
       ) : null}
     </header>
   );
@@ -372,6 +394,11 @@ function SceneScriptDialog({ onClose }: { readonly onClose: () => void }): React
 function StatusBar(): ReactNode {
   const [info, setInfo] = useState<string>("carregando…");
   const session = useEditorSession();
+  const runtimeDiagnostics = useSyncExternalStore(
+    subscribeRuntimeDiagnostics,
+    getRuntimeDiagnosticsSnapshot,
+  );
+  const expressionIssue = runtimeDiagnostics.diagnostics[0];
 
   useEffect(() => {
     void bridge.app.info().then((i) => {
@@ -390,6 +417,21 @@ function StatusBar(): ReactNode {
       <span data-error={session.error !== null || undefined}>
         {session.error ?? session.status}
       </span>
+      {expressionIssue === undefined ? null : (
+        <>
+          <span className="app__status-separator">·</span>
+          <span
+            data-error
+            role="status"
+            title={runtimeDiagnostics.diagnostics.map(({ message }) => message).join("\n")}
+          >
+            expressão: {expressionIssue.message}
+            {runtimeDiagnostics.diagnostics.length > 1
+              ? ` (+${String(runtimeDiagnostics.diagnostics.length - 1)})`
+              : ""}
+          </span>
+        </>
+      )}
       <div className="app__topbar-spacer" />
       <span className="app__statusbar-note">
         {session.dirty
@@ -455,12 +497,14 @@ function shortcutTitle(
   return binding === undefined ? label : `${label} (${formatShortcut(binding, mac)})`;
 }
 
-function isTextEntry(target: EventTarget | null): boolean {
+function isInteractiveKeyboardTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
   return (
-    target instanceof HTMLInputElement ||
-    target instanceof HTMLTextAreaElement ||
-    target instanceof HTMLSelectElement ||
-    (target instanceof HTMLElement && target.isContentEditable)
+    target.closest(
+      "button, a[href], input, textarea, select, [contenteditable='true'], " +
+        "[role='button'], [role='link'], [role='menuitem'], [role='checkbox'], " +
+        "[role='radio'], [role='switch'], [role='tab']",
+    ) !== null
   );
 }
 

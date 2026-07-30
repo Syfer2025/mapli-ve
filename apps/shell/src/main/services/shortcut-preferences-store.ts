@@ -14,9 +14,11 @@ const MAX_FILE_BYTES = 64 * 1024;
 const MAX_OVERRIDES = 128;
 const MAX_COMMAND_ID_LENGTH = 80;
 const MAX_CHORD_LENGTH = 80;
+const operationsByFile = new Map<string, Promise<void>>();
 
 export async function loadShortcutPreferences(target: string): Promise<ShortcutPreferences | null> {
   const file = validAbsoluteFile(target);
+  await operationsByFile.get(file);
   try {
     const info = await stat(file);
     if (!info.isFile() || info.size > MAX_FILE_BYTES) return null;
@@ -41,19 +43,22 @@ export async function saveShortcutPreferences(
     throw new RangeError("preferências de atalhos excedem o limite local");
   }
 
-  await mkdir(path.dirname(file), { recursive: true });
-  const temporary = `${file}.${randomUUID()}.tmp`;
-  try {
-    await writeFile(temporary, bytes, "utf8");
-    await rename(temporary, file);
-  } catch (error: unknown) {
-    await removeIfPresent(temporary);
-    throw error;
-  }
+  return enqueueFileOperation(file, async () => {
+    await mkdir(path.dirname(file), { recursive: true });
+    const temporary = `${file}.${randomUUID()}.tmp`;
+    try {
+      await writeFile(temporary, bytes, "utf8");
+      await rename(temporary, file);
+    } catch (error: unknown) {
+      await removeIfPresent(temporary);
+      throw error;
+    }
+  });
 }
 
 export async function resetShortcutPreferences(target: string): Promise<void> {
-  await removeIfPresent(validAbsoluteFile(target));
+  const file = validAbsoluteFile(target);
+  return enqueueFileOperation(file, () => removeIfPresent(file));
 }
 
 export function isShortcutPreferences(value: unknown): value is ShortcutPreferences {
@@ -105,6 +110,20 @@ function validAbsoluteFile(target: string): string {
     throw new RangeError("arquivo de preferências precisa ter caminho absoluto");
   }
   return path.resolve(target);
+}
+
+function enqueueFileOperation(file: string, operation: () => Promise<void>): Promise<void> {
+  const previous = operationsByFile.get(file) ?? Promise.resolve();
+  const execution = previous.then(operation, operation);
+  const settled = execution.then(
+    () => undefined,
+    () => undefined,
+  );
+  operationsByFile.set(file, settled);
+  void settled.then(() => {
+    if (operationsByFile.get(file) === settled) operationsByFile.delete(file);
+  });
+  return execution;
 }
 
 async function removeIfPresent(target: string): Promise<void> {

@@ -1,13 +1,8 @@
-import {
-  createBuiltinNodeTypeRegistry,
-  type NodeTypeRegistry,
-  type PropertyDescriptor,
-  type PropertyKind,
-} from "@theatrum/scene-graph";
+import type { NodeTypeRegistry, PropertyDescriptor, PropertyKind } from "@theatrum/scene-graph";
 import { assetDisplayName } from "@theatrum/assets";
 import type { AnimatableProperty, Anchor, AssetDescriptor, Node, SizeSpec } from "@theatrum/schema";
 import { Fragment, useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "react";
-import { editorActions } from "../../document/editor-session.js";
+import { editorActions, nodeTypeRegistry } from "../../document/editor-session.js";
 import {
   ensureSearchableLayers,
   geoLoadStatus,
@@ -30,8 +25,6 @@ import {
 } from "./inspector-model.js";
 import "./InspectorPanel.css";
 
-const BUILTIN_REGISTRY = createBuiltinNodeTypeRegistry();
-
 export interface InspectorPanelProps {
   readonly registry?: NodeTypeRegistry;
 }
@@ -52,7 +45,7 @@ interface PropertyControlProps {
 
 type PropertyControl = (props: PropertyControlProps) => ReactNode;
 
-export function InspectorPanel({ registry = BUILTIN_REGISTRY }: InspectorPanelProps): ReactNode {
+export function InspectorPanel({ registry = nodeTypeRegistry }: InspectorPanelProps): ReactNode {
   const session = useEditorSession();
   const composition =
     session.document.compositions.find(

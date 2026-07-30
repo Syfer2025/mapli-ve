@@ -21,6 +21,7 @@ export type DocumentValidationCode =
   | "keyframes-not-sorted"
   | "duplicate-keyframe"
   | "missing-asset"
+  | "invalid-asset-kind"
   | "missing-path"
   | "missing-matte-source"
   | "matte-cycle";
@@ -82,7 +83,7 @@ function validateRelations(doc: ProjectDocument, issues: DocumentValidationIssue
   const compositionIds = new Set<string>();
   const nodeIds = new Set<string>();
   // O que os nós referenciam é o SRC do asset, não o id. Ver validateReferences.
-  const assetSrcs = new Set(doc.assets.map((asset) => asset.src));
+  const assetKindsBySrc = new Map(doc.assets.map((asset) => [asset.src, asset.kind] as const));
   const pathIds = new Set(Object.keys(doc.paths));
 
   for (
@@ -125,7 +126,7 @@ function validateRelations(doc: ProjectDocument, issues: DocumentValidationIssue
     }
 
     validateComposition(composition, compositionPointer, issues);
-    validateReferences(composition, compositionPointer, assetSrcs, pathIds, issues);
+    validateReferences(composition, compositionPointer, assetKindsBySrc, pathIds, issues);
     validateAnimatableValues(composition, compositionPointer, issues, new Set<object>());
   }
 }
@@ -290,22 +291,28 @@ function validateParentCycle(
 function validateReferences(
   composition: Composition,
   pointer: string,
-  assetSrcs: ReadonlySet<string>,
+  assetKindsBySrc: ReadonlyMap<string, string>,
   pathIds: ReadonlySet<string>,
   issues: DocumentValidationIssue[],
 ): void {
   const referenceAudio = composition.referenceAudio;
-  if (
-    referenceAudio !== undefined &&
-    referenceAudio !== null &&
-    !assetSrcs.has(referenceAudio.assetSrc)
-  ) {
-    addIssue(
-      issues,
-      "missing-asset",
-      `${pointer}/referenceAudio/assetSrc`,
-      `O asset ${referenceAudio.assetSrc} não existe.`,
-    );
+  if (referenceAudio !== undefined && referenceAudio !== null) {
+    const kind = assetKindsBySrc.get(referenceAudio.assetSrc);
+    if (kind === undefined) {
+      addIssue(
+        issues,
+        "missing-asset",
+        `${pointer}/referenceAudio/assetSrc`,
+        `O asset ${referenceAudio.assetSrc} não existe.`,
+      );
+    } else if (kind !== "audio") {
+      addIssue(
+        issues,
+        "invalid-asset-kind",
+        `${pointer}/referenceAudio/assetSrc`,
+        `O asset ${referenceAudio.assetSrc} é ${kind}; áudio de referência exige kind audio.`,
+      );
+    }
   }
 
   walkUnknown(
@@ -323,7 +330,7 @@ function validateReferences(
        * ignorá-lo — e foi ignorado o suficiente para o defeito irmão sobreviver no
        * `select` do Inspector, que gravava `id` e deixava o palco vazio.
        */
-      if (key === "assetId" && value !== "" && !assetSrcs.has(value)) {
+      if (key === "assetId" && value !== "" && !assetKindsBySrc.has(value)) {
         addIssue(issues, "missing-asset", valuePointer, `O asset ${value} não existe.`);
       }
       if (key === "pathId" && !pathIds.has(value)) {

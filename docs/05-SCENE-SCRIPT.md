@@ -579,9 +579,10 @@ sequenceDiagram
     participant AI as Maestro
     participant ED as Theatrum
 
-    U->>AI: "faça uma cena sobre Kursk"
-    AI->>ED: tools/maestro.mjs apply-scene
-    ED->>ED: compileScene(scene)
+    U->>AI: cola LLM_AUTHORING.md + "faça uma cena sobre Kursk"
+    AI-->>U: kursk.scene.json
+    U->>ED: barra superior → Scene Script…
+    ED->>ED: compileScene()
     alt sem erros
         ED-->>AI: aplicada como uma ação reversível
         AI-->>U: cena criada e validada

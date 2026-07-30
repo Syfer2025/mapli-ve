@@ -7,7 +7,7 @@
 
 export { compileScene } from "./compiler.js";
 export { exportDocumentToSceneScript } from "./export-scene.js";
-export { generateLlmAuthoringMarkdown } from "./authoring.js";
+export { createLlmAuthoringExampleInput, generateLlmAuthoringMarkdown } from "./authoring.js";
 export { BUILTIN_SCENE_VERBS, createSceneVerbRegistry, sceneVerbRegistry } from "./registry.js";
 export {
   parseAbsoluteSceneTime,

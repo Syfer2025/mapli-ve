@@ -833,34 +833,6 @@ Formato: [05-SCENE-SCRIPT.md](05-SCENE-SCRIPT.md).
 
 ## Maestro
 
-**Responsabilidade.** Permitir que o agente ChatGPT/Codex desta conversa
-transforme intenção em ações validadas do editor aberto.
-
-`apps/editor/src/maestro/codex-control.ts` publica
-`window.__theatrumMaestro` apenas no renderer local. `tools/maestro.mjs` acessa
-essa superfície pela porta de depuração do Electron em desenvolvimento e
-devolve contexto, resultado e diagnósticos ao mesmo agente que conversa com o
-operador. Não existe modelo, chat ou credencial de IA dentro do aplicativo.
-
-As duas fronteiras de escrita são:
-
-- `apply-scene` → `scripting.compileScene()` →
-  `project.replace-document`;
-- `apply-commands` → lote validado → `CommandBus.transaction()`.
-
-A ponte não faz requisição a provedor. O shell não conhece chave de IA e a
-superfície de controle existe para a sessão local de desenvolvimento.
-
-**Invariantes.**
-
-- tentativa inválida não altera o documento;
-- o modelo nunca possui uma terceira rota de mutação;
-- edições pontuais preservam conteúdo manual não relacionado;
-- um lote confirmado é uma entrada de undo;
-- o Maestro lê os diagnósticos e itera até obter uma cena válida.
-
-## `plugin-host`
-
 **Responsabilidade.** Validar e descobrir plugins locais por portas injetadas,
 gerir ativação/descarte e expor registries delimitados. Também valida e pesquisa
 o catálogo de conteúdo empacotado.
@@ -896,10 +868,10 @@ injeção.
 - Nó de tipo desconhecido pode virar placeholder `unresolved` sem perder seu
   payload validado.
 
-> **Integração atual:** o núcleo do host está implementado, mas o shell/editor
-> ainda não fornece descoberta, loader de módulos ou gestão de plugins pela UI.
-> O catálogo empacotado de unidades já é carregado pela Biblioteca; paletas e
-> presets gerados ainda não estão todos ligados ao editor.
+> **Integração atual:** o shell descobre e lê módulos ESM contidos em
+> `userData/plugins`; o editor oferece ativação/descarregamento pela tela
+> **Plugins…** e registra contribuições nos registries compartilhados. A
+> Biblioteca expõe unidades, bandeiras, paletas e presets empacotados.
 
 ---
 

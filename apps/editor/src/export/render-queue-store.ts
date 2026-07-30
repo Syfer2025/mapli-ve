@@ -401,8 +401,7 @@ function validateCheckpoint(checkpoint: RenderQueueCheckpoint): void {
     checkpoint.directory.length === 0 ||
     checkpoint.hashes.length !== checkpoint.completedFrames ||
     checkpoint.hashes.some(
-      ({ filename, sha256 }) =>
-        filename.length === 0 || !/^[a-f0-9]{64}$/u.test(sha256),
+      ({ filename, sha256 }) => filename.length === 0 || !/^[a-f0-9]{64}$/u.test(sha256),
     )
   ) {
     throw new Error("checkpoint da fila inválido");

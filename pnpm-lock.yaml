@@ -162,6 +162,9 @@ importers:
       '@theatrum/export':
         specifier: workspace:*
         version: link:../../packages/export
+      '@theatrum/plugin-host':
+        specifier: workspace:*
+        version: link:../../packages/plugin-host
       '@theatrum/project-io':
         specifier: workspace:*
         version: link:../../packages/project-io

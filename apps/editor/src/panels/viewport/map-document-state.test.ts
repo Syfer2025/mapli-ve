@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { DetailedBasemap } from "./detailed-basemap.js";
 import {
   DocumentCameraApplyGuard,
+  documentMapStyleExportBlockReason,
   evaluatedDocumentMapCamera,
   resolveDocumentMapStyle,
   sameDocumentMapCamera,
@@ -39,12 +40,6 @@ describe("vista do mapa derivada do documento", () => {
       styleId: "minimal-political",
       legacy: false,
     });
-    expect(resolveDocumentMapStyle("strategic-war-room", [], [])).toMatchObject({
-      available: true,
-      kind: "vector",
-      styleId: "strategic-war-room",
-      legacy: false,
-    });
     expect(resolveDocumentMapStyle("style_minimal_political", [], [])).toMatchObject({
       available: true,
       kind: "vector",
@@ -66,6 +61,10 @@ describe("vista do mapa derivada do documento", () => {
 
   it("faz fallback explícito sem reescrever o id persistido", () => {
     const resolved = resolveDocumentMapStyle("sat:arquivo-removido", [], []);
+    expect(documentMapStyleExportBlockReason(resolved)).toContain("indisponível");
+    expect(
+      documentMapStyleExportBlockReason(resolveDocumentMapStyle("minimal-political", [], [])),
+    ).toBeNull();
     expect(resolved).toEqual({
       available: false,
       kind: "fallback",

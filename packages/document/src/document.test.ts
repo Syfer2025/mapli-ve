@@ -151,6 +151,21 @@ describe("validação relacional", () => {
     };
     expect(validateDocument(document).ok).toBe(true);
 
+    document.assets[0]!.kind = "image";
+    const wrongKind = validateDocument(document);
+    expect(wrongKind.ok).toBe(false);
+    if (!wrongKind.ok) {
+      expect(wrongKind.error).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: "invalid-asset-kind",
+            pointer: "/compositions/0/referenceAudio/assetSrc",
+          }),
+        ]),
+      );
+    }
+    document.assets[0]!.kind = "audio";
+
     document.compositions[0]!.referenceAudio.assetSrc = "assets/ab/ausente.wav";
     const result = validateDocument(document);
     expect(result.ok).toBe(false);

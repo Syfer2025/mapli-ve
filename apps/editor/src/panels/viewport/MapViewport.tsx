@@ -18,7 +18,11 @@ import {
   type ReactNode,
 } from "react";
 import { Button } from "../../ui/index.js";
-import { createMapLibreCameraPort } from "./maplibre-adapters.js";
+import {
+  createMapLibreCameraPort,
+  isUserInitiatedMapMove,
+  type MapLibreMoveEventLike,
+} from "./maplibre-adapters.js";
 import {
   createDetailedMapStyle,
   createMapStyle,
@@ -41,6 +45,7 @@ import {
 import { attachScene3dLayer, detachScene3dLayer } from "./scene3d-layer.js";
 import { loadNaturalEarthGazetteer } from "./natural-earth-gazetteer.js";
 import { SceneOverlay } from "./SceneOverlay.js";
+import { bindMapExportReadiness } from "../../export/map-export-readiness.js";
 import { applyOverrideToElement, useExportSurface } from "../../export/useExportSurface.js";
 import { effectivePixelRatio, surfaceMatches } from "../../export/surface-override.js";
 import {
@@ -51,6 +56,7 @@ import { editorActions } from "../../document/editor-session.js";
 import { useEditorSession } from "../../document/useEditorSession.js";
 import {
   DocumentCameraApplyGuard,
+  documentMapStyleExportBlockReason,
   evaluatedDocumentMapCamera,
   resolveDocumentMapStyle,
   sameDocumentMapCamera,
@@ -140,6 +146,10 @@ function styleRenderKey(resolved: ResolvedDocumentMapStyle): string {
   return `${resolved.available ? "available" : "fallback"}:${resolved.documentStyleId}`;
 }
 
+const USER_CAMERA_EVENT_DATA = Object.freeze({
+  originalEvent: Object.freeze({ type: "theatrum-user-command" }),
+});
+
 function focusDetailedBasemap(map: MapLibreMap, basemap: DetailedBasemap): void {
   const [west, south, east, north] = basemap.focusBounds;
   map.fitBounds(
@@ -148,6 +158,7 @@ function focusDetailedBasemap(map: MapLibreMap, basemap: DetailedBasemap): void 
       [east, north],
     ],
     { padding: 56, duration: 900, essential: true },
+    USER_CAMERA_EVENT_DATA,
   );
 }
 
@@ -173,7 +184,6 @@ export function MapViewport(): ReactNode {
   );
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
-  const exportRenderReadyRef = useRef(true);
   const cameraApplyGuardRef = useRef(new DocumentCameraApplyGuard());
   const documentCameraRef = useRef(documentCamera);
   /** Pacotes regionais de alta resolução realmente presentes no disco. */
@@ -185,6 +195,7 @@ export function MapViewport(): ReactNode {
     [detailedBasemaps, documentStyleId, rasters],
   );
   const resolvedStyleRef = useRef(resolvedStyle);
+  const mapResourceErrorRef = useRef<string | null>(null);
   const appliedStyleKeyRef = useRef<string | null>(null);
   const [mapInstance, setMapInstance] = useState<MapLibreMap | null>(null);
   const [cameraRevision, setCameraRevision] = useState(0);
@@ -236,13 +247,7 @@ export function MapViewport(): ReactNode {
     },
     // O canvas de verdade, não o container: é ele que o compositor lê, e é ele que
     // o `maxCanvasSize` do MapLibre encolhe em silêncio acima do teto configurado.
-    (override) =>
-      surfaceMatches(override, mapRef.current?.getCanvas() ?? null) &&
-      (override === null ||
-        (exportRenderReadyRef.current &&
-          mapRef.current?.isStyleLoaded() === true &&
-          mapRef.current.areTilesLoaded() &&
-          mapRef.current.loaded())),
+    (override) => surfaceMatches(override, mapRef.current?.getCanvas() ?? null),
   );
 
   /** Preferência local: o job vence enquanto houver override; fora dele, repinta. */
@@ -328,6 +333,10 @@ export function MapViewport(): ReactNode {
     appliedStyleKeyRef.current = styleRenderKey(resolvedStyleRef.current);
     mapRef.current = map;
     setMapInstance(map);
+    const releaseMapExportReadiness = bindMapExportReadiness(map, () => {
+      const currentStyle = resolvedStyleRef.current;
+      return documentMapStyleExportBlockReason(currentStyle) ?? mapResourceErrorRef.current;
+    });
     if (import.meta.env.DEV || import.meta.env.VITE_THEATRUM_VERIFY === "1") {
       const debugCameraPort = createMapLibreCameraPort(map);
       Object.defineProperty(window, "__theatrumPhase2", {
@@ -345,16 +354,20 @@ export function MapViewport(): ReactNode {
     );
     map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
 
+    let userMoveInProgress = false;
     const updateCamera = (): void => {
       setCamera(cameraFromMap(map));
       setCameraRevision((revision) => revision + 1);
     };
-    const onMoveStart = (): void => {
-      if (!cameraApplyGuardRef.current.applying) editorActions.pause();
+    const onMoveStart = (event: MapLibreMoveEventLike): void => {
+      userMoveInProgress = isUserInitiatedMapMove(event);
+      if (!cameraApplyGuardRef.current.applying && userMoveInProgress) editorActions.pause();
     };
-    const onMoveEnd = (): void => {
+    const onMoveEnd = (event: MapLibreMoveEventLike): void => {
+      const shouldAuthor = userMoveInProgress || isUserInitiatedMapMove(event);
+      userMoveInProgress = false;
       updateCamera();
-      if (cameraApplyGuardRef.current.applying) return;
+      if (cameraApplyGuardRef.current.applying || !shouldAuthor) return;
       const nextCamera = cameraFromMap(map);
       if (!sameDocumentMapCamera(nextCamera, documentCameraRef.current)) {
         editorActions.setMapCamera(nextCamera);
@@ -364,6 +377,7 @@ export function MapViewport(): ReactNode {
       updateCamera();
       const startedAt = performance.now();
       void settle(createMapLibreCameraPort(map), 2_000).then((result) => {
+        if (mapResourceErrorRef.current !== null) return;
         if (result.settled) {
           setMapStatus(
             `${readyStatus(resolvedStyleRef.current)} · settle ${(
@@ -376,7 +390,9 @@ export function MapViewport(): ReactNode {
       });
     };
     const onStyleData = (): void => {
-      if (map.isStyleLoaded()) setMapStatus(readyStatus(resolvedStyleRef.current));
+      if (map.isStyleLoaded() && mapResourceErrorRef.current === null) {
+        setMapStatus(readyStatus(resolvedStyleRef.current));
+      }
     };
     // Camada 3D volta a cada setStyle: trocar de estilo descarta custom layers.
     const onStyleLoad = (): void => {
@@ -384,6 +400,7 @@ export function MapViewport(): ReactNode {
     };
     const onError = (event: { readonly error?: Error }): void => {
       const message = event.error?.message ?? "falha desconhecida";
+      mapResourceErrorRef.current = `falha em recurso do mapa local: ${message}`;
       setMapStatus(`erro local · ${message}`);
     };
 
@@ -407,6 +424,7 @@ export function MapViewport(): ReactNode {
       map.off("styledata", onStyleData);
       map.off("style.load", onStyleLoad);
       map.off("error", onError);
+      releaseMapExportReadiness();
       detachScene3dLayer(map);
       map.remove();
       mapRef.current = null;
@@ -465,10 +483,11 @@ export function MapViewport(): ReactNode {
     if (map === null) return;
     const nextKey = styleRenderKey(resolvedStyle);
     if (appliedStyleKeyRef.current === nextKey) {
-      setMapStatus(readyStatus(resolvedStyle));
+      if (mapResourceErrorRef.current === null) setMapStatus(readyStatus(resolvedStyle));
       return;
     }
     appliedStyleKeyRef.current = nextKey;
+    mapResourceErrorRef.current = null;
     setMapStatus(resolvedStyle.available ? "aplicando estilo local…" : readyStatus(resolvedStyle));
     map.setStyle(styleSpecFor(resolvedStyle), { diff: false });
   }, [mapInstance, resolvedStyle]);
@@ -497,6 +516,7 @@ export function MapViewport(): ReactNode {
             [east, north],
           ],
           { padding: 56, duration: 900, essential: true },
+          USER_CAMERA_EVENT_DATA,
         );
       }
     }
@@ -506,13 +526,16 @@ export function MapViewport(): ReactNode {
     const map = mapRef.current;
     if (map === null) return;
     editorActions.pause();
-    map.easeTo({
-      center: [hit.lngLat[0], hit.lngLat[1]],
-      zoom: Math.max(map.getZoom(), 6.4),
-      pitch: Math.min(map.getPitch(), 45),
-      duration: 850,
-      essential: true,
-    });
+    map.easeTo(
+      {
+        center: [hit.lngLat[0], hit.lngLat[1]],
+        zoom: Math.max(map.getZoom(), 6.4),
+        pitch: Math.min(map.getPitch(), 45),
+        duration: 850,
+        essential: true,
+      },
+      USER_CAMERA_EVENT_DATA,
+    );
     setResolution({ status: "resolved", query: hit.name, hit });
   }, []);
 
@@ -542,7 +565,7 @@ export function MapViewport(): ReactNode {
   return (
     <section
       className="map-viewport"
-      data-map-status={mapStatus.startsWith("erro") ? "error" : "ok"}
+      data-map-status={!resolvedStyle.available || mapStatus.startsWith("erro") ? "error" : "ok"}
     >
       <div className="map-viewport__stage">
         <div

@@ -83,25 +83,7 @@ O seletor de workspace oferece **Edição**, **Mapa em foco**, **Animação** e
 **Palco 3D**. Depois de aplicar um preset, você ainda pode mover os painéis
 livremente; **Restaurar layout** não apaga seus atalhos.
 
-## 4. Criar com o Maestro
-
-1. Deixe o Theatrum aberto em desenvolvimento com `pnpm dev`.
-2. Nesta própria conversa do ChatGPT/Codex, descreva a cena ou a alteração em
-   linguagem comum.
-3. O agente desta conversa inspeciona o projeto aberto, monta a cena, aplica no
-   editor e lê os diagnósticos.
-4. Se houver erro, o agente corrige e reaplica; você não precisa copiar e colar
-   JSON nem configurar chave no aplicativo.
-
-Uma cena nova é aplicada como um Scene Script completo. Mudanças pontuais usam o
-mesmo Command Bus das ferramentas manuais, preservando o restante do documento.
-Cada operação confirmada pode ser desfeita com `Ctrl+Z`.
-
-A ponte local sempre lê o estado atual do projeto, portanto uma intervenção
-manual feita entre dois pedidos passa a fazer parte do contexto seguinte. O
-Theatrum não embute outro modelo nem faz chamadas de IA.
-
-## 5. Importar Scene Script manualmente
+## 4. Importar Scene Script
 
 1. Clique em **Scene Script…** na barra superior.
 2. Cole o JSON declarativo.
@@ -118,7 +100,7 @@ A exportação inversa é parcial: uma cena importada preserva sua fonte origina
 mas edições feitas depois no documento não são reconstruídas como Scene Script.
 O editor deve avisar quando isso acontecer.
 
-## 6. Exportar
+## 5. Exportar
 
 Abra **Fila de render** e escolha formato, escala, supersampling e intervalo.
 Você pode iniciar uma exportação direta ou usar **Adicionar à fila** e depois
@@ -152,7 +134,7 @@ problemático. Arquivos MP4/GIF/MOV só recebem o nome final ao concluir.
 - A fila ainda não congela uma cópia imutável do documento. Editar durante o job
   ativo o interrompe.
 
-## 7. Salvar e recuperar
+## 6. Salvar e recuperar
 
 - Projetos usam a extensão `.theatrum`.
 - Um exemplo nunca deve ser sobrescrito: salve com outro nome.
@@ -165,9 +147,9 @@ problemático. Arquivos MP4/GIF/MOV só recebem o nome final ao concluir.
 - O ensaio de 90 s em 4K/60 e a prova 8K na máquina-alvo ainda não foram
   executados nesta árvore.
 - Retomada de MP4 H.264 reinicia o stream.
-- Plugins arbitrários ainda não têm instalação/gestão pela UI.
-- Cache de preview e waveform de áudio possuem núcleo implementado, mas ainda não
-  aparecem como pré-render/trilha na interface.
+- Plugins locais empacotados são geridos pela tela **Plugins…**; não existe
+  marketplace ou download automático.
+- Cache de preview e waveform de áudio aparecem na Timeline.
 - Áudio é apenas referência: sem reprodução, scrub sonoro, mixagem ou export.
 - O onboarding completo ainda falta.
 - O soak de quatro horas não foi executado.

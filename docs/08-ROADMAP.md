@@ -1390,14 +1390,6 @@ Entregue:
 - exemplo `examples/alexandre.scene.json`;
 - exportação inversa parcial baseada na fonte normalizada preservada. Edições
   posteriores são omitidas com warning; não existe bloco `raw`.
-- ponte local `window.__theatrumMaestro` + `tools/maestro.mjs`, pela qual o agente
-  ChatGPT/Codex desta conversa inspeciona e opera o editor aberto;
-- duas operações validadas: Scene Script para criação total e lotes do Command
-  Bus para edição pontual;
-- diagnósticos devolvidos diretamente ao agente para correção;
-- contexto atualizado do documento e uma única entrada de undo por operação
-  confirmada;
-- nenhum modelo, painel de chat ou chave de API embutido no aplicativo.
 
 Alguns verbos compartilham visuais/actions genéricos em vez de terem arte final
 especializada própria.
@@ -1406,8 +1398,7 @@ especializada própria.
 
 1. ⏳ Confirmar visualmente a animação produzida pelo exemplo de Alexandre.
 2. ⏳ Repetir a prova integrada do conjunto de diagnósticos propositais.
-3. ✅ O Maestro usa o contrato gerado e recebe diagnósticos pela ponte local,
-   sem credencial de IA no aplicativo.
+3. ⏳ Fazer a prova externa com um LLM usando apenas `LLM_AUTHORING.md`.
 4. ✅ A autoria é gerada do registro e possui verificador de divergência.
 5. ✅ A importação usa um único comando reversível.
 6. ⏳ Medir a cena de 200 entradas no ambiente final.
@@ -1421,8 +1412,7 @@ especializada própria.
 
 **Objetivo.** Extensível sem tocar no núcleo.
 
-**Estado: núcleo do host e conteúdo gerado presentes; integração de plugins
-arbitrários com shell/editor ainda pendente (2026-07-30).**
+**Estado: integração funcional concluída (2026-07-30).**
 
 Entregue:
 
@@ -1436,20 +1426,17 @@ Entregue:
 - bandeiras, paletas e presets de cena/efeito gerados em
   `data/plugin-content`;
 - busca do catálogo e inserção de unidades pela Biblioteca do editor.
-
-Pendente:
-
-- adapter de filesystem e loader de módulos no shell;
+- adapter seguro de filesystem e loader ESM no shell;
 - tela de descoberta, ativação e descarregamento de plugins;
-- ligação do placeholder `unresolved` ao fluxo completo de abrir/salvar na UI;
-- exposição de paletas, bandeiras e presets em seus painéis finais.
+- placeholder `unresolved` preservado no fluxo de projeto;
+- unidades, bandeiras, paletas e presets ligados à Biblioteca; presets de cena
+  são um único comando reversível.
 
 **Critério de saída.**
 
-1. ⏳ O host aceita contribuições injetadas; falta a prova com plugin local
-   carregado pelo aplicativo.
+1. ✅ Host, leitura local e UI de ativação estão integrados.
 2. ✅ O escopo de registro e o `unload` estão implementados.
-3. ⏳ Preservação do payload existe no domínio; falta o fluxo visual completo.
+3. ✅ Payload desconhecido é preservado e representado por placeholder visível.
 4. ✅ A busca por texto, sinônimos e ano está implementada no catálogo.
 5. ✅ O gerador produz catálogo e sprites sem editar o núcleo; validar a inclusão
    de uma unidade nova no fluxo de conteúdo antes do aceite final.
@@ -1458,7 +1445,8 @@ Pendente:
 
 ## Fase 11 — Polimento e performance
 
-**Estado: parcial (2026-07-30). Não há soak de quatro horas executado.**
+**Estado: integração funcional concluída (2026-07-30); não há soak de quatro
+horas executado.**
 
 Entregue no núcleo:
 
@@ -1474,12 +1462,14 @@ Entregue no núcleo:
 - quatro presets de workspace e atalhos configuráveis persistidos como
   preferências locais fail-safe
   ([ADR-032](adr/ADR-032-shortcuts-and-workspace-presets.md));
+- faixas de frames em cache e waveform de referência visíveis na Timeline, com
+  cache limitado e invalidação;
+- diagnóstico de expressão publicado pelo viewport e mostrado na barra de
+  status;
 - modo satélite local, entregue anteriormente no bloco 7E.
 
 Pendente:
 
-- ligação do cache ao preview/pré-render e barra de faixa;
-- importação/exibição da waveform e sincronização no editor;
 - onboarding completo;
 - validação atual de todos os orçamentos e sessão contínua de quatro horas.
 

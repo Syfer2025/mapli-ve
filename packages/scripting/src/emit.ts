@@ -145,6 +145,7 @@ export function emitProjectDocument(
     unitCoordinates.set(unit.id, coordinate);
     appendNode(composition.nodes, root, node);
   });
+  const movementStarts = resolveMovementStarts(resolved, unitCoordinates);
 
   const cameraPoints: CameraTrackPoint[] = [];
   const initialPose: MutableCameraPose = {
@@ -165,6 +166,7 @@ export function emitProjectDocument(
       root,
       unitNodeIds,
       unitCoordinates,
+      movementStarts,
       ids,
       cameraPoints,
       initialPose,
@@ -188,10 +190,65 @@ interface EmitContext {
   readonly document: ProjectDocument;
   readonly root: Node;
   readonly unitNodeIds: ReadonlyMap<string, string>;
-  readonly unitCoordinates: Map<string, LngLat>;
+  readonly unitCoordinates: ReadonlyMap<string, LngLat>;
+  readonly movementStarts: ReadonlyMap<number, LngLat>;
   readonly ids: ReturnType<typeof createIdFactory>;
   readonly cameraPoints: CameraTrackPoint[];
   readonly initialPose: MutableCameraPose;
+}
+
+/**
+ * Resolve a posição de início de cada movimento em ordem temporal. A posição
+ * declarada é apenas o primeiro estado da unidade; movimentos seguintes partem
+ * do destino anterior e um spawn passa a ser a nova origem.
+ */
+function resolveMovementStarts(
+  resolved: ResolvedSceneModel,
+  initialPositions: ReadonlyMap<string, LngLat>,
+): ReadonlyMap<number, LngLat> {
+  const positions = new Map(initialPositions);
+  const starts = new Map<number, LngLat>();
+  const ordered = [...resolved.timeline].sort(
+    (left, right) => left.startFrame - right.startFrame || left.index - right.index,
+  );
+
+  for (const timelineEntry of ordered) {
+    const source = timelineEntry.entry;
+    if (source.do === "unit.spawn") {
+      const spawnedAt = resolved.coordinates.get(
+        pointer(["timeline", timelineEntry.index, "at_place"]),
+      );
+      if (spawnedAt !== undefined) positions.set(source.unit, spawnedAt);
+      continue;
+    }
+
+    const unit =
+      source.do === "unit.advance" ||
+      source.do === "unit.retreat" ||
+      source.do === "unit.patrol" ||
+      source.do === "unit.attack" ||
+      source.do === "unit.intercept"
+        ? source.unit
+        : undefined;
+    if (unit === undefined) continue;
+    const start = positions.get(unit);
+    if (start !== undefined) starts.set(timelineEntry.index, start);
+
+    let end: LngLat | undefined;
+    if (source.do === "unit.advance" || source.do === "unit.retreat") {
+      if (source.to !== undefined) {
+        end = resolved.coordinates.get(pointer(["timeline", timelineEntry.index, "to"]));
+      } else if (source.along !== undefined) {
+        const points = resolved.paths.get(source.along);
+        end = source.do === "unit.retreat" ? points?.[0] : points?.at(-1);
+      }
+    } else if (source.do === "unit.attack" || source.do === "unit.intercept") {
+      end = positions.get(source.target);
+    }
+    if (end !== undefined) positions.set(unit, end);
+  }
+
+  return starts;
 }
 
 function emitTimelineEntry(context: EmitContext): void {
@@ -338,30 +395,17 @@ function makeTimelineRoute(
     }
   }
   if (pathId === undefined) return null;
-  const requestedColor =
-    source.do === "arrow.draw" && typeof source.style?.["color"] === "string"
-      ? source.style["color"]
-      : undefined;
-  const requestedWidth =
-    source.do === "arrow.draw" && typeof source.style?.["width"] === "number"
-      ? source.style["width"]
-      : undefined;
-  const color = source.do === "supply.line" ? "#4ade80ff" : (requestedColor ?? "#ef4444ff");
+  const color = source.do === "supply.line" ? "#4ade80ff" : "#ef4444ff";
   const node = makeRouteNode(
     context.ids("nd"),
     composition.root,
     composition.duration,
     pathId,
     color,
-    source.do.startsWith("frontline.") ? 5 : (requestedWidth ?? 4),
+    source.do.startsWith("frontline.") ? 5 : 4,
     source.do === "supply.line" ? [10, 8] : undefined,
   );
   node.name = source.do;
-  if (source.do.startsWith("frontline.")) {
-    node.props["arrowSize"] = animatable(0);
-    node.props["dashPx"] = animatable(14);
-    node.props["gapPx"] = animatable(8);
-  }
   node.timeRange = {
     in: context.entry.startFrame,
     out: Math.min(
@@ -378,15 +422,6 @@ function makeTimelineRoute(
       easing(source.ease ?? "cinematic"),
     ),
   ]);
-  node.transform.opacity = timedOpacity(
-    context.ids,
-    context.entry.startFrame,
-    Math.min(
-      composition.duration,
-      Math.max(context.entry.startFrame + 1, context.entry.endFrame),
-    ),
-    composition.fps,
-  );
   return node;
 }
 
@@ -407,7 +442,8 @@ function emitMovementAction(
 
   let pathId = "along" in source ? source.along : undefined;
   if (pathId === undefined) {
-    const start = context.unitCoordinates.get(source.unit);
+    const start =
+      context.movementStarts.get(context.entry.index) ?? context.unitCoordinates.get(source.unit);
     let end: LngLat | undefined;
     if ((source.do === "unit.advance" || source.do === "unit.retreat") && source.to !== undefined) {
       end = context.resolved.coordinates.get(pointer(["timeline", context.entry.index, "to"]));
@@ -416,10 +452,7 @@ function emitMovementAction(
     }
     if (start !== undefined && end !== undefined) {
       pathId = context.ids("pth");
-      context.document.paths[pathId] =
-        source.do === "unit.retreat"
-          ? pathBetween(pathId, source.do, end, start)
-          : pathBetween(pathId, source.do, start, end);
+      context.document.paths[pathId] = pathBetween(pathId, source.do, start, end);
     }
   }
   if (pathId === undefined) return;
@@ -440,7 +473,6 @@ function emitMovementAction(
           : source.do === "unit.attack"
             ? "attack"
             : "intercept";
-  const unitKind = context.scene.units?.find((unit) => unit.id === source.unit)?.kind;
   owner.actions.push({
     id: context.ids("act"),
     type: actionType,
@@ -451,22 +483,12 @@ function emitMovementAction(
       pathId,
       speedKmh,
       cycles: source.do === "unit.patrol" ? (source.cycles ?? 1) : 1,
-      autoOrient: unitKind === "air" || unitKind === "missile",
+      autoOrient: true,
       showRoute: source.do === "unit.advance" ? (source.trail ?? false) : true,
       color: "#f2a13cff",
-      durationFrames: context.entry.durationFrames,
+      sceneDurationFrames: context.entry.durationFrames,
     },
   });
-
-  const destination =
-    source.do === "unit.advance" || source.do === "unit.retreat"
-      ? context.resolved.coordinates.get(pointer(["timeline", context.entry.index, "to"]))
-      : source.do === "unit.attack" || source.do === "unit.intercept"
-        ? context.unitCoordinates.get(source.target)
-        : undefined;
-  if (destination !== undefined) {
-    context.unitCoordinates.set(source.unit, [destination[0], destination[1]]);
-  }
 }
 
 function emitProjectileAction(
@@ -513,10 +535,7 @@ function emitProjectileAction(
       count: "count" in source ? (source.count ?? 5) : source.do === "siege" ? 8 : 1,
       color: "#fb923cff",
       arcMeters: source.do === "missile.launch" ? 180_000 : 35_000,
-      // O mapa e os overlays precisam compartilhar exatamente a mesma câmera.
-      // Impactos ganham flash/fumaça próprios; tremor automático aqui criava
-      // saltos de enquadramento sem direção explícita da cena.
-      shake: false,
+      shake: true,
     },
   });
 }
@@ -549,61 +568,26 @@ function makeTimelineVisual(context: EmitContext): Node | null {
           : source.do === "text.date"
             ? source.date
             : source.do === "text.counter"
-              ? `${source.label ?? ""} ${source.from} → ${source.to}`.trim()
+              ? counterText(source.label, source.from, counterDecimals(source.from, source.to))
               : source.items.map((item) => String(item["label"] ?? "Item")).join("\n");
-    const positionName = "position" in source ? source.position : undefined;
-    const position = screenPosition(positionName, composition.width, composition.height);
-    const fontSize =
-      source.do === "text.title"
-        ? 72
-        : source.do === "text.counter"
-          ? 58
-          : source.do === "legend.show"
-            ? 28
-            : 30;
-    const maxWidth =
-      source.do === "text.title"
-        ? Math.min(1_700, composition.width - 120)
-        : source.do === "legend.show"
-          ? 620
-          : source.do === "text.date"
-            ? 640
-            : source.do === "text.counter"
-              ? 720
-              : 920;
-    const align = positionName?.includes("left")
-      ? "left"
-      : positionName?.includes("right")
-        ? "right"
-        : "center";
-    const props = textProps(text, scene.defaults?.textFont, fontSize, { align, maxWidth });
+    const position = screenPosition(
+      "position" in source ? source.position : undefined,
+      composition.width,
+      composition.height,
+    );
+    const props = textProps(text, scene.defaults?.textFont, source.do === "text.title" ? 72 : 30);
     if (source.do === "text.counter") {
-      const steps = 24;
-      props["text"] = animatable(
-        `${formatInteger(source.from)}\n${source.label ?? ""}`.trim(),
-        Array.from({ length: steps + 1 }, (_, index) => {
-          const progress = index / steps;
-          const value = source.from + (source.to - source.from) * progress;
-          return keyframe(
-            ids("kf"),
-            Math.round(base.timeRange.in + (base.timeRange.out - base.timeRange.in) * progress),
-            `${formatInteger(value)}\n${source.label ?? ""}`.trim(),
-            { kind: "linear" },
-          );
-        }),
-      );
+      props["text"] = counterTextTrack(context, source);
     }
-    const node = makeNode({
+    return makeNode({
       ...base,
       type: source.do === "text.title" ? "text.title" : "text.label",
       name: text.slice(0, 80),
-      anchor: { space: "comp", position },
-      size: { mode: "screen", size: [maxWidth, 260] },
-      anchorPoint: [0.5, 0.5],
+      anchor: { space: "comp", position: [0, 0] },
+      size: { mode: "screen", size: [Math.min(1_200, composition.width), 240] },
+      position,
       props,
     });
-    node.transform.opacity = timedOpacity(ids, base.timeRange.in, base.timeRange.out, composition.fps);
-    return node;
   }
 
   if (source.do === "text.callout" || source.do === "label.place") {
@@ -613,33 +597,14 @@ function makeTimelineVisual(context: EmitContext): Node | null {
         : context.resolved.coordinates.get(pointer(["timeline", entry.index, "place"]));
     if (place === undefined) return null;
     const text = source.do === "text.callout" ? source.text : String(source.place);
-    const style = source.do === "label.place" ? source.style : undefined;
-    const fontSize = typeof style?.["fontSize"] === "number" ? style["fontSize"] : 24;
-    const maxWidth = typeof style?.["maxWidth"] === "number" ? style["maxWidth"] : 380;
-    const offsetValue = style?.["offset"];
-    const offset =
-      Array.isArray(offsetValue) &&
-      offsetValue.length === 2 &&
-      typeof offsetValue[0] === "number" &&
-      typeof offsetValue[1] === "number"
-        ? ([offsetValue[0], offsetValue[1]] as const)
-        : ([0, 0] as const);
-    const props = textProps(text, scene.defaults?.textFont, fontSize, { maxWidth });
-    if (typeof style?.["color"] === "string") {
-      props["color"] = animatable(style["color"]);
-    }
-    const node = makeNode({
+    return makeNode({
       ...base,
       type: "text.label",
       name: text.slice(0, 80),
       anchor: { space: "geo", lngLat: [place[0], place[1]] },
       size: { mode: "screen", size: [420, 96] },
-      anchorPoint: [0.5, 0.5],
-      position: offset,
-      props,
+      props: textProps(text, scene.defaults?.textFont, 24),
     });
-    node.transform.opacity = timedOpacity(ids, base.timeRange.in, base.timeRange.out, composition.fps);
-    return node;
   }
 
   if (
@@ -650,12 +615,20 @@ function makeTimelineVisual(context: EmitContext): Node | null {
   ) {
     const geoId = source.do === "border.show" ? source.dataset : (source.region ?? "");
     const color =
-      source.do === "border.show"
-        ? "#aebdceff"
-        : source.do === "area.transfer"
-          ? factionColor(scene, source.to)
-          : factionColor(scene, source.do === "area.highlight" ? source.faction : undefined);
-    const node = makeNode({
+      source.do === "area.transfer"
+        ? factionColor(scene, source.to)
+        : factionColor(scene, source.do === "area.highlight" ? source.faction : undefined);
+    const fill =
+      source.do === "area.transfer"
+        ? transferColorTrack(
+            context,
+            factionColor(scene, source.from),
+            factionColor(scene, source.to),
+          )
+        : animatable(color);
+    const fillAlpha =
+      source.do === "area.highlight" ? highlightAlphaTrack(context, source.fade) : animatable(0.35);
+    return makeNode({
       ...base,
       type: "geo.region",
       name: geoId,
@@ -663,71 +636,47 @@ function makeTimelineVisual(context: EmitContext): Node | null {
       size: { mode: "screen", size: [64, 64] },
       props: {
         geoId: animatable(geoId),
-        fill: animatable(color),
-        fillAlpha: animatable(source.do === "border.show" ? 0 : 0.16),
-        stroke: animatable(color),
-        strokeWidth: animatable(source.do === "border.show" ? 2.5 : 2.25),
+        fill,
+        fillAlpha,
+        stroke:
+          source.do === "area.transfer"
+            ? transferColorTrack(
+                context,
+                factionColor(scene, source.from),
+                factionColor(scene, source.to),
+              )
+            : animatable(color),
+        strokeWidth: animatable(2),
         strokeAlpha: animatable(1),
         sceneVerb: source.do,
       },
     });
-    node.transform.opacity = timedOpacity(ids, base.timeRange.in, base.timeRange.out, composition.fps);
-    return node;
   }
 
   const place = timelineAnchor(context);
   if (place === undefined) return null;
   const label = "label" in source && typeof source.label === "string" ? source.label : source.do;
-  const eventColor =
-    source.do === "battle"
-      ? "#f59e0bd9"
-      : source.do === "bombard"
-        ? "#f97316d9"
-        : source.do === "airstrike"
-          ? "#fb923cd9"
-          : source.do === "missile.launch"
-            ? "#ef4444d9"
-            : source.do === "siege"
-              ? "#f97316d9"
-      : source.do === "airdrop"
-        ? "#a78bfad9"
-        : source.do === "naval.blockade"
-          ? "#0ea5e9d9"
-          : source.do === "encircle"
-            ? "#f97316d9"
-            : factionColor(
-                scene,
-                "faction" in source && typeof source.faction === "string"
-                  ? source.faction
-                  : undefined,
-              );
-  const node = makeNode({
+  return makeNode({
     ...base,
     type: SHAPE_CIRCLE_NODE_TYPE.type,
     name: label,
     anchor: { space: "geo", lngLat: [place[0], place[1]] },
     size: { mode: "screen", size: [160, 160] },
-    anchorPoint: [0.5, 0.5],
     props: {
       radius: animatable(
-        source.do === "naval.blockade"
-          ? Math.min(90, Math.max(20, source.radius))
-          : source.do === "battle"
-            ? 36
-            : source.do === "bombard" ||
-                source.do === "airstrike" ||
-                source.do === "missile.launch"
-              ? 30
-            : 48,
+        source.do === "naval.blockade" ? Math.min(90, Math.max(20, source.radius)) : 48,
       ),
-      fill: animatable(eventColor),
+      fill: animatable(
+        factionColor(
+          scene,
+          "faction" in source && typeof source.faction === "string" ? source.faction : undefined,
+        ),
+      ),
       stroke: animatable("#ffffffff"),
       strokeWidth: animatable(2),
       sceneVerb: source.do,
     },
   });
-  node.transform.opacity = timedOpacity(ids, base.timeRange.in, base.timeRange.out, composition.fps);
-  return node;
 }
 
 function timelineAnchor(context: EmitContext): LngLat | undefined {
@@ -744,8 +693,6 @@ function timelineAnchor(context: EmitContext): LngLat | undefined {
 
 function emitCameraEntry(context: EmitContext): void {
   const source = context.entry.entry;
-  const composition = context.document.compositions[0];
-  if (composition === undefined) return;
   const current = context.cameraPoints.at(-1) ?? {
     frame: 0,
     ease: "linear",
@@ -787,7 +734,15 @@ function emitCameraEntry(context: EmitContext): void {
     const center = context.unitCoordinates.get(source.unit);
     if (center !== undefined) {
       context.cameraPoints.push({
-        frame: context.entry.endFrame,
+        frame: context.entry.startFrame,
+        ease: source.ease ?? "cinematic",
+        center: [...current.center],
+        zoom: current.zoom,
+        bearing: current.bearing,
+        pitch: current.pitch,
+      });
+      context.cameraPoints.push({
+        frame: Math.max(context.entry.startFrame + 1, context.entry.endFrame),
         ease: source.ease ?? "cinematic",
         center: [center[0], center[1]],
         zoom: current.zoom,
@@ -830,7 +785,7 @@ function emitCameraEntry(context: EmitContext): void {
     if (points.length === 0) return;
     next = {
       center: [...centerOf(points)],
-      zoom: frameZoom(points, source.padding ?? 0.15, composition.width, composition.height),
+      zoom: frameZoom(points, source.padding ?? 0.15),
       bearing: current.bearing,
       pitch: current.pitch,
     };
@@ -911,7 +866,6 @@ function makeUnitNode(
       mode: "screen" as const,
       size: [unit.size ?? defaultSize, unit.size ?? defaultSize] as [number, number],
     },
-    anchorPoint: [0.5, 0.5] as const,
   };
   if (unit.kind === "armor" || unit.kind === "infantry") {
     return makeNode({
@@ -951,7 +905,6 @@ interface MakeNodeOptions {
   readonly props: Record<string, unknown>;
   readonly timeRange?: Node["timeRange"];
   readonly position?: readonly [number, number];
-  readonly anchorPoint?: readonly [number, number];
   readonly rotation?: number;
 }
 
@@ -976,7 +929,7 @@ function makeNode(options: MakeNodeOptions): Node {
       rotation: animatable(options.rotation ?? 0),
       scale: animatable([1, 1]),
       opacity: animatable(1),
-      anchorPoint: animatable([...(options.anchorPoint ?? [0, 0])] as [number, number]),
+      anchorPoint: animatable([0, 0]),
       skew: animatable([0, 0]),
       rotationReference: options.anchor.space === "geo" ? "geo-bearing" : "screen",
     },
@@ -988,28 +941,6 @@ function makeNode(options: MakeNodeOptions): Node {
     behaviors: [],
     actions: [],
   };
-}
-
-function timedOpacity(
-  ids: ReturnType<typeof createIdFactory>,
-  start: number,
-  end: number,
-  fps: number,
-): AnimatableProperty<number> {
-  const duration = Math.max(1, end - start);
-  const fadeFrames = Math.max(1, Math.min(Math.round(fps * 0.4), Math.floor(duration / 3)));
-  return animatable(1, [
-    keyframe(ids("kf"), start, 0, { kind: "linear" }),
-    keyframe(ids("kf"), Math.min(end, start + fadeFrames), 1, easing("smooth")),
-    keyframe(ids("kf"), Math.max(start, end - fadeFrames), 1, { kind: "linear" }),
-    keyframe(ids("kf"), end, 0, easing("smooth")),
-  ]);
-}
-
-function formatInteger(value: number): string {
-  return Math.round(value)
-    .toString()
-    .replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
 function makeRouteNode(
@@ -1070,24 +1001,92 @@ function pathBetween(id: string, name: string, start: LngLat, end: LngLat): Path
   };
 }
 
-function textProps(
-  text: string,
-  font = "Inter",
-  size = 30,
-  options: { readonly align?: "left" | "center" | "right"; readonly maxWidth?: number } = {},
-): Record<string, unknown> {
+function counterTextTrack(
+  context: EmitContext,
+  source: Extract<SceneTimelineEntry, { do: "text.counter" }>,
+): AnimatableProperty<string> {
+  const start = context.entry.startFrame;
+  const duration = Math.max(1, context.entry.durationFrames);
+  const steps = Math.min(60, duration);
+  const decimals = counterDecimals(source.from, source.to);
+  const keyframes: Keyframe<string>[] = [];
+  for (let index = 0; index <= steps; index += 1) {
+    const progress = index / steps;
+    const frame = start + Math.round(duration * progress);
+    const value = source.from + (source.to - source.from) * progress;
+    keyframes.push(
+      keyframe(context.ids("kf"), frame, counterText(source.label, value, decimals), {
+        kind: "linear",
+      }),
+    );
+  }
+  return animatable(counterText(source.label, source.from, decimals), keyframes);
+}
+
+function counterDecimals(from: number, to: number): number {
+  return Number.isInteger(from) && Number.isInteger(to) ? 0 : 2;
+}
+
+function counterText(label: string | undefined, value: number, decimals: number): string {
+  const number =
+    decimals === 0 ? String(Math.round(value)) : String(Number(value.toFixed(decimals)));
+  return label === undefined || label.trim().length === 0 ? number : `${label.trim()} ${number}`;
+}
+
+function transferColorTrack(
+  context: EmitContext,
+  from: string,
+  to: string,
+): AnimatableProperty<string> {
+  const start = context.entry.startFrame;
+  const end = Math.max(start + 1, context.entry.endFrame);
+  return animatable(from, [
+    keyframe(context.ids("kf"), start, from, { kind: "linear" }),
+    keyframe(context.ids("kf"), end, to, easing(context.entry.entry.ease ?? "cinematic")),
+  ]);
+}
+
+function highlightAlphaTrack(
+  context: EmitContext,
+  fade: "in" | "out" | "in-out" | undefined,
+): AnimatableProperty<number> {
+  if (fade === undefined) return animatable(0.35);
+  const start = context.entry.startFrame;
+  const end = Math.max(start + 1, context.entry.endFrame);
+  if (fade === "in") {
+    return animatable(0.35, [
+      keyframe(context.ids("kf"), start, 0, { kind: "linear" }),
+      keyframe(context.ids("kf"), end, 0.35, easing(context.entry.entry.ease ?? "cinematic")),
+    ]);
+  }
+  if (fade === "out") {
+    return animatable(0.35, [
+      keyframe(context.ids("kf"), start, 0.35, { kind: "linear" }),
+      keyframe(context.ids("kf"), end, 0, easing(context.entry.entry.ease ?? "cinematic")),
+    ]);
+  }
+  if (end - start < 2) return animatable(0.35);
+  const middle = start + Math.floor((end - start) / 2);
+  return animatable(0.35, [
+    keyframe(context.ids("kf"), start, 0, { kind: "linear" }),
+    keyframe(context.ids("kf"), middle, 0.35, easing(context.entry.entry.ease ?? "cinematic")),
+    keyframe(context.ids("kf"), end, 0, easing(context.entry.entry.ease ?? "cinematic")),
+  ]);
+}
+
+function textProps(text: string, font = "Inter", size = 30): Record<string, unknown> {
   return {
     text: animatable(text),
     fontFamily: animatable(font),
     fontSize: animatable(size),
     fontWeight: animatable(size >= 60 ? 700 : 600),
     color: animatable("#ffffffff"),
-    align: animatable(options.align ?? "center"),
+    align: animatable("center"),
     lineHeight: animatable(1.2),
     tracking: animatable(0),
     halo: animatable("#0b1118e6"),
     haloWidth: animatable(2),
-    maxWidth: animatable(options.maxWidth ?? 0),
+    maxWidth: animatable(0),
   };
 }
 
@@ -1120,9 +1119,9 @@ function screenPosition(
   height: number,
 ): [number, number] {
   const horizontal = position?.includes("left")
-    ? width * 0.26
+    ? width * 0.2
     : position?.includes("right")
-      ? width * 0.74
+      ? width * 0.8
       : width * 0.5;
   const vertical = position?.includes("top")
     ? height * 0.16
@@ -1140,31 +1139,15 @@ function centerOf(points: readonly LngLat[]): LngLat {
   return [sum[0] / points.length, sum[1] / points.length];
 }
 
-function frameZoom(
-  points: readonly LngLat[],
-  padding: number,
-  width: number,
-  height: number,
-): number {
+function frameZoom(points: readonly LngLat[], padding: number): number {
   const longitudes = points.map((point) => point[0]);
-  const mercatorLatitudes = points.map((point) => mercatorY(point[1]));
-  const usable = Math.max(0.05, 1 - Math.min(0.9, Math.max(0, padding)) * 2);
-  const longitudeSpan = Math.max(
-    0.000_001,
-    (Math.max(...longitudes) - Math.min(...longitudes)) / 360,
+  const latitudes = points.map((point) => point[1]);
+  const span = Math.max(
+    Math.max(...longitudes) - Math.min(...longitudes),
+    Math.max(...latitudes) - Math.min(...latitudes),
+    0.01,
   );
-  const latitudeSpan = Math.max(
-    0.000_001,
-    Math.max(...mercatorLatitudes) - Math.min(...mercatorLatitudes),
-  );
-  const horizontalZoom = Math.log2((Math.max(1, width) * usable) / (512 * longitudeSpan));
-  const verticalZoom = Math.log2((Math.max(1, height) * usable) / (512 * latitudeSpan));
-  return Math.max(0, Math.min(18, Math.min(horizontalZoom, verticalZoom)));
-}
-
-function mercatorY(latitude: number): number {
-  const radians = (Math.max(-85.051_129, Math.min(85.051_129, latitude)) * Math.PI) / 180;
-  return (1 - Math.log(Math.tan(radians) + 1 / Math.cos(radians)) / Math.PI) / 2;
+  return Math.max(0, Math.min(18, Math.log2(360 / span) - 1 - padding * 2));
 }
 
 function polylineDegrees(points: readonly (readonly [number, number])[]): number {

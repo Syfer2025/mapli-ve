@@ -1,9 +1,5 @@
 import { err, ok, type Result } from "@theatrum/core-utils";
-import {
-  parsePluginManifest,
-  type ManifestDiagnostic,
-  type PluginManifest,
-} from "./manifest.js";
+import { parsePluginManifest, type ManifestDiagnostic, type PluginManifest } from "./manifest.js";
 
 export interface PluginFileSystem {
   listDirectories(directory: string): Promise<readonly string[]>;

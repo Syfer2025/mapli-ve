@@ -45,6 +45,53 @@ export interface AppProcessMetric {
   readonly privateBytesKb: number;
 }
 
+/** Manifesto serializável de um plugin local já validado pelo processo main. */
+export interface LocalPluginManifest {
+  readonly id: string;
+  readonly name: string;
+  readonly version: string;
+  readonly apiVersion: 1;
+  readonly entry: string;
+  readonly description?: string;
+  readonly contributes: Readonly<
+    Partial<
+      Record<
+        | "nodeTypes"
+        | "effects"
+        | "actions"
+        | "verbs"
+        | "exporters"
+        | "panels"
+        | "mapStyles"
+        | "commands",
+        readonly string[]
+      >
+    >
+  >;
+}
+
+export interface LocalPluginInfo {
+  /** Nome da pasta sob `userData/plugins`; não é uma capacidade de leitura. */
+  readonly directory: string;
+  readonly manifest: LocalPluginManifest;
+}
+
+export interface LocalPluginDiagnostic {
+  readonly directory: string;
+  readonly message: string;
+  readonly details?: readonly { readonly path: string; readonly message: string }[];
+}
+
+export interface LocalPluginScanResult {
+  readonly root: string;
+  readonly plugins: readonly LocalPluginInfo[];
+  readonly diagnostics: readonly LocalPluginDiagnostic[];
+}
+
+export type LocalPluginModuleResult =
+  | { readonly ok: true; readonly plugin: LocalPluginInfo; readonly source: string }
+  | { readonly ok: false; readonly message: string };
+
 /** Referência opaca a um arquivo escolhido pelo usuário no processo main. */
 export interface ProjectFileReference {
   /**
@@ -153,6 +200,15 @@ export interface TheatrumBridge {
     readonly load: () => Promise<ShortcutPreferences | null>;
     readonly save: (preferences: ShortcutPreferences) => Promise<void>;
     readonly reset: () => Promise<void>;
+  };
+  readonly plugins: {
+    /** Reescaneia `userData/plugins` e devolve somente manifestos validados. */
+    readonly scan: () => Promise<LocalPluginScanResult>;
+    /**
+     * Lê a entrada de um ID descoberto. O main repete contenção por `realpath`;
+     * o renderer nunca envia caminhos.
+     */
+    readonly module: (pluginId: string) => Promise<LocalPluginModuleResult>;
   };
   readonly project: {
     readonly open: () => Promise<ProjectOpenResult>;
@@ -341,6 +397,8 @@ export interface IpcContracts {
   "preferences:load": { request: void; response: ShortcutPreferences | null };
   "preferences:save": { request: ShortcutPreferences; response: void };
   "preferences:reset": { request: void; response: void };
+  "plugins:scan": { request: void; response: LocalPluginScanResult };
+  "plugins:module": { request: string; response: LocalPluginModuleResult };
   "project:open": { request: void; response: ProjectOpenResult };
   "project:examples": { request: void; response: readonly ProjectExampleInfo[] };
   "project:open-example": { request: string; response: ProjectOpenResult };
@@ -378,6 +436,8 @@ export const IPC_CHANNELS = [
   "preferences:load",
   "preferences:save",
   "preferences:reset",
+  "plugins:scan",
+  "plugins:module",
   "project:open",
   "project:examples",
   "project:open-example",

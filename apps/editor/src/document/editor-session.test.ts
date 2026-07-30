@@ -244,6 +244,55 @@ describe("compatibilidade de propriedades opcionais na sessão", () => {
     );
   });
 
+  it("aplica preset de cena inteiro em uma única entrada reversível", async () => {
+    vi.resetModules();
+    const session = await import("./editor-session.js");
+    const before = structuredClone(session.getEditorSessionSnapshot().document);
+    session.commandBus.history.clear();
+
+    expect(
+      session.editorActions.applyScenePreset({
+        name: "Hormuz",
+        mapStyle: "detail:iran-hormuz",
+        palette: {
+          id: "hormuz",
+          name: "Hormuz",
+          colors: { ocean: "#163647", route: "#d49a58" },
+        },
+        camera: {
+          center: [56.3, 26.5],
+          zoom: 7.2,
+          bearing: -18,
+          pitch: 42,
+        },
+      }),
+    ).toBe(true);
+
+    const changed = session.getEditorSessionSnapshot().document;
+    expect(changed.palettes).toContainEqual(expect.objectContaining({ id: "hormuz" }));
+    expect(changed.compositions[0]).toMatchObject({
+      map: { styleId: "detail:iran-hormuz" },
+      camera: {
+        center: { value: [56.3, 26.5] },
+        zoom: { value: 7.2 },
+        bearing: { value: -18 },
+        pitch: { value: 42 },
+      },
+    });
+    expect(session.commandBus.history.entries()).toHaveLength(1);
+    expect(session.commandBus.history.entries()[0]?.commandTypes).toEqual([
+      "palette.add",
+      "composition.set-map",
+      "property.set",
+      "property.set",
+      "property.set",
+      "property.set",
+    ]);
+
+    session.editorActions.undo();
+    expect(session.getEditorSessionSnapshot().document).toEqual(before);
+  });
+
   it("persiste áudio de referência pelo Command Bus com undo", async () => {
     vi.resetModules();
     const session = await import("./editor-session.js");

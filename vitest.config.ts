@@ -8,6 +8,7 @@ export default defineConfig({
     alias: {
       "@theatrum/animation": resolve(root, "packages/animation/src/index.ts"),
       "@theatrum/document": resolve(root, "packages/document/src/index.ts"),
+      "@theatrum/engine": resolve(root, "packages/engine/src/index.ts"),
       "@theatrum/scene-graph": resolve(root, "packages/scene-graph/src/index.ts"),
       "@theatrum/schema": resolve(root, "packages/schema/src/index.ts"),
     },

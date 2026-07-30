@@ -112,6 +112,7 @@ describe("render queue controller", () => {
           totalFrames: number;
           lastFilename: string;
           complete: boolean;
+          hashes: readonly { filename: string; sha256: string }[];
         }) => void | Promise<void>;
       };
       typed.onOutputPrepared?.({
@@ -123,6 +124,10 @@ describe("render queue controller", () => {
         totalFrames: 600,
         lastFilename: "frame_0299.png",
         complete: false,
+        hashes: Array.from({ length: 300 }, (_, index) => ({
+          filename: `frame_${String(index).padStart(4, "0")}.png`,
+          sha256: index.toString(16).padStart(64, "0"),
+        })),
       });
       mocked.state.status = "done";
     });

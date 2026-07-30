@@ -235,29 +235,25 @@ describe("surfaceMatches", () => {
   it("exige textura, renderbuffer, viewport e buffer preservado para 8K", () => {
     const alvo: SurfaceOverride = { width: 1920, height: 1080, pixelRatio: 4 };
     expect(surfaceMatches(alvo, gpuSurface(7680, 4320))).toBe(true);
-    expect(
-      surfaceMatches(alvo, gpuSurface(7680, 4320, { maxTextureSize: 4096 })),
-    ).toBe(false);
-    expect(
-      surfaceMatches(alvo, gpuSurface(7680, 4320, { maxRenderbufferSize: 4096 })),
-    ).toBe(false);
-    expect(
-      surfaceMatches(alvo, gpuSurface(7680, 4320, { maxViewport: [4096, 4096] })),
-    ).toBe(false);
-    expect(
-      surfaceMatches(alvo, gpuSurface(7680, 4320, { preserveDrawingBuffer: false })),
-    ).toBe(false);
+    expect(surfaceMatches(alvo, gpuSurface(7680, 4320, { maxTextureSize: 4096 }))).toBe(false);
+    expect(surfaceMatches(alvo, gpuSurface(7680, 4320, { maxRenderbufferSize: 4096 }))).toBe(false);
+    expect(surfaceMatches(alvo, gpuSurface(7680, 4320, { maxViewport: [4096, 4096] }))).toBe(false);
+    expect(surfaceMatches(alvo, gpuSurface(7680, 4320, { preserveDrawingBuffer: false }))).toBe(
+      false,
+    );
+    expect(surfaceMatches(alvo, gpuSurface(7680, 4320, { drawingBuffer: [4096, 2304] }))).toBe(
+      false,
+    );
   });
 
   it("recusa canvas real sem contexto WebGL em vez de confiar só nas dimensões", () => {
     const alvo: SurfaceOverride = { width: 1920, height: 1080, pixelRatio: 4 };
-    expect(
-      surfaceMatches(alvo, {
-        width: 7680,
-        height: 4320,
-        getContext: () => null,
-      }),
-    ).toBe(false);
+    const canvas = {
+      width: 7680,
+      height: 4320,
+      getContext: () => null,
+    };
+    expect(surfaceMatches(alvo, canvas)).toBe(false);
   });
 
   it("a escala multiplica o tamanho de CSS", () => {
@@ -272,6 +268,7 @@ interface FakeGpuOptions {
   readonly maxTextureSize?: number;
   readonly maxRenderbufferSize?: number;
   readonly maxViewport?: readonly [number, number];
+  readonly drawingBuffer?: readonly [number, number];
 }
 
 function gpuSurface(width: number, height: number, options: FakeGpuOptions = {}) {
@@ -282,6 +279,8 @@ function gpuSurface(width: number, height: number, options: FakeGpuOptions = {})
   };
   const context = {
     ...constants,
+    drawingBufferWidth: options.drawingBuffer?.[0] ?? width,
+    drawingBufferHeight: options.drawingBuffer?.[1] ?? height,
     isContextLost: () => options.contextLost ?? false,
     getContextAttributes: () => ({
       preserveDrawingBuffer: options.preserveDrawingBuffer ?? true,

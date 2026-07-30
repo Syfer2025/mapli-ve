@@ -16,6 +16,13 @@ import {
 
 const DOCUMENT_FINGERPRINT = "0123456789abcdef";
 
+function checkpointHashes(count: number): readonly { filename: string; sha256: string }[] {
+  return Array.from({ length: count }, (_, index) => ({
+    filename: `frame_${String(index).padStart(4, "0")}.png`,
+    sha256: index.toString(16).padStart(64, "0"),
+  }));
+}
+
 function memoryStorage(): RenderQueueStorage & { readonly values: Map<string, string> } {
   const values = new Map<string, string>();
   return {
@@ -83,6 +90,7 @@ describe("render queue store", () => {
       totalFrames: 5400,
       directory: "D:\\renders\\hormuz",
       framesDirectory: "D:\\renders\\hormuz\\.theatrum-frames-abc",
+      hashes: checkpointHashes(600),
     });
 
     resetRenderQueueForTest(storage);
@@ -163,6 +171,7 @@ describe("render queue store", () => {
         completedFrames: 11,
         totalFrames: 10,
         directory: "D:\\render",
+        hashes: checkpointHashes(11),
       }),
     ).toThrow("checkpoint");
   });
@@ -188,6 +197,7 @@ describe("render queue store", () => {
         completedFrames: 300,
         totalFrames: 600,
         directory: "D:\\render",
+        hashes: checkpointHashes(300),
       }),
     ).toThrow("perfil somente leitura");
   });

@@ -3,6 +3,7 @@ import type { ScenePlace, SceneScript, SceneTimelineEntry, SceneUnit } from "@th
 import type { ResolvedTimelineEntry, SceneDiagnostic } from "./contracts.js";
 import { diagnostic, pointer, suggest } from "./diagnostics.js";
 import { ScenePlaceResolver } from "./places.js";
+import { sceneVerbRegistry } from "./registry.js";
 import { parseAbsoluteSceneTime, resolveTimelineTimes, type SceneTimeContext } from "./time.js";
 
 export interface ResolvedSceneModel {
@@ -36,6 +37,7 @@ export async function resolveSceneSemantics(
     return null;
   }
   const timeContext = { fps: scene.meta.fps, durationFrames };
+  validateRuntimeSupport(scene, diagnostics);
   const placeResolver = new ScenePlaceResolver(scene, gazetteer, diagnostics);
   await placeResolver.resolveDeclarations();
 
@@ -85,6 +87,96 @@ export async function resolveSceneSemantics(
     namedPlaces: placeResolver.named(),
     paths,
     coordinates,
+  });
+}
+
+const RUNTIME_GEO_ID_PATTERN = /^(?:c|s|r|roads):[^:]+$/;
+
+function validateRuntimeSupport(scene: SceneScript, diagnostics: SceneDiagnostic[]): void {
+  if (scene.map?.projection !== undefined && scene.map.projection !== "mercator") {
+    diagnostics.push(
+      diagnostic(
+        "error",
+        "unsupported-feature",
+        "/map/projection",
+        `a projeção "${scene.map.projection}" não é executada pelo viewport desta versão`,
+        { hint: 'use "mercator" ou omita map.projection' },
+      ),
+    );
+  }
+  if (scene.map?.terrain?.enabled === true) {
+    diagnostics.push(
+      diagnostic(
+        "error",
+        "unsupported-feature",
+        "/map/terrain/enabled",
+        "terrain ativo ainda não é executado pelo viewport desta versão",
+        { hint: "omita map.terrain ou use enabled: false" },
+      ),
+    );
+  }
+
+  scene.timeline.forEach((entry, index) => {
+    const base = ["timeline", index] as const;
+    const note = sceneVerbRegistry.get(entry.do)?.implementationNote;
+    if (note !== undefined) {
+      diagnostics.push(
+        diagnostic("warning", "unsupported-feature", pointer(base), note, {
+          hint: "revise o resultado emitido antes de exportar",
+        }),
+      );
+    }
+
+    const geoId =
+      entry.do === "area.highlight" || entry.do === "area.transfer"
+        ? entry.region
+        : entry.do === "border.show"
+          ? entry.dataset
+          : entry.do === "encircle"
+            ? entry.region
+            : undefined;
+    const geoField = entry.do === "border.show" ? "dataset" : "region";
+    if (geoId !== undefined && !RUNTIME_GEO_ID_PATTERN.test(geoId)) {
+      diagnostics.push(
+        diagnostic(
+          "error",
+          "unsupported-feature",
+          pointer([...base, geoField]),
+          `geoId "${geoId}" não usa um prefixo executável`,
+          { hint: "use c:..., s:..., r:... ou roads:..." },
+        ),
+      );
+    }
+
+    const unsupportedOption =
+      entry.do === "unit.spawn" && entry.fade !== undefined
+        ? (["fade", "o fade personalizado de unit.spawn ainda não é emitido"] as const)
+        : entry.do === "unit.destroy" && entry.explosion === true
+          ? (["explosion", "a explosão de unit.destroy ainda não é emitida"] as const)
+          : entry.do === "missile.launch" && entry.trail === true
+            ? (["trail", "a trilha de missile.launch ainda não é emitida"] as const)
+            : entry.do === "supply.line" && entry.flow === true
+              ? (["flow", "o fluxo animado de supply.line ainda não é emitido"] as const)
+              : entry.do === "text.title" && entry.reveal !== undefined
+                ? (["reveal", "o modo reveal de text.title ainda não é emitido"] as const)
+                : entry.do === "text.callout" && entry.leader === true
+                  ? (["leader", "a linha leader de text.callout ainda não é emitida"] as const)
+                  : entry.do === "label.place" && entry.style !== undefined
+                    ? (["style", "o style de label.place ainda não é emitido"] as const)
+                    : entry.do === "arrow.draw" && entry.style !== undefined
+                      ? (["style", "o style de arrow.draw ainda não é emitido"] as const)
+                      : undefined;
+    if (unsupportedOption !== undefined) {
+      diagnostics.push(
+        diagnostic(
+          "warning",
+          "unsupported-feature",
+          pointer([...base, unsupportedOption[0]]),
+          unsupportedOption[1],
+          { hint: "remova a opção ou revise o resultado emitido" },
+        ),
+      );
+    }
   });
 }
 

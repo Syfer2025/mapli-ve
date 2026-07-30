@@ -26,6 +26,7 @@ import { bridge } from "../bridge/index.js";
 import { editorActions, getEditorSessionSnapshot } from "../document/editor-session.js";
 import { cacheRenderedPreviewFrame } from "../preview/preview-cache-session.js";
 import { FrameComposer, type ComposedFrame } from "./frame-composer.js";
+import { mapBusyForExport, mapExportBlockReason } from "./map-export-readiness.js";
 import {
   runExport,
   type ExportHost,
@@ -38,6 +39,7 @@ import {
 import { runWithSurfaceOverride } from "./surface-override.js";
 import {
   createVideoEncodeSession,
+  incompleteVideoReason,
   isVideoEncodingSupported,
   type VideoEncodeSession,
 } from "./video-encoder.js";
@@ -315,6 +317,16 @@ async function renderPngFrames(
   if (!temporal.ok) {
     return { result: { ok: false, directory: "", message: temporal.message } };
   }
+  const initialMapBlock = config.alpha ? null : mapExportBlockReason(options.map);
+  if (initialMapBlock !== null) {
+    return {
+      result: {
+        ok: false,
+        directory: "",
+        message: `export recusado porque o mapa não está íntegro: ${initialMapBlock}`,
+      },
+    };
+  }
 
   editorActions.pause();
 
@@ -391,9 +403,7 @@ async function renderPngFrames(
     // `isMoving` cobre animação de câmera; `areTilesLoaded` cobre o que ainda
     // está vindo do disco. Capturar com tile pendente grava o mapa pela
     // metade, e qual metade depende da velocidade do disco.
-    mapBusy: () =>
-      options.map !== undefined &&
-      (options.map.isMoving() || !options.map.isStyleLoaded() || !options.map.areTilesLoaded()),
+    mapBusy: () => !config.alpha && mapBusyForExport(options.map),
     // GLB em parse tem orçamento próprio no pump: pode legitimamente levar
     // mais que os 4 s do mapa sem autorizar tile/câmera presos por 30 s.
     assetsBusy: () => options.probe().pendingAssets > 0,
@@ -402,6 +412,14 @@ async function renderPngFrames(
     surfacesBusy: () => composer.surfacesResizing(),
     compose: () => composer.compose(),
     writeFrame: async (filename, frame) => {
+      const mapBlock = config.alpha ? null : mapExportBlockReason(options.map);
+      if (mapBlock !== null) {
+        return {
+          ok: false,
+          sha256: "",
+          message: `recurso do mapa falhou antes da escrita: ${mapBlock}`,
+        };
+      }
       const result = await bridge.export.frame({
         directory: framesDirectory,
         filename,
@@ -472,11 +490,21 @@ async function renderPngFrames(
       },
       { shouldAbort },
     );
+    const finalMapBlock = config.alpha ? null : mapExportBlockReason(options.map);
     return {
       result: {
-        ok: report.errors.length === 0 && report.settleFailed === 0 && !report.aborted,
+        ok:
+          report.errors.length === 0 &&
+          report.settleFailed === 0 &&
+          !report.aborted &&
+          finalMapBlock === null,
         directory: begin.directory,
         report,
+        ...(finalMapBlock === null
+          ? {}
+          : {
+              message: `export recusado porque o mapa não está íntegro: ${finalMapBlock}`,
+            }),
         resolution: planned.resolution,
         boxReducedFrames: composer.boxReducedFrames,
       },
@@ -590,6 +618,14 @@ export async function startVideoExport(options: StartExportOptions): Promise<Sta
   if (!planned.ok) return { ok: false, directory: "", message: planned.message };
   const temporal = planMotionFor(options.motionBlur);
   if (!temporal.ok) return { ok: false, directory: "", message: temporal.message };
+  const initialMapBlock = mapExportBlockReason(options.map);
+  if (initialMapBlock !== null) {
+    return {
+      ok: false,
+      directory: "",
+      message: `export recusado porque o mapa não está íntegro: ${initialMapBlock}`,
+    };
+  }
 
   editorActions.pause();
 
@@ -648,15 +684,21 @@ export async function startVideoExport(options: StartExportOptions): Promise<Sta
     },
     observe: options.probe,
     // Mesma trinca do caminho PNG acima: câmera, tiles e GLB pendente.
-    mapBusy: () =>
-      options.map !== undefined &&
-      (options.map.isMoving() || !options.map.isStyleLoaded() || !options.map.areTilesLoaded()),
+    mapBusy: () => mapBusyForExport(options.map),
     assetsBusy: () => options.probe().pendingAssets > 0,
     // Superfície ainda a caminho do tamanho do frame conta como ocupada:
     // capturar aqui esticaria o overlay dentro do frame planejado.
     surfacesBusy: () => composer.surfacesResizing(),
     compose: () => composer.compose(),
     writeFrame: async (_name, frame: ComposedFrame) => {
+      const mapBlock = mapExportBlockReason(options.map);
+      if (mapBlock !== null) {
+        return {
+          ok: false,
+          sha256: "",
+          message: `recurso do mapa falhou antes da codificação: ${mapBlock}`,
+        };
+      }
       if (encoder.current === null) {
         encoder.current = createVideoEncodeSession({
           width: frame.width,
@@ -731,6 +773,19 @@ export async function startVideoExport(options: StartExportOptions): Promise<Sta
       { shouldAbort },
     );
 
+    const finalMapBlock = mapExportBlockReason(options.map);
+    if (finalMapBlock !== null) {
+      await encoder.current?.abort();
+      const cleanupMessage = await discardTemporary();
+      return {
+        ok: false,
+        directory: begin.directory,
+        report,
+        message: `export recusado porque o mapa não está íntegro: ${finalMapBlock}. ${cleanupMessage}`,
+        resolution: planned.resolution,
+        boxReducedFrames: composer.boxReducedFrames,
+      };
+    }
     const reportIsClean =
       report.errors.length === 0 &&
       report.settleFailed === 0 &&
@@ -764,13 +819,14 @@ export async function startVideoExport(options: StartExportOptions): Promise<Sta
     }
     options.onPhase?.("finalizing");
     const done = await encoder.current.finish();
-    if (done.frames === 0) {
+    const incompleteReason = incompleteVideoReason(done, encoded);
+    if (incompleteReason !== null) {
       const cleanupMessage = await discardTemporary();
       return {
         ok: false,
         directory: begin.directory,
         report,
-        message: `o codificador não produziu frames. ${cleanupMessage}`,
+        message: `${incompleteReason}. ${cleanupMessage}`,
         resolution: planned.resolution,
         boxReducedFrames: composer.boxReducedFrames,
       };

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { createBuiltinEffectRegistry } from "@theatrum/effects";
 import type {
   EffectPresetDefinition,
   FlagDefinition,
@@ -18,8 +17,9 @@ import {
 } from "../../assets/bundled-content.js";
 import { editorActions, nodeTypeRegistry } from "../../document/editor-session.js";
 import { useEditorSession } from "../../document/useEditorSession.js";
+import { editorEffectRegistry } from "../../plugins/editor-plugin-runtime.js";
 
-const EFFECTS = createBuiltinEffectRegistry();
+const EFFECTS = editorEffectRegistry;
 
 export function BundledContentSection({ query }: { readonly query: string }): ReactNode {
   const session = useEditorSession();
@@ -166,6 +166,30 @@ function BundledContentGroups({
     );
   };
 
+  const applyScene = (preset: ScenePresetDefinition): void => {
+    const palette = catalog.palettes.find(({ id }) => id === preset.palette);
+    if (palette === undefined) {
+      setStatus(`A paleta "${preset.palette}" não está disponível.`);
+      return;
+    }
+    const ok = editorActions.applyScenePreset({
+      name: preset.name,
+      mapStyle: preset.mapStyle,
+      palette: paletteToProjectPalette(palette),
+      camera: {
+        center: [preset.camera.center[0], preset.camera.center[1]],
+        zoom: preset.camera.zoom,
+        pitch: preset.camera.pitch,
+        bearing: preset.camera.bearing,
+      },
+    });
+    setStatus(
+      ok
+        ? `${preset.name} aplicado; mapa, câmera e paleta podem ser desfeitos juntos.`
+        : `Não foi possível aplicar ${preset.name}.`,
+    );
+  };
+
   const applyEffect = (preset: EffectPresetDefinition): void => {
     if (targetIssue !== null || selectedNodeId === null) {
       setStatus(targetIssue ?? "Selecione um objeto visual.");
@@ -296,11 +320,11 @@ function BundledContentGroups({
       {visible.scenes.length === 0 ? null : (
         <ContentGroup title="Presets de cena" count={visible.scenes.length}>
           <p className="library__content-hint">
-            Metadados disponíveis; aplicação integral aguarda um comando transacional de cena.
+            Aplica mapa, câmera e paleta em um único comando reversível.
           </p>
           <ul className="library__scene-presets" role="list">
             {visible.scenes.map((preset) => (
-              <ScenePresetCard preset={preset} key={preset.id} />
+              <ScenePresetCard preset={preset} onApply={() => applyScene(preset)} key={preset.id} />
             ))}
           </ul>
         </ContentGroup>
@@ -328,14 +352,22 @@ function ContentGroup({
   );
 }
 
-function ScenePresetCard({ preset }: { readonly preset: ScenePresetDefinition }): ReactNode {
+function ScenePresetCard({
+  preset,
+  onApply,
+}: {
+  readonly preset: ScenePresetDefinition;
+  readonly onApply: () => void;
+}): ReactNode {
   const [longitude, latitude] = preset.camera.center;
   return (
     <li>
       <article>
         <span>
           <strong>{preset.name}</strong>
-          <small>Somente leitura</small>
+          <button type="button" onClick={onApply}>
+            Aplicar
+          </button>
         </span>
         <dl>
           <div>

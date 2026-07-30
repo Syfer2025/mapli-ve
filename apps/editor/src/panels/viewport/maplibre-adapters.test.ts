@@ -6,6 +6,7 @@ import {
   type MapLibreLike,
   createMapLibreCameraPort,
   createMapLibreProjectorPort,
+  isUserInitiatedMapMove,
 } from "./maplibre-adapters.js";
 
 class FakeMapLibre implements MapLibreLike {
@@ -185,6 +186,14 @@ describe("createMapLibreProjectorPort", () => {
     map.canvas = { clientWidth: 0, clientHeight: 1080 };
     const projector = createMapLibreProjectorPort(map);
     expect(() => projector.snapshot()).toThrow(RangeError);
+  });
+});
+
+describe("map camera event origin", () => {
+  it("só classifica como autoria quando o MapLibre preserva o evento da interface", () => {
+    expect(isUserInitiatedMapMove({ originalEvent: { type: "pointerdown" } })).toBe(true);
+    expect(isUserInitiatedMapMove({})).toBe(false);
+    expect(isUserInitiatedMapMove({ originalEvent: undefined })).toBe(false);
   });
 });
 

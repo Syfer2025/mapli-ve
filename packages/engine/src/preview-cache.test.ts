@@ -88,6 +88,15 @@ describe("cache de preview em RAM", () => {
     expect(cache.setBudgetBytes(3)).toEqual(["a", "b"]);
     expect(cache.stats()).toMatchObject({ budgetBytes: 3, usedBytes: 0, entries: 0 });
   });
+
+  it("recusa payload overbudget antes de tentar copiá-lo", () => {
+    const cache = new RamPreviewCache(4);
+    const oversized = bytesWhoseSliceFails(5);
+    expect(cache.put("grande", oversized)).toMatchObject({
+      stored: false,
+      reason: "over-budget",
+    });
+  });
 });
 
 describe("adaptador de cache em disco", () => {
@@ -173,6 +182,14 @@ describe("adaptador de cache em disco", () => {
     expect(await storage.list()).toEqual([]);
   });
 
+  it("não copia para o adapter de disco um payload já acima do orçamento", async () => {
+    const cache = new PreviewDiskCacheAdapter(new MemoryDiskStorage(), 4);
+    await expect(cache.put("grande", bytesWhoseSliceFails(5))).resolves.toMatchObject({
+      stored: false,
+      reason: "over-budget",
+    });
+  });
+
   it("compõe RAM+disco e aquece o primeiro nível após um hit persistente", async () => {
     const storage = new MemoryDiskStorage();
     const disk = new PreviewDiskCacheAdapter(storage, 32);
@@ -194,6 +211,16 @@ describe("adaptador de cache em disco", () => {
     expect(disk.stats().entries).toBe(0);
   });
 });
+
+function bytesWhoseSliceFails(length: number): Uint8Array {
+  const value = new Uint8Array(length);
+  Object.defineProperty(value, "slice", {
+    value: () => {
+      throw new Error("slice não deveria ser chamado");
+    },
+  });
+  return value;
+}
 
 class MemoryDiskStorage implements PreviewDiskStoragePort {
   readonly #records = new Map<string, PreviewDiskRecord>();

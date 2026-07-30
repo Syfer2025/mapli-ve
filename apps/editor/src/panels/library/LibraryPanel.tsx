@@ -21,7 +21,11 @@ import {
 import type { AssetDescriptor } from "@theatrum/schema";
 import type { UnitCatalog, UnitDefinition } from "@theatrum/plugin-host";
 import { assetThumbnailUrl } from "../../assets/asset-media.js";
-import { bundledUnitSvgUrl, loadBundledUnitCatalog } from "../../assets/bundled-units.js";
+import {
+  bundledUnitSvgUrl,
+  loadBundledUnitCatalog,
+  loadStandaloneBundledUnitSvg,
+} from "../../assets/bundled-units.js";
 import { editorActions } from "../../document/editor-session.js";
 import {
   filterLocalModels,
@@ -205,6 +209,7 @@ function BundledUnitsSection({ query }: { readonly query: string }): ReactNode {
   const [catalog, setCatalog] = useState<UnitCatalog | null | undefined>(undefined);
   const [open, setOpen] = useState(true);
   const [status, setStatus] = useState<string | null>(null);
+  const [busyUnit, setBusyUnit] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -220,31 +225,26 @@ function BundledUnitsSection({ query }: { readonly query: string }): ReactNode {
   const visible = catalog.search(query, { limit: 30 });
   const expanded = open || query.trim().length > 0;
 
-  const addUnit = (unit: UnitDefinition): void => {
-    const type =
-      unit.category === "armor"
-        ? "unit.armor"
-        : unit.category === "infantry"
-          ? "unit.infantry"
-          : "symbol.icon";
-    const nodeId = editorActions.addNodeOfType(type);
+  const addUnit = async (unit: UnitDefinition): Promise<void> => {
+    setBusyUnit(unit.id);
+    setStatus(`Preparando ${unit.name}…`);
+    const svg = await loadStandaloneBundledUnitSvg(unit);
+    if (svg === null) {
+      setBusyUnit(null);
+      setStatus(`Não foi possível ler o símbolo local de ${unit.name}.`);
+      return;
+    }
+    const nodeId = await editorActions.addBundledSvgAsset({
+      name: unit.name,
+      svg,
+      tags: [...new Set(["unidade", unit.era, unit.nation, unit.category, ...unit.tags])],
+    });
+    setBusyUnit(null);
     if (nodeId === null) {
       setStatus("Não foi possível adicionar a unidade à composição atual.");
       return;
     }
-    editorActions.renameNode(nodeId, unit.name);
-    if (type === "symbol.icon") {
-      editorActions.setPropertyValue(
-        nodeId,
-        "props.iconId",
-        unit.category.slice(0, 3).toUpperCase(),
-        false,
-      );
-    } else {
-      editorActions.setPropertyValue(nodeId, "props.callsign", unit.name, false);
-      editorActions.setPropertyValue(nodeId, "props.assetId", `lib:${unit.id}`, false);
-    }
-    setStatus(`${unit.name} adicionada à cena.`);
+    setStatus(`${unit.name} foi incorporada ao projeto e adicionada à cena.`);
   };
 
   return (
@@ -268,7 +268,8 @@ function BundledUnitsSection({ query }: { readonly query: string }): ReactNode {
               <button
                 type="button"
                 title={`${unit.name} · ${unit.nation} · ${unit.serviceFrom}–${unit.serviceTo} · ${unit.app6 ?? "APP-6"}`}
-                onClick={() => addUnit(unit)}
+                disabled={busyUnit !== null}
+                onClick={() => void addUnit(unit)}
               >
                 <svg viewBox="0 0 96 64" aria-hidden>
                   <use href={bundledUnitSvgUrl(unit)} />

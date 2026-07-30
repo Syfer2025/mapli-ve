@@ -12,9 +12,11 @@
   display: flex;
   align-items: center;
   gap: var(--space-5);
+  min-width: 0;
   padding: 0 var(--space-4);
   border-bottom: 1px solid var(--border-subtle);
   background: var(--bg-app);
+  white-space: nowrap;
 }
 
 .app__brand {
@@ -83,7 +85,7 @@
 
 .app__notice {
   position: absolute;
-  z-index: 100;
+  z-index: var(--z-notice);
   top: calc(var(--header-height) + var(--space-4));
   left: 50%;
   display: flex;
@@ -122,7 +124,7 @@
 
 .scene-script {
   position: fixed;
-  z-index: 1000;
+  z-index: var(--z-modal);
   inset: 0;
   display: grid;
   place-items: center;
@@ -312,6 +314,29 @@
 .app__workspace {
   min-height: 0;
   min-width: 0;
+}
+
+@media (max-width: 1180px) {
+  .app__topbar {
+    gap: var(--space-2);
+  }
+
+  .app__phase,
+  .app__document-name {
+    display: none;
+  }
+
+  .app__file-actions {
+    padding-left: var(--space-2);
+  }
+
+  .app__example-select {
+    max-width: 120px;
+  }
+
+  .app__workspace-select {
+    max-width: 110px;
+  }
 }
 
 /*

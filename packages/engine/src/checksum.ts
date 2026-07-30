@@ -20,8 +20,28 @@ export function createByteChecksum(): ByteChecksum {
   return {
     update(bytes): void {
       if (finalDigest !== null) throw new Error("checksum já foi finalizado");
-      for (const byte of bytes) {
-        crc = (crc >>> 8) ^ (CRC32_TABLE[(crc ^ byte) & 0xff] as number);
+      let index = 0;
+      const length = bytes.length;
+      const unrolledEnd = length - (length % 8);
+
+      /*
+       * `for..of` em TypedArray cria um custo desproporcional para frames RGBA
+       * grandes (centenas de milissegundos em 4K no Electron/Node). O caminho
+       * indexado, desenrolado em oito bytes, mantém exatamente o mesmo CRC
+       * incremental e deixa o JIT eliminar verificações repetidas do iterador.
+       */
+      while (index < unrolledEnd) {
+        crc = (crc >>> 8) ^ (CRC32_TABLE[(crc ^ (bytes[index++] as number)) & 0xff] as number);
+        crc = (crc >>> 8) ^ (CRC32_TABLE[(crc ^ (bytes[index++] as number)) & 0xff] as number);
+        crc = (crc >>> 8) ^ (CRC32_TABLE[(crc ^ (bytes[index++] as number)) & 0xff] as number);
+        crc = (crc >>> 8) ^ (CRC32_TABLE[(crc ^ (bytes[index++] as number)) & 0xff] as number);
+        crc = (crc >>> 8) ^ (CRC32_TABLE[(crc ^ (bytes[index++] as number)) & 0xff] as number);
+        crc = (crc >>> 8) ^ (CRC32_TABLE[(crc ^ (bytes[index++] as number)) & 0xff] as number);
+        crc = (crc >>> 8) ^ (CRC32_TABLE[(crc ^ (bytes[index++] as number)) & 0xff] as number);
+        crc = (crc >>> 8) ^ (CRC32_TABLE[(crc ^ (bytes[index++] as number)) & 0xff] as number);
+      }
+      while (index < length) {
+        crc = (crc >>> 8) ^ (CRC32_TABLE[(crc ^ (bytes[index++] as number)) & 0xff] as number);
       }
     },
     digest(): string {

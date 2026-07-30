@@ -117,10 +117,7 @@ export function createUnitCatalog(units: readonly UnitDefinition[]): UnitCatalog
         .filter((token) => /^\d{4}$/.test(token))
         .map((token) => Number(token));
       const textTokens = rawTokens.filter((token) => !/^\d{4}$/.test(token));
-      const expandedTokens = textTokens.map((token) => [
-        token,
-        ...(QUERY_SYNONYMS[token] ?? []),
-      ]);
+      const expandedTokens = textTokens.map((token) => [token, ...(QUERY_SYNONYMS[token] ?? [])]);
       const nationFilter =
         options?.nation === undefined ? undefined : normalizeSearchText(options.nation);
       const limit = Math.max(0, Math.floor(options?.limit ?? 50));
@@ -129,9 +126,7 @@ export function createUnitCatalog(units: readonly UnitDefinition[]): UnitCatalog
       for (const unit of ordered) {
         if (options?.era !== undefined && unit.era !== options.era) continue;
         if (options?.category !== undefined && unit.category !== options.category) continue;
-        const nationText = normalizeSearchText(
-          [unit.nation, ...unit.nationAliases].join(" "),
-        );
+        const nationText = normalizeSearchText([unit.nation, ...unit.nationAliases].join(" "));
         if (nationFilter !== undefined && !nationText.includes(nationFilter)) continue;
         if (yearTokens.some((year) => year < unit.serviceFrom || year > unit.serviceTo)) {
           continue;
@@ -273,10 +268,7 @@ function searchableFields(unit: UnitDefinition): {
   return { ...fields, full: Object.values(fields).join(" ") };
 }
 
-function scoreToken(
-  token: string,
-  fields: ReturnType<typeof searchableFields>,
-): number {
+function scoreToken(token: string, fields: ReturnType<typeof searchableFields>): number {
   if (fields.name.includes(token)) return 12;
   if (fields.aliases.includes(token)) return 11;
   if (fields.nation.includes(token)) return 10;

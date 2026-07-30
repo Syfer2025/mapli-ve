@@ -3,7 +3,7 @@
     {
       "id": "hormuz-blockade",
       "name": "Bloqueio no Estreito de Hormuz",
-      "mapStyle": "satellite-offline",
+      "mapStyle": "detail:iran-hormuz",
       "palette": "hormuz",
       "camera": {
         "center": [

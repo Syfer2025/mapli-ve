@@ -411,7 +411,7 @@ const presetsJson = `${JSON.stringify(
       {
         id: "hormuz-blockade",
         name: "Bloqueio no Estreito de Hormuz",
-        mapStyle: "satellite-offline",
+        mapStyle: "detail:iran-hormuz",
         palette: "hormuz",
         camera: { center: [56.3, 26.5], zoom: 7.2, pitch: 42, bearing: -18 },
       },

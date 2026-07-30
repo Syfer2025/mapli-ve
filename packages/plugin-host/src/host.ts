@@ -30,11 +30,7 @@ export interface PluginModuleLoader<C extends PluginContributionTypes> {
 }
 
 export type PluginErrorCode =
-  | "already-loaded"
-  | "not-loaded"
-  | "load-failed"
-  | "activation-failed"
-  | "unload-failed";
+  "already-loaded" | "not-loaded" | "load-failed" | "activation-failed" | "unload-failed";
 
 export interface PluginError {
   readonly code: PluginErrorCode;
@@ -97,6 +93,7 @@ export function createPluginHost<C extends PluginContributionTypes>(options: {
   readonly logger?: Logger;
 }): PluginHost<C> {
   const loaded = new Map<string, LoadedState>();
+  const loading = new Set<string>();
   const logger = options.logger ?? createLogger("plugins", { level: "silent" });
   let disposed = false;
 
@@ -107,19 +104,27 @@ export function createPluginHost<C extends PluginContributionTypes>(options: {
     if (disposed) {
       return err(pluginError("load-failed", manifest.id, "O host de plugins foi descartado."));
     }
-    if (loaded.has(manifest.id)) {
+    if (loaded.has(manifest.id) || loading.has(manifest.id)) {
       return err(
         pluginError("already-loaded", manifest.id, `O plugin "${manifest.id}" já está carregado.`),
       );
     }
 
+    loading.add(manifest.id);
     const scope = new PluginScope();
-    const before = targetCounts(options.targets);
-    const api = createScopedApi(manifest, options.targets, scope, logger.child(manifest.id));
+    const contributionCounts = emptyContributionCounts();
+    const api = createScopedApi(
+      manifest,
+      options.targets,
+      scope,
+      contributionCounts,
+      logger.child(manifest.id),
+    );
     try {
       const activationDisposable = await module.activate(api);
       if (activationDisposable !== undefined) scope.add(activationDisposable);
     } catch (cause: unknown) {
+      loading.delete(manifest.id);
       try {
         scope.dispose();
       } catch (rollbackCause: unknown) {
@@ -135,13 +140,21 @@ export function createPluginHost<C extends PluginContributionTypes>(options: {
       );
     }
 
-    const after = targetCounts(options.targets);
-    const contributionCounts = Object.freeze(
-      Object.fromEntries(
-        EXTENSION_POINT_NAMES.map((name) => [name, Math.max(0, after[name] - before[name])]),
-      ),
-    ) as Readonly<Record<ExtensionPointName, number>>;
-    const plugin = Object.freeze({ manifest, contributionCounts });
+    if (disposed) {
+      loading.delete(manifest.id);
+      try {
+        scope.dispose();
+      } catch (rollbackCause: unknown) {
+        logger.error("Falha adicional ao reverter ativação.", rollbackCause);
+      }
+      return err(pluginError("load-failed", manifest.id, "O host de plugins foi descartado."));
+    }
+
+    loading.delete(manifest.id);
+    const plugin = Object.freeze({
+      manifest,
+      contributionCounts: Object.freeze({ ...contributionCounts }),
+    });
     loaded.set(manifest.id, { plugin, scope });
     logger.info(`Plugin carregado: ${manifest.id}@${manifest.version}.`);
     return ok(plugin);
@@ -186,7 +199,9 @@ export function createPluginHost<C extends PluginContributionTypes>(options: {
     unload(pluginId: string): Result<void, PluginError> {
       const state = loaded.get(pluginId);
       if (state === undefined) {
-        return err(pluginError("not-loaded", pluginId, `O plugin "${pluginId}" não está carregado.`));
+        return err(
+          pluginError("not-loaded", pluginId, `O plugin "${pluginId}" não está carregado.`),
+        );
       }
       loaded.delete(pluginId);
       try {
@@ -218,12 +233,15 @@ function createScopedApi<C extends PluginContributionTypes>(
   manifest: PluginManifest,
   targets: PluginExtensionTargets<C>,
   scope: PluginScope,
+  contributionCounts: Record<ExtensionPointName, number>,
   logger: Logger,
 ): PluginApi<C> {
   const registrationPoints = Object.fromEntries(
     EXTENSION_POINT_NAMES.map((name) => [
       name,
-      scopedRegistrationPoint(targets[name], scope, manifest.id),
+      scopedRegistrationPoint(targets[name], scope, manifest.id, () => {
+        contributionCounts[name] += 1;
+      }),
     ]),
   ) as PluginRegistrationApi<C>;
   return Object.freeze({ ...registrationPoints, manifest, logger });
@@ -233,23 +251,25 @@ function scopedRegistrationPoint<T>(
   target: RegistrationTarget<T>,
   scope: PluginScope,
   pluginId: string,
+  onRegistered: () => void,
 ): { register(contribution: T): Disposable } {
   return Object.freeze({
     register(contribution: T): Disposable {
       if (!scope.active) {
         throw new Error(`O plugin "${pluginId}" já foi descarregado.`);
       }
-      return scope.add(target.register(contribution));
+      const disposable = scope.add(target.register(contribution));
+      onRegistered();
+      return disposable;
     },
   });
 }
 
-function targetCounts<C extends PluginContributionTypes>(
-  targets: PluginExtensionTargets<C>,
-): Record<ExtensionPointName, number> {
-  return Object.fromEntries(
-    EXTENSION_POINT_NAMES.map((name) => [name, targets[name].size]),
-  ) as Record<ExtensionPointName, number>;
+function emptyContributionCounts(): Record<ExtensionPointName, number> {
+  return Object.fromEntries(EXTENSION_POINT_NAMES.map((name) => [name, 0])) as Record<
+    ExtensionPointName,
+    number
+  >;
 }
 
 function pluginError(

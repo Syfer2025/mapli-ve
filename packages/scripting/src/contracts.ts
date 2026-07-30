@@ -21,6 +21,7 @@ export type SceneDiagnosticCode =
   | "contradictory-overlap"
   | "unused-unit"
   | "unbalanced-group"
+  | "unsupported-feature"
   | "unsupported-export";
 
 export interface SceneDiagnostic {
@@ -69,6 +70,8 @@ export interface SceneVerbDefinition {
   readonly required: readonly string[];
   readonly fields: readonly string[];
   readonly example: Readonly<Record<string, unknown>>;
+  /** Limitação conhecida que o compilador também devolve como warning. */
+  readonly implementationNote?: string;
 }
 
 export interface SceneVerbRegistry {

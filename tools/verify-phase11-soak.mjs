@@ -8,6 +8,12 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import {
+  analyzeActivity,
+  analyzeHeap,
+  analyzeNativeCoverage,
+  summarizeNativeMemory,
+} from "./phase11-soak-analysis.mjs";
 
 const DEBUG_URL = "http://localhost:9222/json/list";
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -40,6 +46,11 @@ await client.request("HeapProfiler.enable");
 const original = await client.evaluate(`(() => {
   const session = window.__theatrumPhase3;
   if (session === undefined) throw new Error("sessão do editor indisponível");
+  const frame = window.__theatrumPhase4;
+  if (frame?.getSnapshot === undefined) throw new Error("contador de renders indisponível");
+  if (window.theatrum?.app?.metrics === undefined) {
+    throw new Error("métricas nativas do Electron indisponíveis");
+  }
   const snapshot = session.getSnapshot();
   session.actions.pause();
   session.actions.setLoop(true);
@@ -59,21 +70,31 @@ const samples = [];
 
 try {
   while (Date.now() <= deadline) {
-    await client.request("HeapProfiler.collectGarbage");
-    const [usage, performanceMetrics, editor] = await Promise.all([
+    const [usage, performanceMetrics, observed] = await Promise.all([
       client.request("Runtime.getHeapUsage"),
       client.request("Performance.getMetrics"),
-      client.evaluate(`(() => {
+      client.evaluate(`(async () => {
         const session = window.__theatrumPhase3;
         if (session === undefined) throw new Error("sessão do editor indisponível");
         const snapshot = session.getSnapshot();
         if (!snapshot.isPlaying) session.actions.play();
-        const frame = window.__theatrumPhase4?.getSnapshot?.();
+        const frameSurface = window.__theatrumPhase4;
+        if (frameSurface?.getSnapshot === undefined) {
+          throw new Error("contador de renders indisponível durante o ensaio");
+        }
+        const frame = frameSurface.getSnapshot();
+        const processMetrics = await window.theatrum?.app?.metrics?.();
+        if (!Array.isArray(processMetrics)) {
+          throw new Error("métricas nativas do Electron indisponíveis durante o ensaio");
+        }
         return {
-          playheadFrame: snapshot.playheadFrame,
-          isPlaying: snapshot.isPlaying,
-          renders: frame?.renders ?? null,
-          evaluatedFrame: frame?.frame ?? null,
+          editor: {
+            playheadFrame: snapshot.playheadFrame,
+            isPlaying: snapshot.isPlaying,
+            renders: frame.renders,
+            evaluatedFrame: frame.frame,
+          },
+          processMetrics,
         };
       })()`),
     ]);
@@ -86,26 +107,32 @@ try {
       typeof usage.embedderHeapUsedSize === "number" ? usage.embedderHeapUsedSize / MEBIBYTE : 0;
     const backingStorageMb =
       typeof usage.backingStorageSize === "number" ? usage.backingStorageSize / MEBIBYTE : 0;
+    const rendererTrackedMemoryMb = usedHeapMb + embedderHeapMb + backingStorageMb;
+    const nativeMemory = summarizeNativeMemory(observed.processMetrics);
     const sample = {
       elapsedMinutes,
       at: new Date().toISOString(),
       usedHeapMb,
       embedderHeapMb,
       backingStorageMb,
-      trackedMemoryMb: usedHeapMb + embedderHeapMb + backingStorageMb,
+      rendererTrackedMemoryMb,
+      nativeMemory,
+      trackedMemoryMb: nativeMemory?.workingSetMb ?? rendererTrackedMemoryMb,
+      memorySource: nativeMemory === null ? "renderer-fallback" : "electron-working-set",
       totalHeapMb: usage.totalSize / MEBIBYTE,
       jsHeapMetricMb:
         typeof metrics.JSHeapUsedSize === "number" ? metrics.JSHeapUsedSize / MEBIBYTE : null,
       nodes: metrics.Nodes ?? null,
       documents: metrics.Documents ?? null,
       frames: metrics.Frames ?? null,
-      editor,
+      editor: observed.editor,
     };
     samples.push(sample);
     console.log(
       `${elapsedMinutes.toFixed(1)} min · rastreado ${sample.trackedMemoryMb.toFixed(1)} MiB ` +
         `(V8 ${sample.usedHeapMb.toFixed(1)}, embedder ${sample.embedderHeapMb.toFixed(1)}, backing ${sample.backingStorageMb.toFixed(1)}) ` +
-        `· frame ${String(editor.playheadFrame)} · renders ${String(editor.renders)}`,
+        `· nativo ${nativeMemory?.workingSetMb.toFixed(1) ?? "indisponível"} MiB ` +
+        `· frame ${String(observed.editor.playheadFrame)} · renders ${String(observed.editor.renders)}`,
     );
 
     const remainingMs = deadline - Date.now();
@@ -118,27 +145,35 @@ try {
   );
   const analysis = analyzeHeap(measured);
   const activity = analyzeActivity(measured);
-  const formal = durationMinutes >= 240 && !smoke;
+  const nativeCoverage = analyzeNativeCoverage(measured);
+  const finishedAt = Date.now();
+  const actualElapsedMinutes = (finishedAt - startedAt) / 60_000;
+  const formal = durationMinutes >= 240 && actualElapsedMinutes >= 240 && !smoke;
   const memoryStable =
     analysis.growthMb <= maxGrowthMb && analysis.slopeMbPerHour <= maxSlopeMbPerHour;
-  const stable = memoryStable && activity.verified;
+  const stable = memoryStable && activity.verified && nativeCoverage.verified;
   const report = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     kind: formal ? "formal-4h" : "instrument-smoke",
     startedAt: new Date(startedAt).toISOString(),
-    finishedAt: new Date().toISOString(),
+    finishedAt: new Date(finishedAt).toISOString(),
     requestedMinutes: durationMinutes,
+    actualElapsedMinutes,
     sampleSeconds,
     warmupMinutes,
     thresholds: { maxGrowthMb, maxSlopeMbPerHour },
     analysis,
     activity,
+    nativeCoverage,
     coverage: {
-      included: ["V8 heap", "embedder heap", "backing storage"],
-      excluded: [
-        "working set nativo dos processos Electron",
-        "alocações da GPU fora do backing storage reportado pelo renderer",
+      included: [
+        "working set de todos os processos Electron reportados por app.getAppMetrics",
+        "private bytes quando disponível na plataforma",
+        "V8 heap",
+        "embedder heap",
+        "backing storage",
       ],
+      excluded: ["memória de processos externos não pertencentes ao aplicativo"],
     },
     memoryStable,
     stable,
@@ -158,6 +193,10 @@ try {
     `${stable ? "ESTÁVEL" : "INSTÁVEL"} · crescimento ${analysis.growthMb.toFixed(1)} MiB · inclinação ${analysis.slopeMbPerHour.toFixed(2)} MiB/h`,
   );
   console.log(
+    `${nativeCoverage.verified ? "MÉTRICAS NATIVAS OK" : "MÉTRICAS NATIVAS INCOMPLETAS"} · ` +
+      `${nativeCoverage.samplesWithNativeMetrics}/${nativeCoverage.samples} amostras`,
+  );
+  console.log(
     `${activity.verified ? "ATIVIDADE OK" : "SEM ATIVIDADE COMPROVADA"} · ` +
       `${activity.distinctPlayheadFrames} playheads · ${activity.distinctEvaluatedFrames} frames avaliados · ` +
       `delta de renders ${String(activity.renderDelta)}`,
@@ -174,6 +213,13 @@ try {
       const session = window.__theatrumPhase3;
       if (session === undefined) return false;
       session.actions.pause();
+      const snapshot = session.getSnapshot();
+      if (
+        ${JSON.stringify(original.compositionId)} !== null &&
+        snapshot.selectedCompositionId !== ${JSON.stringify(original.compositionId)}
+      ) {
+        session.actions.selectComposition(${JSON.stringify(original.compositionId)});
+      }
       session.actions.setLoop(${JSON.stringify(original.loopPlayback)});
       session.actions.setPlayhead(${JSON.stringify(original.playheadFrame)});
       if (${JSON.stringify(original.isPlaying)}) session.actions.play();
@@ -182,74 +228,6 @@ try {
   } finally {
     client.close();
   }
-}
-
-function analyzeHeap(samplesToAnalyze) {
-  if (samplesToAnalyze.length < 2) {
-    throw new Error("o ensaio precisa de ao menos duas amostras após o aquecimento");
-  }
-  const windowSize = Math.min(5, Math.max(1, Math.floor(samplesToAnalyze.length / 4)));
-  const first = median(
-    samplesToAnalyze.slice(0, windowSize).map(({ trackedMemoryMb }) => trackedMemoryMb),
-  );
-  const last = median(
-    samplesToAnalyze.slice(-windowSize).map(({ trackedMemoryMb }) => trackedMemoryMb),
-  );
-  const meanX =
-    samplesToAnalyze.reduce((sum, sample) => sum + sample.elapsedMinutes, 0) /
-    samplesToAnalyze.length;
-  const meanY =
-    samplesToAnalyze.reduce((sum, sample) => sum + sample.trackedMemoryMb, 0) /
-    samplesToAnalyze.length;
-  let numerator = 0;
-  let denominator = 0;
-  for (const sample of samplesToAnalyze) {
-    const x = sample.elapsedMinutes - meanX;
-    numerator += x * (sample.trackedMemoryMb - meanY);
-    denominator += x * x;
-  }
-  const slopeMbPerMinute = denominator === 0 ? 0 : numerator / denominator;
-  return {
-    samples: samplesToAnalyze.length,
-    firstMedianMb: first,
-    lastMedianMb: last,
-    growthMb: last - first,
-    slopeMbPerHour: slopeMbPerMinute * 60,
-    peakMb: Math.max(...samplesToAnalyze.map(({ trackedMemoryMb }) => trackedMemoryMb)),
-  };
-}
-
-function analyzeActivity(samplesToAnalyze) {
-  const playheads = new Set(samplesToAnalyze.map(({ editor }) => editor.playheadFrame));
-  const evaluated = new Set(
-    samplesToAnalyze
-      .map(({ editor }) => editor.evaluatedFrame)
-      .filter((value) => typeof value === "number"),
-  );
-  const renderCounts = samplesToAnalyze
-    .map(({ editor }) => editor.renders)
-    .filter((value) => typeof value === "number");
-  const renderDelta =
-    renderCounts.length < 2 ? 0 : Math.max(...renderCounts) - Math.min(...renderCounts);
-  const playingSamples = samplesToAnalyze.filter(({ editor }) => editor.isPlaying === true).length;
-  const advanced = renderDelta > 0 || playheads.size > 1 || evaluated.size > 1;
-  return {
-    samples: samplesToAnalyze.length,
-    playingSamples,
-    distinctPlayheadFrames: playheads.size,
-    distinctEvaluatedFrames: evaluated.size,
-    renderDelta,
-    verified:
-      samplesToAnalyze.length >= 2 && playingSamples >= samplesToAnalyze.length - 1 && advanced,
-  };
-}
-
-function median(values) {
-  const ordered = [...values].sort((left, right) => left - right);
-  const middle = Math.floor(ordered.length / 2);
-  return ordered.length % 2 === 0
-    ? ((ordered[middle - 1] ?? 0) + (ordered[middle] ?? 0)) / 2
-    : (ordered[middle] ?? 0);
 }
 
 function parseArguments(args) {

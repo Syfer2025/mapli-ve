@@ -12,8 +12,7 @@
     "style": "historical-parchment",
     "projection": "mercator",
     "terrain": {
-      "enabled": true,
-      "exaggeration": 1.2
+      "enabled": false
     }
   },
   "defaults": {
@@ -150,7 +149,7 @@
     {
       "at": "72s",
       "do": "area.highlight",
-      "region": "persian-empire",
+      "region": "c:IRN",
       "faction": "macedon",
       "duration": "8s",
       "fade": "in"

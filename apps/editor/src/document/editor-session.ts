@@ -90,6 +90,13 @@ interface NodeClipboard {
   readonly nodes: Readonly<Record<string, Node>>;
 }
 
+export interface ScenePresetInput {
+  readonly name: string;
+  readonly mapStyle: string;
+  readonly palette: Palette;
+  readonly camera: CameraState;
+}
+
 const EMPTY_CONTAINER_EXTRAS: ContainerExtras = Object.freeze({});
 
 const listeners = new Set<SessionListener>();
@@ -161,38 +168,6 @@ export const editorActions = Object.freeze({
       payload: { document },
       source: "script",
     });
-  },
-
-  /**
-   * Alterações pontuais do Maestro entram como uma transação única.
-   *
-   * O mesmo Command Bus da UI valida cada payload e o histórico desfaz o lote
-   * inteiro de uma vez. O modelo nunca recebe um caminho paralelo para mutação.
-   */
-  applyMaestroCommands(
-    labelInput: string,
-    commands: readonly unknown[],
-  ): { readonly ok: boolean; readonly message: string } {
-    const label = labelInput.trim();
-    if (label.length === 0 || label.length > 120) {
-      return { ok: false, message: "Rótulo do lote inválido." };
-    }
-    if (commands.length === 0 || commands.length > 80) {
-      return { ok: false, message: "O lote precisa conter entre 1 e 80 comandos." };
-    }
-    const result = commandBus.transaction(`Maestro · ${label}`, () => {
-      for (const input of commands) {
-        const command =
-          typeof input === "object" && input !== null ? { ...input, source: "script" } : input;
-        commandBus.dispatch(command);
-      }
-    });
-    if (!result.ok) {
-      update({ error: result.error.message, status: "Ação do Maestro rejeitada" });
-      return { ok: false, message: result.error.message };
-    }
-    update({ error: null, status: `Maestro · ${label}` });
-    return { ok: true, message: `${commands.length} comando(s) aplicado(s).` };
   },
 
   undo(): void {
@@ -373,6 +348,78 @@ export const editorActions = Object.freeze({
         camera.pitch,
         authoredFrame,
       );
+    });
+  },
+
+  /**
+   * Aplica mapa, câmera e paleta como um único gesto reversível.
+   *
+   * A paleta já existente é preservada; a câmera continua respeitando trilhas
+   * animadas, gravando keyframes no playhead quando necessário.
+   */
+  applyScenePreset(preset: ScenePresetInput): boolean {
+    const composition = selectedComposition();
+    if (composition === undefined) return false;
+    const hasPalette = snapshot.document.palettes.some(({ id }) => id === preset.palette.id);
+    const currentCamera = {
+      center: evaluateProperty(composition.camera.center, snapshot.playheadFrame),
+      zoom: evaluateProperty(composition.camera.zoom, snapshot.playheadFrame),
+      bearing: evaluateProperty(composition.camera.bearing, snapshot.playheadFrame),
+      pitch: evaluateProperty(composition.camera.pitch, snapshot.playheadFrame),
+    } satisfies CameraState;
+    const sameStyle = composition.map.styleId === preset.mapStyle;
+    const sameCamera = sameMapCamera(currentCamera, preset.camera);
+    if (hasPalette && sameStyle && sameCamera) return true;
+
+    const authoredFrame = Math.round(snapshot.playheadFrame);
+    return runTransaction(`Aplicar preset ${preset.name}`, () => {
+      if (!hasPalette) {
+        commandBus.dispatch({
+          type: "palette.add",
+          payload: { palette: structuredClone(preset.palette) },
+          source: "user",
+        });
+      }
+      if (!sameStyle) {
+        commandBus.dispatch({
+          type: "composition.set-map",
+          payload: {
+            compositionId: composition.id,
+            map: { ...structuredClone(composition.map), styleId: preset.mapStyle },
+          },
+          source: "user",
+        });
+      }
+      if (!sameCamera) {
+        dispatchCameraProperty(
+          composition.id,
+          "center",
+          composition.camera.center as AnimatableProperty<unknown>,
+          [...preset.camera.center],
+          authoredFrame,
+        );
+        dispatchCameraProperty(
+          composition.id,
+          "zoom",
+          composition.camera.zoom as AnimatableProperty<unknown>,
+          preset.camera.zoom,
+          authoredFrame,
+        );
+        dispatchCameraProperty(
+          composition.id,
+          "bearing",
+          composition.camera.bearing as AnimatableProperty<unknown>,
+          preset.camera.bearing,
+          authoredFrame,
+        );
+        dispatchCameraProperty(
+          composition.id,
+          "pitch",
+          composition.camera.pitch as AnimatableProperty<unknown>,
+          preset.camera.pitch,
+          authoredFrame,
+        );
+      }
     });
   },
 

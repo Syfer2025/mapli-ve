@@ -54,7 +54,11 @@
   --dv-active-sash-transition-duration: var(--transition-fast);
   --dv-active-sash-transition-delay: 0ms;
   --dv-border-radius: var(--radius-sm);
-  --dv-paneview-active-outline-color: var(--accent);
+  /*
+   * O painel ativo já é indicado pela aba. O outline de pane do dockview
+   * contornava todo o viewport e parecia uma borda azul do próprio mapa.
+   */
+  --dv-paneview-active-outline-color: transparent;
   --dv-paneview-header-border-color: var(--border-subtle);
 
   /* ---- Arrastar e soltar painel ---- */

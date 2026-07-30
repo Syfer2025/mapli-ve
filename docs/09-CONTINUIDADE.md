@@ -52,13 +52,6 @@ importação e um único comando reversível. `LLM_AUTHORING.md` é gerado do
 registro. A exportação inversa devolve somente a fonte normalizada preservada e
 avisa quando edições posteriores foram omitidas.
 
-O agente ChatGPT/Codex desta conversa é o **Maestro**. O editor publica a
-superfície local `window.__theatrumMaestro`, acessada por
-`tools/maestro.mjs`: Scene Script cria a cena integral e lotes do Command Bus
-fazem mudanças pontuais. Diagnósticos do compilador voltam ao agente e nenhuma
-tentativa inválida toca o documento. O aplicativo não contém modelo, painel de
-chat ou chave de API.
-
 O `plugin-host` possui manifest, descoberta por porta, registries, host com
 descarte e placeholder de nó desconhecido. O shell/editor ainda não oferece
 loader e gestão de plugins arbitrários. O catálogo empacotado de unidades já

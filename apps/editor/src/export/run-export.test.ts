@@ -25,6 +25,12 @@ import {
 const PLAN = { compositionId: "cmp", durationFrames: 5, compositionFps: 30 };
 const FRAME = { width: 8, height: 4, rgba: new Uint8Array(8 * 4 * 4) };
 
+function shaForFilename(filename: string): string {
+  let value = 0;
+  for (const character of filename) value = (value * 33 + character.charCodeAt(0)) >>> 0;
+  return value.toString(16).padStart(64, "0");
+}
+
 /**
  * Hospedeiro falso que só fica quieto depois de `rendersPorFrame` repinturas —
  * o comportamento de um mapa carregando tiles.
@@ -61,7 +67,7 @@ function host(overrides: Partial<ExportHost> & { rendersPorFrame?: number } = {}
     writeFrame: (filename, frame) => {
       written.push({ filename, width: frame.width, height: frame.height });
       capturedAtRenders.push(renders);
-      return Promise.resolve({ ok: true, sha256: `sha-${filename}` });
+      return Promise.resolve({ ok: true, sha256: shaForFilename(filename) });
     },
   };
   return { host: { ...base, ...overrides }, written, capturedAtRenders };
@@ -80,7 +86,7 @@ describe("runExport", () => {
       "frame_0004.png",
     ]);
     expect(report.hashes.map((entry) => entry.sha256)).toEqual(
-      h.written.map((w) => `sha-${w.filename}`),
+      h.written.map((w) => shaForFilename(w.filename)),
     );
     expect(report.settleFailed).toBe(0);
   });
@@ -248,16 +254,22 @@ describe("runExport", () => {
 
   it("retoma no índice confirmado, preserva nomes e grava checkpoints periódicos", async () => {
     const h = host();
+    const resumedHashes = [
+      { filename: "frame_0000.png", sha256: "0".repeat(64) },
+      { filename: "frame_0001.png", sha256: "1".repeat(64) },
+    ];
     const checkpoints: {
       completedFrames: number;
       totalFrames: number;
       lastFilename: string | null;
       complete: boolean;
+      hashes: readonly { filename: string; sha256: string }[];
     }[] = [];
     const report = await runExport({
       plan: PLAN,
       host: h.host,
       resumeFromOutputIndex: 2,
+      resumeFrameHashes: resumedHashes,
       checkpointEvery: 2,
       onCheckpoint: (checkpoint) => {
         checkpoints.push(checkpoint);
@@ -277,21 +289,32 @@ describe("runExport", () => {
         totalFrames: 5,
         lastFilename: "frame_0003.png",
         complete: false,
+        hashes: [
+          ...resumedHashes,
+          { filename: "frame_0002.png", sha256: shaForFilename("frame_0002.png") },
+          { filename: "frame_0003.png", sha256: shaForFilename("frame_0003.png") },
+        ],
       },
       {
         completedFrames: 5,
         totalFrames: 5,
         lastFilename: "frame_0004.png",
         complete: true,
+        hashes: [
+          ...resumedHashes,
+          { filename: "frame_0002.png", sha256: shaForFilename("frame_0002.png") },
+          { filename: "frame_0003.png", sha256: shaForFilename("frame_0003.png") },
+          { filename: "frame_0004.png", sha256: shaForFilename("frame_0004.png") },
+        ],
       },
     ]);
   });
 
   it("recusa checkpoint fora do plano antes de tocar o host", async () => {
     const h = host();
-    await expect(
-      runExport({ plan: PLAN, host: h.host, resumeFromOutputIndex: 6 }),
-    ).rejects.toThrow("checkpoint inválido");
+    await expect(runExport({ plan: PLAN, host: h.host, resumeFromOutputIndex: 6 })).rejects.toThrow(
+      "checkpoint inválido",
+    );
     expect(h.written).toEqual([]);
   });
 
@@ -311,7 +334,7 @@ describe("runExport", () => {
     expect(h.written).toHaveLength(1);
   });
 
-  it("falha de escrita entra no relatório e não derruba o resto", async () => {
+  it("falha de escrita interrompe imediatamente para não criar lacuna", async () => {
     let n = 0;
     const h = host({
       writeFrame: (filename) => {
@@ -319,14 +342,15 @@ describe("runExport", () => {
         return Promise.resolve(
           n === 2
             ? { ok: false, sha256: "", message: "disco cheio" }
-            : { ok: true, sha256: `sha-${filename}` },
+            : { ok: true, sha256: shaForFilename(filename) },
         );
       },
     });
     const report = await runExport({ plan: { ...PLAN, durationFrames: 3 }, host: h.host });
-    expect(report.written).toBe(2);
+    expect(report.written).toBe(1);
     expect(report.errors).toHaveLength(1);
     expect(report.errors[0]).toContain("disco cheio");
+    expect(n).toBe(2);
   });
 
   it("sem superfície para compor, registra erro em vez de escrever nada", async () => {

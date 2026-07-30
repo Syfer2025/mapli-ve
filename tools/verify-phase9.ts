@@ -1,4 +1,9 @@
-import { compileScene, generateLlmAuthoringMarkdown, sceneVerbRegistry } from "@theatrum/scripting";
+import {
+  compileScene,
+  createLlmAuthoringExampleInput,
+  generateLlmAuthoringMarkdown,
+  sceneVerbRegistry,
+} from "@theatrum/scripting";
 import { readFile } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import { resolve } from "node:path";
@@ -72,12 +77,23 @@ assert(
   sceneVerbRegistry.list().every((verb) => actualAuthoring.includes(`#### \`${verb.name}\``)),
   "guia não contém todos os verbos",
 );
+for (const verb of sceneVerbRegistry.list()) {
+  const compiled = await compileScene(createLlmAuthoringExampleInput(verb), {
+    semanticWarnings: false,
+  });
+  assert(
+    compiled.ok,
+    `exemplo de ${verb.name} é inválido:\n${JSON.stringify(compiled.diagnostics, null, 2)}`,
+  );
+}
 const schemaAuthoring = await readFile(resolve(root, "schemas/LLM_AUTHORING.md"), "utf8");
 assert(
   schemaAuthoring === generateSchemaArtifacts()["LLM_AUTHORING.md"],
   "schemas/LLM_AUTHORING.md está fora de sincronia",
 );
-checks.push(`guias gerados: ${sceneVerbRegistry.list().length} verbos sincronizados`);
+checks.push(
+  `guias gerados: ${sceneVerbRegistry.list().length} verbos sincronizados e exemplos compilados`,
+);
 
 console.log(`Fase 9: ${checks.length}/${checks.length}`);
 for (const check of checks) console.log(`✓ ${check}`);

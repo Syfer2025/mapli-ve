@@ -9,7 +9,6 @@ const VECTOR_STYLE_IDS = new Set<MapStyleId>([
   "dark-relief",
   "historical-parchment",
   "minimal-political",
-  "strategic-war-room",
 ]);
 
 /** Compatibilidade de leitura; projetos novos já gravam o id canônico. */
@@ -124,6 +123,15 @@ export function resolveDocumentMapStyle(
     return unavailable(documentStyleId, `imagem de satélite “${parsed.id}” não encontrada`);
   }
   return unavailable(documentStyleId, `estilo “${documentStyleId}” desconhecido`);
+}
+
+/** Fallback mantém a autoria visível, mas nunca pode se passar pelo mapa exportável. */
+export function documentMapStyleExportBlockReason(
+  resolved: ResolvedDocumentMapStyle,
+): string | null {
+  return resolved.available
+    ? null
+    : `o mapa salvo no projeto está indisponível: ${resolved.reason}`;
 }
 
 export function evaluatedDocumentMapCamera(

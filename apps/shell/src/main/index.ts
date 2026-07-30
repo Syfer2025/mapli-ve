@@ -49,6 +49,7 @@ import {
 } from "./services/export-writer.js";
 import { encodeExportFrames } from "./services/ffmpeg-export.js";
 import { finalizeExportFile } from "./services/export-publication.js";
+import { readLocalPluginModule, scanLocalPlugins } from "./services/plugin-files.js";
 import {
   IPC_CHANNELS,
   MENU_ACTION_CHANNEL,
@@ -127,6 +128,10 @@ function shortcutPreferencesPath(): string {
   return path.join(app.getPath("userData"), SHORTCUT_PREFERENCES_FILE_NAME);
 }
 
+function pluginsRoot(): string {
+  return path.join(app.getPath("userData"), "plugins");
+}
+
 /**
  * Registra os handlers de IPC.
  *
@@ -145,6 +150,9 @@ function registerIpc(): void {
     "preferences:save": (_event: unknown, preferences: ShortcutPreferences) =>
       saveShortcutPreferences(shortcutPreferencesPath(), preferences),
     "preferences:reset": () => resetShortcutPreferences(shortcutPreferencesPath()),
+    "plugins:scan": () => scanLocalPlugins(pluginsRoot()),
+    "plugins:module": (_event: unknown, pluginId: string) =>
+      readLocalPluginModule(pluginsRoot(), pluginId),
     "project:open": () => {
       if (editorWindow === null) throw new Error("A janela do editor não está disponível.");
       return openProjectFile(editorWindow);

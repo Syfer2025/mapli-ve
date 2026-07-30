@@ -3,6 +3,8 @@ import type { UnitDefinition } from "@theatrum/plugin-host";
 import {
   bundledUnitSvgUrl,
   loadBundledUnitCatalog,
+  loadStandaloneBundledUnitSvg,
+  materializeUnitSvg,
   resetBundledUnitCatalogForTest,
 } from "./bundled-units.js";
 
@@ -47,8 +49,31 @@ describe("bundled units", () => {
     );
   });
 
+  it("materializa e carrega o símbolo como SVG autônomo incorporável", async () => {
+    const sprite = `<svg xmlns="http://www.w3.org/2000/svg">
+      <symbol id="wwii.ussr.t34-76" viewBox="0 0 96 64">
+        <title>T-34/76</title><rect x="4" y="8" width="88" height="48"/>
+      </symbol>
+    </svg>`;
+    expect(materializeUnitSvg(sprite, UNIT.id)).toContain("<title>T-34/76</title>");
+    expect(materializeUnitSvg(sprite, "../escape")).toBeNull();
+
+    const fetchMock = vi.fn(() =>
+      Promise.resolve({ ok: true, text: () => Promise.resolve(sprite) }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const svg = await loadStandaloneBundledUnitSvg(UNIT);
+
+    expect(fetchMock).toHaveBeenCalledWith("theatrum-data://local/plugin-content/unit-sprites.svg");
+    expect(svg).toContain('viewBox="0 0 96 64"');
+    expect(svg).not.toContain("<symbol");
+  });
+
   it("trata catálogo ausente como conteúdo opcional", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("ausente"))));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.reject(new Error("ausente"))),
+    );
     await expect(loadBundledUnitCatalog()).resolves.toBeNull();
   });
 });

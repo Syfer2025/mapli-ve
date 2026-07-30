@@ -62,6 +62,24 @@ const fallback: TheatrumBridge = {
       return Promise.resolve();
     },
   },
+  plugins: {
+    scan: () =>
+      Promise.resolve({
+        root: "",
+        plugins: [],
+        diagnostics: [
+          {
+            directory: "",
+            message: "Plugins locais exigem o aplicativo Electron.",
+          },
+        ],
+      }),
+    module: () =>
+      Promise.resolve({
+        ok: false,
+        message: "Plugins locais exigem o aplicativo Electron.",
+      }),
+  },
   project: {
     open: () => Promise.resolve({ status: "cancelled" }),
     examples: () => Promise.resolve([]),

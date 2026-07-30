@@ -513,19 +513,14 @@ export async function runExport(options: ExportOptions): Promise<ExportReport> {
       elapsedMs: performance.now() - startedAt,
     });
     if (
-      (contiguousCompleted % checkpointEvery === 0 ||
-        contiguousCompleted === plan.frames.length) &&
+      (contiguousCompleted % checkpointEvery === 0 || contiguousCompleted === plan.frames.length) &&
       !(await persistCheckpoint(planned.filename, contiguousCompleted === plan.frames.length))
     ) {
       break;
     }
   }
 
-  if (
-    !checkpointFailed &&
-    contiguousCompleted > lastCheckpoint &&
-    (aborted || errors.length > 0)
-  ) {
+  if (!checkpointFailed && contiguousCompleted > lastCheckpoint && (aborted || errors.length > 0)) {
     await persistCheckpoint(
       contiguousCompleted === 0 ? null : (plan.frames[contiguousCompleted - 1]?.filename ?? null),
       false,

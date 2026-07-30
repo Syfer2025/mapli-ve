@@ -94,6 +94,27 @@ describe("persistência de preferências de atalhos", () => {
     expect(await readFile(target, "utf8")).toBe(before);
   });
 
+  it("serializa mutações concorrentes na ordem de chamada e preserva a mais recente", async () => {
+    const target = await temporaryFile();
+    const first = {
+      version: SHORTCUT_PREFERENCES_VERSION,
+      shortcutOverrides: { "history:undo": "Mod+Alt+KeyZ" },
+    } as const;
+    const second = {
+      version: SHORTCUT_PREFERENCES_VERSION,
+      shortcutOverrides: { "history:undo": "Mod+Shift+KeyZ" },
+    } as const;
+
+    await Promise.all([
+      saveShortcutPreferences(target, first),
+      saveShortcutPreferences(target, second),
+    ]);
+    expect(await loadShortcutPreferences(target)).toEqual(second);
+
+    await Promise.all([saveShortcutPreferences(target, first), resetShortcutPreferences(target)]);
+    expect(await loadShortcutPreferences(target)).toBeNull();
+  });
+
   it("exige caminho absoluto", async () => {
     await expect(loadShortcutPreferences("preferences.json")).rejects.toThrow(/absoluto/);
     await expect(resetShortcutPreferences("preferences.json")).rejects.toThrow(/absoluto/);

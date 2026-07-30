@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { discoverPlugins, type PluginFileSystem } from "./discovery.js";
 import {
   createNamedExtensionRegistry,
+  type NamedExtensionRegistry,
   type PluginContributionTypes,
   type PluginExtensionTargets,
 } from "./extensions.js";
@@ -34,10 +35,13 @@ function manifest(id = "com.example.armored"): PluginManifest {
   };
 }
 
-function targets(): PluginExtensionTargets<TestContributions> {
+type TestTargets = Readonly<Record<ExtensionPointName, NamedExtensionRegistry<TestContribution>>> &
+  PluginExtensionTargets<TestContributions>;
+
+function targets(): TestTargets {
   return Object.fromEntries(
     EXTENSION_POINT_NAMES.map((name) => [name, createNamedExtensionRegistry<TestContribution>()]),
-  ) as unknown as PluginExtensionTargets<TestContributions>;
+  ) as unknown as TestTargets;
 }
 
 describe("plugin manifest e descoberta", () => {
@@ -63,6 +67,25 @@ describe("plugin manifest e descoberta", () => {
     if (invalid.ok) throw new Error("fixture inválido");
     expect(invalid.error.map(({ path }) => path)).toEqual(
       expect.arrayContaining(["/id", "/version", "/apiVersion", "/entry", "/contributes/unknown"]),
+    );
+  });
+
+  it("rejeita campos desconhecidos e contribuições duplicadas", () => {
+    const parsed = parsePluginManifest({
+      ...manifest(),
+      typo: true,
+      contributes: {
+        nodeTypes: ["unit.tank-heavy", "unit.tank-heavy"],
+      },
+    });
+
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) throw new Error("fixture inválido");
+    expect(parsed.error).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: "/typo" }),
+        expect.objectContaining({ path: "/contributes/nodeTypes/1" }),
+      ]),
     );
   });
 
@@ -148,6 +171,39 @@ describe("plugin host", () => {
     expect(registries.effects.size).toBe(0);
   });
 
+  it("reserva o ID durante ativação assíncrona e não vaza registros", async () => {
+    const registries = targets();
+    const host = createPluginHost<TestContributions>({ targets: registries });
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    const first = host.loadModule(manifest(), {
+      async activate(api) {
+        api.nodeTypes.register({ id: "plugin.first" });
+        await gate;
+      },
+    });
+    await Promise.resolve();
+    const second = await host.loadModule(manifest(), {
+      activate(api) {
+        api.nodeTypes.register({ id: "plugin.second" });
+      },
+    });
+    release?.();
+    const loaded = await first;
+
+    expect(second).toMatchObject({ ok: false, error: { code: "already-loaded" } });
+    expect(loaded).toMatchObject({
+      ok: true,
+      value: { contributionCounts: { nodeTypes: 1 } },
+    });
+    expect(registries.nodeTypes.list().map(({ id }) => id)).toEqual(["plugin.first"]);
+    expect(host.unload(manifest().id).ok).toBe(true);
+    expect(registries.nodeTypes.size).toBe(0);
+  });
+
   it("não aceita registro tardio depois de descarregar", async () => {
     const registries = targets();
     const host = createPluginHost<TestContributions>({ targets: registries });
@@ -159,9 +215,7 @@ describe("plugin host", () => {
     });
     host.unload(manifest().id);
 
-    expect(() => captured?.panels.register({ id: "plugin.late" })).toThrow(
-      "já foi descarregado",
-    );
+    expect(() => captured?.panels.register({ id: "plugin.late" })).toThrow("já foi descarregado");
     expect(registries.panels.size).toBe(0);
   });
 

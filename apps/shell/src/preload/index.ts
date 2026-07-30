@@ -54,6 +54,10 @@ const bridge = {
       invoke("preferences:save", preferences),
     reset: (): Promise<void> => invoke("preferences:reset"),
   },
+  plugins: {
+    scan: () => invoke("plugins:scan"),
+    module: (pluginId) => invoke("plugins:module", pluginId),
+  },
   window: {
     setTitle: (title: string): Promise<void> => invoke("window:set-title", title),
   },

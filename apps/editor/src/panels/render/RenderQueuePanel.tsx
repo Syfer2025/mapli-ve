@@ -21,10 +21,7 @@ import {
   startExportJob,
   subscribeExportJob,
 } from "../../export/export-controller.js";
-import {
-  enqueueCurrentExport,
-  startRenderQueue,
-} from "../../export/render-queue-controller.js";
+import { enqueueCurrentExport, startRenderQueue } from "../../export/render-queue-controller.js";
 import {
   clearFinishedRenderJobs,
   getRenderQueueSnapshot,

@@ -95,11 +95,11 @@ pnpm scene:authoring:verify
 - `packages/plugin-host` implementa validação de manifest, descoberta por porta
   de filesystem, host com escopos descartáveis, registries nomeados e preservação
   de nós desconhecidos.
-- O host ainda não está ligado a um carregador de plugins do shell/editor. Não
-  afirme que plugins arbitrários já podem ser instalados pela UI.
+- O shell descobre módulos ESM em `userData/plugins`, valida manifesto e
+  contenção de caminhos, e a tela **Plugins…** ativa/descarrega cada módulo.
 - O conteúdo gerado inclui catálogo de unidades, sprites, bandeiras, paletas e
-  presets. O catálogo de unidades é carregado e pesquisável na Biblioteca; os
-  demais conteúdos ainda não estão todos ligados à UI.
+  presets. Todos aparecem na Biblioteca; presets de cena aplicam mapa, câmera e
+  paleta como um único comando reversível.
 
 ### Fase 11
 
@@ -114,8 +114,8 @@ pnpm scene:authoring:verify
   núcleos determinísticos e limitados por orçamento.
 - Presets de workspace e atalhos configuráveis são preferências locais
   fail-safe, separadas do documento.
-- O pré-render/cache visível e a trilha de waveform ainda precisam de integração
-  no editor.
+- A Timeline mostra faixas de preview em cache e a waveform do áudio de
+  referência; caches em RAM são limitados e invalidados por asset.
 - Áudio de referência não reproduz, não faz scrub sonoro, ganho, fades, mixagem
   nem entra no export.
 
@@ -126,10 +126,8 @@ pnpm scene:authoring:verify
 2. Demonstrar os critérios integrados ainda sem evidência atual, em especial:
    export de 90 s em 4K/60, caminho 8K na máquina-alvo, retirada de PMTiles
    durante o export e retomada real após reinício.
-3. Integrar ao editor, em blocos separados, o cache de preview e a waveform de
-   referência.
-4. Completar os itens de polimento ainda ausentes, em especial o onboarding.
-5. Só declarar a Fase 11 concluída depois do soak de quatro horas com memória
+3. Completar os itens de polimento ainda ausentes, em especial o onboarding.
+4. Só declarar a Fase 11 concluída depois do soak de quatro horas com memória
    estável. Esse soak **não foi executado**.
 
 O instalador está fora do escopo desta retomada. A receita `pnpm dist:win` existe,

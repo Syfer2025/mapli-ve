@@ -35,6 +35,19 @@ export interface MapLibreCanvasLike {
 /** Tupla mutável aceita diretamente pelo `LngLatLike`/`PointLike` do MapLibre. */
 export type MapLibreCoordinateLike = [number, number];
 
+/** Evento de câmera; MapLibre só anexa `originalEvent` a gestos da interface. */
+export interface MapLibreMoveEventLike {
+  readonly originalEvent?: unknown;
+}
+
+/**
+ * Separa autoria do usuário de `jumpTo`/`easeTo` executados pelo documento,
+ * Actions ou pelo pump de export.
+ */
+export function isUserInitiatedMapMove(event: MapLibreMoveEventLike): boolean {
+  return event.originalEvent !== undefined;
+}
+
 /** Subconjunto das opções de câmera compartilhado por `jumpTo` e `easeTo`. */
 export interface MapLibreCameraOptionsLike {
   readonly center: MapLibreCoordinateLike;

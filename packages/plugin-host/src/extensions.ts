@@ -24,8 +24,9 @@ export interface IdentifiedContribution {
   readonly id: string;
 }
 
-export interface NamedExtensionRegistry<T extends IdentifiedContribution>
-  extends RegistrationTarget<T> {
+export interface NamedExtensionRegistry<
+  T extends IdentifiedContribution,
+> extends RegistrationTarget<T> {
   get(id: string): T | undefined;
   has(id: string): boolean;
   list(): readonly T[];

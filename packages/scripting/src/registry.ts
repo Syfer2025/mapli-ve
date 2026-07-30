@@ -4,6 +4,35 @@ import { suggest } from "./diagnostics.js";
 
 const COMMON_FIELDS = ["at", "id", "ease", "delay", "comment"] as const;
 
+const EXAMPLE_OVERRIDES: Readonly<
+  Partial<Record<SceneTimelineEntry["do"], Readonly<Record<string, unknown>>>>
+> = Object.freeze({
+  "unit.advance": { to: [10, 10], duration: "1s" },
+  "unit.retreat": { to: [10, 10], duration: "1s" },
+  "area.highlight": { region: "c:IRN" },
+  "area.transfer": { region: "c:IRN" },
+  "border.show": { dataset: "c:FRA" },
+  encircle: { at_place: [0, 0] },
+  "arrow.draw": { from: [0, 0], to: [10, 10] },
+});
+
+const IMPLEMENTATION_NOTES: Readonly<Partial<Record<SceneTimelineEntry["do"], string>>> =
+  Object.freeze({
+    "camera.follow":
+      "Enquadra a posição conhecida da unidade; acompanhamento dinâmico da trajetória ainda não é emitido.",
+    "unit.dogfight": "Marca o local do combate, mas ainda não anima as manobras das unidades.",
+    "unit.split": "Marca a divisão, mas ainda não cria nem reposiciona as unidades resultantes.",
+    "unit.merge": "Marca a reunião, mas ainda não remove nem combina as unidades de origem.",
+    battle: "Marca o confronto, mas ainda não cria automaticamente um pacote de efeitos.",
+    "amphibious.landing":
+      "Marca o ponto do desembarque, mas ainda não anima a travessia desde a origem.",
+    airdrop: "Marca o ponto do lançamento, mas ainda não anima a queda das unidades.",
+    "frontline.shift":
+      "Desenha o novo traçado, mas ainda não transforma uma linha de frente anterior.",
+    "border.show": "Aceita somente um geoId interno já empacotado; não carrega um dataset externo.",
+    encircle: "Destaca uma região ou marca um local, sem animar uma manobra de cerco.",
+  });
+
 const VERB_FIELDS = {
   "camera.focus": ["on", "zoom", "bearing", "pitch", "duration"],
   "camera.frame": ["on", "padding", "duration"],
@@ -56,7 +85,13 @@ export const BUILTIN_SCENE_VERBS: readonly SceneVerbDefinition[] = Object.freeze
       ...catalogEntry,
       required: Object.freeze([...catalogEntry.required]),
       fields: Object.freeze([...COMMON_FIELDS, ...VERB_FIELDS[catalogEntry.name]]),
-      example: Object.freeze({ ...catalogEntry.example }),
+      example: Object.freeze({
+        ...catalogEntry.example,
+        ...EXAMPLE_OVERRIDES[catalogEntry.name],
+      }),
+      ...(IMPLEMENTATION_NOTES[catalogEntry.name] === undefined
+        ? {}
+        : { implementationNote: IMPLEMENTATION_NOTES[catalogEntry.name] }),
     }),
   ),
 );
@@ -70,6 +105,9 @@ export function createSceneVerbRegistry(
       required: Object.freeze([...entry.required]),
       fields: Object.freeze([...entry.fields]),
       example: Object.freeze({ ...entry.example }),
+      ...(entry.implementationNote === undefined
+        ? {}
+        : { implementationNote: entry.implementationNote }),
     }),
   );
   const byName = new Map(entries.map((entry) => [entry.name, entry]));

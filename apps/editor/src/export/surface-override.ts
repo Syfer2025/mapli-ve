@@ -234,12 +234,16 @@ export interface SurfaceGpuCapabilities {
   readonly available: boolean;
   readonly contextLost: boolean;
   readonly preserveDrawingBuffer: boolean | null;
+  /** Alocação real do contexto, não apenas os atributos do elemento canvas. */
+  readonly drawingBuffer: readonly [number, number] | null;
   readonly maxTextureSize: number | null;
   readonly maxRenderbufferSize: number | null;
   readonly maxViewport: readonly [number, number] | null;
 }
 
 interface WebGlProbe {
+  readonly drawingBufferWidth: number;
+  readonly drawingBufferHeight: number;
   readonly MAX_TEXTURE_SIZE: number;
   readonly MAX_RENDERBUFFER_SIZE: number;
   readonly MAX_VIEWPORT_DIMS: number;
@@ -254,6 +258,8 @@ function isWebGlProbe(value: unknown): value is WebGlProbe {
     typeof Reflect.get(value, "getParameter") === "function" &&
     typeof Reflect.get(value, "getContextAttributes") === "function" &&
     typeof Reflect.get(value, "isContextLost") === "function" &&
+    typeof Reflect.get(value, "drawingBufferWidth") === "number" &&
+    typeof Reflect.get(value, "drawingBufferHeight") === "number" &&
     typeof Reflect.get(value, "MAX_TEXTURE_SIZE") === "number" &&
     typeof Reflect.get(value, "MAX_RENDERBUFFER_SIZE") === "number" &&
     typeof Reflect.get(value, "MAX_VIEWPORT_DIMS") === "number"
@@ -290,6 +296,7 @@ export function inspectSurfaceGpu(canvas: MeasuredSurface): SurfaceGpuCapabiliti
       available: false,
       contextLost: false,
       preserveDrawingBuffer: null,
+      drawingBuffer: null,
       maxTextureSize: null,
       maxRenderbufferSize: null,
       maxViewport: null,
@@ -299,10 +306,9 @@ export function inspectSurfaceGpu(canvas: MeasuredSurface): SurfaceGpuCapabiliti
   let candidate: unknown = null;
   try {
     candidate =
-      Reflect.apply(getContext, canvas, ["webgl2"]) ??
-      Reflect.apply(getContext, canvas, ["webgl"]);
+      Reflect.apply(getContext, canvas, ["webgl2"]) ?? Reflect.apply(getContext, canvas, ["webgl"]);
   } catch {
-    candidate = null;
+    // Context creation can throw on unavailable or lost GPU devices.
   }
   if (!isWebGlProbe(candidate)) {
     return Object.freeze({
@@ -310,6 +316,7 @@ export function inspectSurfaceGpu(canvas: MeasuredSurface): SurfaceGpuCapabiliti
       available: false,
       contextLost: false,
       preserveDrawingBuffer: null,
+      drawingBuffer: null,
       maxTextureSize: null,
       maxRenderbufferSize: null,
       maxViewport: null,
@@ -323,6 +330,14 @@ export function inspectSurfaceGpu(canvas: MeasuredSurface): SurfaceGpuCapabiliti
     available: true,
     contextLost,
     preserveDrawingBuffer: attributes?.preserveDrawingBuffer ?? null,
+    drawingBuffer:
+      finiteLimit(candidate.drawingBufferWidth) === null ||
+      finiteLimit(candidate.drawingBufferHeight) === null
+        ? null
+        : Object.freeze([candidate.drawingBufferWidth, candidate.drawingBufferHeight] as [
+            number,
+            number,
+          ]),
     maxTextureSize: finiteLimit(candidate.getParameter(candidate.MAX_TEXTURE_SIZE)),
     maxRenderbufferSize: finiteLimit(candidate.getParameter(candidate.MAX_RENDERBUFFER_SIZE)),
     maxViewport: viewportLimit(candidate.getParameter(candidate.MAX_VIEWPORT_DIMS)),
@@ -339,6 +354,9 @@ function gpuSupportsSurface(
     capabilities.available &&
     !capabilities.contextLost &&
     capabilities.preserveDrawingBuffer === true &&
+    capabilities.drawingBuffer !== null &&
+    capabilities.drawingBuffer[0] === expected.width &&
+    capabilities.drawingBuffer[1] === expected.height &&
     (capabilities.maxTextureSize ?? 0) >= longest &&
     (capabilities.maxRenderbufferSize ?? 0) >= longest &&
     (capabilities.maxViewport?.[0] ?? 0) >= expected.width &&

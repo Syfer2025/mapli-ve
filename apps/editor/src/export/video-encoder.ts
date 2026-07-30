@@ -49,11 +49,16 @@ export interface VideoEncodeOptions {
   readonly write: (bytes: Uint8Array) => Promise<void>;
 }
 
+export interface VideoEncodeResult {
+  readonly frames: number;
+  readonly bytes: number;
+}
+
 export interface VideoEncodeSession {
   /** Empurra um frame composto. Chamar em ordem crescente de índice. */
   readonly push: (frame: ComposedFrame, index: number) => Promise<void>;
   /** Fecha o arquivo: drena o encoder e escreve o último fragmento. */
-  readonly finish: () => Promise<{ readonly frames: number; readonly bytes: number }>;
+  readonly finish: () => Promise<VideoEncodeResult>;
   /** Cancela o codec e espera qualquer escrita temporária já enfileirada. */
   readonly abort: () => Promise<void>;
   readonly close: () => void;
@@ -61,6 +66,21 @@ export interface VideoEncodeSession {
 
 export function isVideoEncodingSupported(): boolean {
   return typeof VideoEncoder !== "undefined" && typeof VideoFrame !== "undefined";
+}
+
+/**
+ * Última guarda antes da publicação atômica. `flush()` resolver sem exceção não
+ * autoriza um MP4 que tenha menos chunks que os frames aceitos pelo pump.
+ */
+export function incompleteVideoReason(
+  result: VideoEncodeResult,
+  expectedFrames: number,
+): string | null {
+  if (result.frames !== expectedFrames) {
+    return `o codificador produziu ${String(result.frames)}/${String(expectedFrames)} frames`;
+  }
+  if (result.bytes <= 0) return "o codificador não produziu bytes";
+  return null;
 }
 
 /**
