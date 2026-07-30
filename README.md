@@ -1,12 +1,13 @@
 # Theatrum
 
 > Plataforma profissional de animação geopolítica e militar.
-> 100% local. 100% offline. Uso interno.
+> Projeto, render e dados locais. ChatGPT/Codex como Maestro. Uso interno.
 
 Theatrum é um editor de animação no estilo Adobe After Effects, especializado em
-mapas históricos, geopolítica, história militar e estratégia. Produz animações de
-alta qualidade para vídeo (4K/60, 8K, alpha channel), controladas por keyframes,
-câmera cinematográfica e um sistema de efeitos GPU.
+mapas históricos, geopolítica, história militar e estratégia. Produz animações
+controladas por keyframes, câmera cinematográfica e efeitos GPU, com export para
+vídeo, GIF e sequências PNG. A implementação aceita saídas de até 8192 px por
+dimensão quando a superfície gráfica concreta comporta o pedido.
 
 O nome vem de _Theatrum Orbis Terrarum_ (o primeiro atlas moderno, 1570) e de
 _theatrum belli_ — teatro de operações.
@@ -15,15 +16,26 @@ _theatrum belli_ — teatro de operações.
 
 ## Estado atual
 
-**Fase 7 de Ações concluída e formatos principais da Fase 8 entregues
-(2026-07-28): o export gera MP4 H.264, GIF, ProRes 4444 com alfa e sequências
-PNG normal/alfa. Os encoders repetíveis têm provas automatizadas e no editor
-real. Única exceção
-declarada no bloco 7: o 7E.4 (VFX volumétrico), adiado pelo dono e bloqueado por
-ferramenta ausente na máquina. O estado detalhado, com a tabela de verificadores
-e o que ainda falta, está em
-[docs/09-CONTINUIDADE.md](docs/09-CONTINUIDADE.md). O pacote Windows inclui os
-mapas offline, a cobertura regional Irã–Hormuz, satélite e FFmpeg fixado.**
+**Estado em 2026-07-30:** as Fases 8–10 têm suas fundações de produto
+implementadas e a Fase 11 está parcial. O mapa salvo no projeto é a fonte de
+verdade para estilo e câmera; o export falha fechado por padrão, publica arquivos
+únicos por renomeação atômica e oferece fila persistente e checkpoints; o Scene
+Script v1 compila e importa de forma transacional; e o catálogo empacotado de
+unidades aparece na Biblioteca. O agente ChatGPT/Codex desta conversa pode
+controlar o editor aberto pela ponte local do Maestro, aplicando Scene Script ou
+comandos pontuais validados e lendo os diagnósticos de volta. O aplicativo não
+embute um modelo e não pede chave de API. A Fase 11 já possui expressões seguras e os
+núcleos determinísticos de cache de preview e waveform de referência.**
+
+Ainda faltam as provas integradas finais, inclusive o ensaio de 90 s em
+4K/60 e a sessão contínua de quatro horas. A retomada de MP4 H.264 reinicia o
+stream; checkpoints reutilizam frames apenas nos formatos baseados em sequência.
+O Inspector já permite editar/remover expressões e mostra falhas recuperáveis;
+cache de preview e waveform ainda não têm a integração visual completa.
+Atalhos configuráveis e presets locais de workspace também estão ligados ao
+editor. O instalador não fez parte deste ciclo e não é tratado aqui como
+artefato pronto. O estado detalhado está em
+[docs/09-CONTINUIDADE.md](docs/09-CONTINUIDADE.md).
 
 Antes disso, o bloco 7A++ tirou o 3D do chão: a camada Three.js renderiza modelos
 GLB/glTF **com volume** e rotas como tubo volumétrico em altitude. Três defeitos
@@ -33,8 +45,12 @@ assets importados, não procedurais.
 
 O monorepo, os guardrails arquiteturais, o núcleo matemático/temporal, o shell
 Electron e o workspace dockável estão implementados. O viewport já é um painel
-real: MapLibre + PMTiles offline, três estilos mundiais, mapa regional detalhado
-Irã–Hormuz, satélite local, busca geográfica e câmera animável com transporte. O documento possui schemas Zod, Command Bus com
+real: MapLibre + PMTiles offline, quatro estilos mundiais, mapa regional detalhado
+Irã–Hormuz, satélite local, busca geográfica e câmera animável com transporte.
+`composition.map.styleId` e `composition.camera` persistem no documento; gestos
+do mapa passam pelo Command Bus e salvar, reabrir, desfazer e refazer preservam a
+vista. Se um estilo regional opcional não estiver no disco, a UI mostra fallback
+explícito sem reescrever a escolha salva. O documento possui schemas Zod, Command Bus com
 undo/redo, projeto `.theatrum` determinístico, escrita atômica, autosave com
 recuperação de crash e painéis reais de Projeto e Histórico. Agora há objetos de
 verdade sobre o mapa: 22 tipos de nó no registry, overlay Pixi com âncoras geo
@@ -100,27 +116,27 @@ As rotas, por sua vez, não eram 3D em nenhum sentido: eram traçadas com
 polilinha 2D continua existindo como **guia de autoria** — tracejada, e só para
 caminho que ainda não tem `route3d` montado.
 
-| Fase | Escopo                                    | Estado            |
-| ---: | ----------------------------------------- | ----------------- |
-|    0 | Arquitetura e especificações              | ✅ concluída      |
-|    1 | Fundação (monorepo, shell, tooling)       | ✅ concluída      |
-|    2 | Mapa + Câmera                             | ✅ concluída      |
-|    3 | Documento + Comandos + Undo               | ✅ concluída      |
-|    4 | Objetos + Timeline                        | ✅ concluída      |
-|    5 | Animação avançada (bezier, graph, paths)  | ✅ concluída      |
-|    6 | Efeitos e partículas (congelada)          | ✅ concluída      |
-|   7A | Biblioteca de ativos (import)             | ✅ concluída      |
-|  7A+ | Preview 3D no viewport (model3d)          | ✅ concluída      |
-| 7A++ | 3D com volume + rotas 3D (route3d)        | ✅ concluída      |
-|   7B | Camadas geo: contornos, estados, estradas | ✅ concluída      |
-|   7C | Rotas e setas de avanço                   | ✅ concluída      |
-|   7D | Textos e rótulos no mapa                  | ✅ concluída      |
-|   7E | Satélite, rótulo com guia, modo estúdio   | ✅ 3 de 4         |
-|    7 | Ações / simulações                        | ✅ concluída      |
-|    8 | Exportação (PNG, MP4, GIF, ProRes 4444)   | 🟨 núcleo pronto  |
-|    9 | Scene Script (autoria por IA)             | ⬜                |
-|   10 | Plugins + conteúdo empacotado             | ⬜                |
-|   11 | Polimento e performance                   | 🟨 primeiro passe |
+| Fase | Escopo                                    | Estado                                     |
+| ---: | ----------------------------------------- | ------------------------------------------ |
+|    0 | Arquitetura e especificações              | ✅ concluída                               |
+|    1 | Fundação (monorepo, shell, tooling)       | ✅ concluída                               |
+|    2 | Mapa + Câmera                             | ✅ concluída                               |
+|    3 | Documento + Comandos + Undo               | ✅ concluída                               |
+|    4 | Objetos + Timeline                        | ✅ concluída                               |
+|    5 | Animação avançada (bezier, graph, paths)  | ✅ concluída                               |
+|    6 | Efeitos e partículas (congelada)          | ✅ concluída                               |
+|   7A | Biblioteca de ativos (import)             | ✅ concluída                               |
+|  7A+ | Preview 3D no viewport (model3d)          | ✅ concluída                               |
+| 7A++ | 3D com volume + rotas 3D (route3d)        | ✅ concluída                               |
+|   7B | Camadas geo: contornos, estados, estradas | ✅ concluída                               |
+|   7C | Rotas e setas de avanço                   | ✅ concluída                               |
+|   7D | Textos e rótulos no mapa                  | ✅ concluída                               |
+|   7E | Satélite, rótulo com guia, modo estúdio   | ✅ 3 de 4                                  |
+|    7 | Ações / simulações                        | ✅ concluída                               |
+|    8 | Exportação (PNG, MP4, GIF, ProRes 4444)   | 🟨 implementação; aceite final pendente    |
+|    9 | Scene Script + Maestro                    | 🟨 implementação; prova visual pendente    |
+|   10 | Plugins + conteúdo empacotado             | 🟨 fundação e catálogo; integração parcial |
+|   11 | Polimento e performance                   | 🟨 fundações parciais                      |
 
 Roteiro detalhado com critérios de saída: [docs/08-ROADMAP.md](docs/08-ROADMAP.md).
 
@@ -208,23 +224,20 @@ Execute todas as verificações:
 pnpm check
 ```
 
-O comando valida tipagem, formatação, lint, DAG de dependências e testes. No
-aplicativo instalado o FFmpeg é um sidecar incluído no pacote e não exige
-instalação global.
+O comando valida tipagem, formatação, lint, DAG de dependências e testes.
 
 ## Instalador do Windows
 
-O instalador assistido leva junto todos os dados offline e permite escolher a
-pasta de destino. Para gerá-lo:
+O repositório mantém a receita de empacotamento:
 
 ```powershell
 pnpm dist:win
 ```
 
-O resultado fica em `release/Theatrum-Setup-0.1.0-x64.exe`. O pacote atual tem
-aproximadamente 1,6 GiB porque contém 1,8 GB de cartografia/satélite e um FFmpeg
-com versão e SHA-256 fixados. É uma compilação interna sem certificado de
-assinatura de código; o Windows pode mostrar o aviso do SmartScreen.
+Este ciclo não reconstruiu nem revalidou um instalador, portanto a documentação
+não promete um executável atual em `release/`. Antes de qualquer distribuição,
+é preciso preparar os dados e o sidecar, executar o empacotamento e validar o
+artefato resultante em uma instalação limpa.
 
 Com `pnpm dev` aberto em outro terminal, a prova integrada da Fase 2 é:
 

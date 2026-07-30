@@ -1,0 +1,249 @@
+[
+  {
+    "id": "wwi.britain",
+    "name": "Reino Unido · Primeira Guerra Mundial",
+    "era": "wwi",
+    "nation": "Reino Unido",
+    "svg": "plugin-content/flags.svg#wwi.britain",
+    "tags": [
+      "wwi",
+      "Primeira Guerra Mundial",
+      "britain",
+      "Reino Unido",
+      "Britain",
+      "British",
+      "Inglaterra"
+    ]
+  },
+  {
+    "id": "wwi.france",
+    "name": "França · Primeira Guerra Mundial",
+    "era": "wwi",
+    "nation": "França",
+    "svg": "plugin-content/flags.svg#wwi.france",
+    "tags": [
+      "wwi",
+      "Primeira Guerra Mundial",
+      "france",
+      "França",
+      "France",
+      "French",
+      "Francesa"
+    ]
+  },
+  {
+    "id": "wwi.germany",
+    "name": "Império Alemão · Primeira Guerra Mundial",
+    "era": "wwi",
+    "nation": "Império Alemão",
+    "svg": "plugin-content/flags.svg#wwi.germany",
+    "tags": [
+      "wwi",
+      "Primeira Guerra Mundial",
+      "germany",
+      "Império Alemão",
+      "Germany",
+      "German",
+      "Alemanha",
+      "Alemão"
+    ]
+  },
+  {
+    "id": "wwi.russia",
+    "name": "Império Russo · Primeira Guerra Mundial",
+    "era": "wwi",
+    "nation": "Império Russo",
+    "svg": "plugin-content/flags.svg#wwi.russia",
+    "tags": [
+      "wwi",
+      "Primeira Guerra Mundial",
+      "russia",
+      "Império Russo",
+      "Russia",
+      "Russian",
+      "Rússia",
+      "Russo"
+    ]
+  },
+  {
+    "id": "wwi.ottoman",
+    "name": "Império Otomano · Primeira Guerra Mundial",
+    "era": "wwi",
+    "nation": "Império Otomano",
+    "svg": "plugin-content/flags.svg#wwi.ottoman",
+    "tags": [
+      "wwi",
+      "Primeira Guerra Mundial",
+      "ottoman",
+      "Império Otomano",
+      "Ottoman",
+      "Turquia",
+      "Turkish"
+    ]
+  },
+  {
+    "id": "wwii.usa",
+    "name": "Estados Unidos · Segunda Guerra Mundial",
+    "era": "wwii",
+    "nation": "Estados Unidos",
+    "svg": "plugin-content/flags.svg#wwii.usa",
+    "tags": [
+      "wwii",
+      "Segunda Guerra Mundial",
+      "usa",
+      "Estados Unidos",
+      "USA",
+      "United States",
+      "American",
+      "Americano"
+    ]
+  },
+  {
+    "id": "wwii.britain",
+    "name": "Reino Unido · Segunda Guerra Mundial",
+    "era": "wwii",
+    "nation": "Reino Unido",
+    "svg": "plugin-content/flags.svg#wwii.britain",
+    "tags": [
+      "wwii",
+      "Segunda Guerra Mundial",
+      "britain",
+      "Reino Unido",
+      "Britain",
+      "British",
+      "Inglaterra"
+    ]
+  },
+  {
+    "id": "wwii.germany",
+    "name": "Alemanha · Segunda Guerra Mundial",
+    "era": "wwii",
+    "nation": "Alemanha",
+    "svg": "plugin-content/flags.svg#wwii.germany",
+    "tags": [
+      "wwii",
+      "Segunda Guerra Mundial",
+      "germany",
+      "Alemanha",
+      "Germany",
+      "German",
+      "Alemão",
+      "Alemã"
+    ]
+  },
+  {
+    "id": "wwii.ussr",
+    "name": "União Soviética · Segunda Guerra Mundial",
+    "era": "wwii",
+    "nation": "União Soviética",
+    "svg": "plugin-content/flags.svg#wwii.ussr",
+    "tags": [
+      "wwii",
+      "Segunda Guerra Mundial",
+      "ussr",
+      "União Soviética",
+      "USSR",
+      "URSS",
+      "Soviet",
+      "Soviético",
+      "Soviética"
+    ]
+  },
+  {
+    "id": "wwii.japan",
+    "name": "Japão · Segunda Guerra Mundial",
+    "era": "wwii",
+    "nation": "Japão",
+    "svg": "plugin-content/flags.svg#wwii.japan",
+    "tags": [
+      "wwii",
+      "Segunda Guerra Mundial",
+      "japan",
+      "Japão",
+      "Japan",
+      "Japanese",
+      "Japonês"
+    ]
+  },
+  {
+    "id": "modern.usa",
+    "name": "Estados Unidos · Era Moderna",
+    "era": "modern",
+    "nation": "Estados Unidos",
+    "svg": "plugin-content/flags.svg#modern.usa",
+    "tags": [
+      "modern",
+      "Era Moderna",
+      "usa",
+      "Estados Unidos",
+      "USA",
+      "United States",
+      "American",
+      "Americano"
+    ]
+  },
+  {
+    "id": "modern.britain",
+    "name": "Reino Unido · Era Moderna",
+    "era": "modern",
+    "nation": "Reino Unido",
+    "svg": "plugin-content/flags.svg#modern.britain",
+    "tags": [
+      "modern",
+      "Era Moderna",
+      "britain",
+      "Reino Unido",
+      "Britain",
+      "British",
+      "Inglaterra"
+    ]
+  },
+  {
+    "id": "modern.russia",
+    "name": "Rússia · Era Moderna",
+    "era": "modern",
+    "nation": "Rússia",
+    "svg": "plugin-content/flags.svg#modern.russia",
+    "tags": [
+      "modern",
+      "Era Moderna",
+      "russia",
+      "Rússia",
+      "Russia",
+      "Russian",
+      "Russo"
+    ]
+  },
+  {
+    "id": "modern.china",
+    "name": "China · Era Moderna",
+    "era": "modern",
+    "nation": "China",
+    "svg": "plugin-content/flags.svg#modern.china",
+    "tags": [
+      "modern",
+      "Era Moderna",
+      "china",
+      "China",
+      "Chinese",
+      "Chinês",
+      "PLA"
+    ]
+  },
+  {
+    "id": "modern.iran",
+    "name": "Irã · Era Moderna",
+    "era": "modern",
+    "nation": "Irã",
+    "svg": "plugin-content/flags.svg#modern.iran",
+    "tags": [
+      "modern",
+      "Era Moderna",
+      "iran",
+      "Irã",
+      "Iran",
+      "Iranian",
+      "Iraniano"
+    ]
+  }
+]

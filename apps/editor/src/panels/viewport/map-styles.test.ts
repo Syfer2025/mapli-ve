@@ -14,6 +14,7 @@ const EXPECTED_STYLE_IDS: readonly MapStyleId[] = [
   "dark-relief",
   "historical-parchment",
   "minimal-political",
+  "strategic-war-room",
 ];
 
 const FORBIDDEN_REMOTE_URL = /(?:https?:\/\/|mapbox:\/\/|api\.mapbox|cdn\.)/i;
@@ -39,9 +40,18 @@ const SATELLITE: RasterBasemap = {
 };
 
 describe("estilos offline do mapa", () => {
-  it("publica exatamente os três estilos da Fase 2", () => {
+  it("publica os estilos vetoriais locais, incluindo o mapa estratégico limpo", () => {
     expect(MAP_STYLE_OPTIONS.map((option) => option.id)).toEqual(EXPECTED_STYLE_IDS);
-    expect(new Set(MAP_STYLE_OPTIONS.map((option) => option.label)).size).toBe(3);
+    expect(new Set(MAP_STYLE_OPTIONS.map((option) => option.label)).size).toBe(4);
+  });
+
+  it("o mapa estratégico não injeta cidades ou rótulos automáticos", () => {
+    const layerIds = createMapStyle("strategic-war-room").layers.map((layer) => layer.id);
+    expect(layerIds).not.toContain("country-labels");
+    expect(layerIds).not.toContain("geographic-lines");
+    expect(layerIds).not.toContain("cities");
+    expect(layerIds).not.toContain("city-labels");
+    expect(layerIds).toContain("country-borders");
   });
 
   it.each(EXPECTED_STYLE_IDS)("%s usa somente PMTiles e dados locais", (styleId) => {

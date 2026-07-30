@@ -10,6 +10,7 @@ import {
   planMotionBlur,
 } from "@theatrum/export";
 import type { Composition } from "@theatrum/schema";
+import { hashObject } from "@theatrum/core-utils";
 import { useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   type ExportFormat,
@@ -20,6 +21,18 @@ import {
   startExportJob,
   subscribeExportJob,
 } from "../../export/export-controller.js";
+import {
+  enqueueCurrentExport,
+  startRenderQueue,
+} from "../../export/render-queue-controller.js";
+import {
+  clearFinishedRenderJobs,
+  getRenderQueueSnapshot,
+  removeRenderQueueJob,
+  restartRenderQueueJob,
+  resumeRenderQueueJob,
+  subscribeRenderQueue,
+} from "../../export/render-queue-store.js";
 import { useEditorSession } from "../../document/useEditorSession.js";
 import {
   setPreviewSupersampling,
@@ -46,6 +59,14 @@ const STATUS_LABEL: Record<string, string> = {
   aborted: "interrompido",
 };
 
+const QUEUE_STATUS_LABEL: Record<string, string> = {
+  pending: "aguardando",
+  running: "renderizando",
+  paused: "pausado",
+  done: "concluído",
+  failed: "falhou",
+};
+
 const FORMAT_LABEL: Record<ExportFormat, string> = {
   mp4: "MP4 · H.264",
   gif: "GIF animado",
@@ -67,6 +88,7 @@ const SCALE_LABEL: Record<string, string> = {
   "0.5": "½ · rascunho",
   "1": "1× · a composição",
   "2": "2× · alta",
+  "4": "4× · 8K em composição HD",
 };
 
 const SUPERSAMPLING_LABEL: Record<string, string> = {
@@ -94,7 +116,7 @@ const MOTION_SAMPLES_LABEL: Record<string, string> = {
  * resolução abrindo o arquivo.
  *
  * A recusa também aparece aqui, e antes de escolher a pasta: `planExportResolution`
- * estoura acima do teto de 4096 px por eixo em vez de cortar em silêncio, e a
+ * estoura acima do teto de 8192 px por eixo em vez de cortar em silêncio, e a
  * mensagem dele já nomeia o teto.
  */
 function describeOutput(
@@ -122,6 +144,7 @@ function describeOutput(
 
 export function RenderQueuePanel(): ReactNode {
   const job = useSyncExternalStore(subscribeExportJob, getExportJobSnapshot);
+  const queue = useSyncExternalStore(subscribeRenderQueue, getRenderQueueSnapshot);
   const session = useEditorSession();
   const composition = session.document.compositions.find(
     (candidate) => candidate.id === session.selectedCompositionId,
@@ -150,6 +173,27 @@ export function RenderQueuePanel(): ReactNode {
   const percent = job.total === 0 ? 0 : Math.round((100 * job.done) / job.total);
   const left = estimatedSecondsLeft(job);
   const report = job.report;
+  const selectedOptions = useMemo(
+    () => ({
+      format,
+      scale,
+      supersampling,
+      ...(motionBlur.enabled
+        ? {
+            motionBlur: {
+              shutterAngle: motionBlur.shutterAngle,
+              samples: motionBlur.samples,
+            },
+          }
+        : {}),
+    }),
+    [format, motionBlur, scale, supersampling],
+  );
+  const hasRunnableQueueJob = queue.jobs.some(({ status }) => status === "pending");
+  const currentDocumentFingerprint = useMemo(
+    () => hashObject(session.document),
+    [session.document],
+  );
 
   return (
     <Panel
@@ -237,27 +281,31 @@ export function RenderQueuePanel(): ReactNode {
           <Button
             size="sm"
             variant="primary"
-            onClick={() =>
-              void startExportJob({
-                format,
-                scale,
-                supersampling,
-                ...(motionBlur.enabled
-                  ? {
-                      motionBlur: {
-                        shutterAngle: motionBlur.shutterAngle,
-                        samples: motionBlur.samples,
-                      },
-                    }
-                  : {}),
-              })
-            }
+            onClick={() => void startExportJob(selectedOptions)}
             // Escala que não cabe desabilita o botão em vez de deixar o export
             // estourar depois do diálogo de pasta.
             disabled={running || !isExportReady() || composition === undefined || !output.ok}
             aria-label={`Exportar ${FORMAT_LABEL[format]}`}
           >
             Exportar
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              enqueueCurrentExport(selectedOptions);
+            }}
+            disabled={running || composition === undefined || !output.ok}
+            aria-label="Adicionar configuração à fila"
+          >
+            Adicionar à fila
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => void startRenderQueue()}
+            disabled={running || !isExportReady() || !hasRunnableQueueJob}
+            aria-label="Iniciar fila de render"
+          >
+            Iniciar fila
           </Button>
           <Button
             size="sm"
@@ -277,8 +325,8 @@ export function RenderQueuePanel(): ReactNode {
             : `${composition.name} · ${composition.duration} frames a ${composition.fps} fps`}
           {/* A resolução de saída vive ao lado da duração porque as duas são o
               contrato do arquivo. Vermelha quando a escala não cabe: o teto de
-              4096 px por eixo é do MapLibre, e ele é a razão de o export recusar
-              em vez de entregar 4K quando se pediu 8K. */}
+              8192 px por eixo é compartilhado com o MapLibre; acima disso o
+              export recusa em vez de reduzir a saída silenciosamente. */}
           <span
             className={
               output.ok ? "render-queue__output" : "render-queue__output render-queue__bad"
@@ -294,6 +342,73 @@ export function RenderQueuePanel(): ReactNode {
       }
     >
       <div className="render-queue">
+        {queue.jobs.length > 0 ? (
+          <section className="render-queue__jobs" aria-label="Jobs de render">
+            <div className="render-queue__jobs-head">
+              <strong>{queue.jobs.length} job(s) na fila</strong>
+              <Button size="sm" onClick={() => clearFinishedRenderJobs()} disabled={running}>
+                Limpar concluídos
+              </Button>
+            </div>
+            <ol>
+              {queue.jobs.map((queued) => (
+                <li
+                  key={queued.id}
+                  className={
+                    queued.id === queue.activeJobId
+                      ? "render-queue__job render-queue__job--active"
+                      : "render-queue__job"
+                  }
+                >
+                  <span>
+                    <strong>{queued.compositionName}</strong>
+                    <small>
+                      {FORMAT_LABEL[queued.options.format]} ·{" "}
+                      {QUEUE_STATUS_LABEL[queued.status] ?? queued.status}
+                      {queued.checkpoint === undefined
+                        ? ""
+                        : ` · checkpoint ${String(queued.checkpoint.completedFrames)}/${String(
+                            queued.checkpoint.totalFrames,
+                          )}`}
+                    </small>
+                    {queued.message === undefined ? null : <small>{queued.message}</small>}
+                  </span>
+                  <span className="render-queue__job-actions">
+                    {queued.status === "paused" || queued.status === "failed" ? (
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          if (queued.documentFingerprint === currentDocumentFingerprint) {
+                            resumeRenderQueueJob(queued.id);
+                          } else {
+                            restartRenderQueueJob(queued.id, currentDocumentFingerprint);
+                          }
+                          void startRenderQueue();
+                        }}
+                        disabled={running}
+                      >
+                        {queued.documentFingerprint !== currentDocumentFingerprint
+                          ? "Reiniciar · documento mudou"
+                          : queued.checkpoint === undefined
+                            ? "Reiniciar"
+                            : "Retomar"}
+                      </Button>
+                    ) : null}
+                    {queued.status !== "running" ? (
+                      <Button
+                        size="sm"
+                        onClick={() => removeRenderQueueJob(queued.id)}
+                        disabled={running || queued.id === queue.activeJobId}
+                      >
+                        Remover
+                      </Button>
+                    ) : null}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </section>
+        ) : null}
         <div className="render-queue__status" role="status" aria-live="polite">
           <span className={`render-queue__badge render-queue__badge--${job.status}`}>
             {STATUS_LABEL[job.status] ?? job.status}
@@ -355,7 +470,13 @@ export function RenderQueuePanel(): ReactNode {
                 ? "Arquivos escritos"
                 : "Frames codificados"}
             </dt>
-            <dd>{report.written}</dd>
+            <dd>{report.written + report.reused}</dd>
+            {report.reused === 0 ? null : (
+              <>
+                <dt>Reaproveitados do checkpoint</dt>
+                <dd>{report.reused}</dd>
+              </>
+            )}
             {job.videoFile === null ? null : (
               <>
                 <dt>Arquivo</dt>

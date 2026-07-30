@@ -13,8 +13,9 @@
  */
 
 import { createHash, randomUUID } from "node:crypto";
+import { createReadStream } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { deflateSync, constants as zlibConstants } from "node:zlib";
 import { app, dialog, type BrowserWindow } from "electron";
 
@@ -25,6 +26,7 @@ export interface ExportBeginRequest {
   readonly directory?: string;
   /** Cria uma pasta privada de PNGs para um encoder posterior. */
   readonly staging?: boolean;
+  readonly framesDirectory?: string;
 }
 
 export interface ExportBeginResult {
@@ -52,6 +54,21 @@ export interface ExportFrameResult {
   readonly message?: string;
 }
 
+export interface ExportVerifyFramesRequest {
+  readonly directory: string;
+  readonly frames: readonly {
+    readonly filename: string;
+    readonly sha256: string;
+  }[];
+}
+
+export interface ExportVerifyFramesResult {
+  readonly ok: boolean;
+  readonly verified: number;
+  readonly invalidFilename?: string;
+  readonly message?: string;
+}
+
 /**
  * Nível de compressão **fixado**.
  *
@@ -70,7 +87,7 @@ export async function beginExport(
   if (request.directory !== undefined && request.directory !== "") {
     const explicit = resolve(request.directory);
     await mkdir(explicit, { recursive: true });
-    return withStaging(explicit, request.staging === true);
+    return withStaging(explicit, request.staging === true, request.framesDirectory);
   }
   const chosen = await dialog.showOpenDialog(window, {
     title: "Onde salvar a sequência de frames",
@@ -83,11 +100,31 @@ export async function beginExport(
   }
   const directory = join(chosen.filePaths[0], safeSegment(request.jobName));
   await mkdir(directory, { recursive: true });
-  return withStaging(directory, request.staging === true);
+  return withStaging(directory, request.staging === true, request.framesDirectory);
 }
 
-async function withStaging(directory: string, staging: boolean): Promise<ExportBeginResult> {
+async function withStaging(
+  directory: string,
+  staging: boolean,
+  resumedFramesDirectory?: string,
+): Promise<ExportBeginResult> {
   if (!staging) return { ok: true, directory };
+  if (resumedFramesDirectory !== undefined) {
+    const checkedDirectory = resolve(directory);
+    const checkedFrames = resolve(resumedFramesDirectory);
+    if (
+      dirname(checkedFrames) !== checkedDirectory ||
+      !basename(checkedFrames).startsWith(".theatrum-frames-")
+    ) {
+      return {
+        ok: false,
+        directory,
+        message: "pasta de frames do checkpoint não pertence a este job",
+      };
+    }
+    await mkdir(checkedFrames, { recursive: true });
+    return { ok: true, directory, framesDirectory: checkedFrames };
+  }
   const framesDirectory = join(directory, `.theatrum-frames-${randomUUID()}`);
   await mkdir(framesDirectory, { recursive: true });
   return { ok: true, directory, framesDirectory };
@@ -126,6 +163,81 @@ export async function writeExportFrame(request: ExportFrameRequest): Promise<Exp
     bytes: png.byteLength,
     sha256: createHash("sha256").update(png).digest("hex"),
   };
+}
+
+/**
+ * Relê e confere o prefixo durável de uma sequência antes de pulá-lo.
+ *
+ * A contagem do checkpoint sozinha não prova que os arquivos ainda existem:
+ * eles podem ter sido apagados ou alterados enquanto o aplicativo estava
+ * fechado. A leitura é sequencial para não manter vários PNGs 8K na memória.
+ */
+export async function verifyExportFrames(
+  request: ExportVerifyFramesRequest,
+): Promise<ExportVerifyFramesResult> {
+  if (!isAbsolute(request.directory)) {
+    return { ok: false, verified: 0, message: "diretório de frames não é absoluto" };
+  }
+  if (request.frames.length > 100_000) {
+    return { ok: false, verified: 0, message: "manifesto de frames excede o limite seguro" };
+  }
+
+  const directory = resolve(request.directory);
+  let verified = 0;
+  for (const frame of request.frames) {
+    if (
+      frame.filename.length === 0 ||
+      basename(frame.filename) !== frame.filename ||
+      safeSegment(frame.filename) !== frame.filename ||
+      !/^[a-f0-9]{64}$/u.test(frame.sha256)
+    ) {
+      return {
+        ok: false,
+        verified,
+        invalidFilename: frame.filename,
+        message: `entrada inválida no manifesto: ${frame.filename || "(sem nome)"}`,
+      };
+    }
+    const target = resolve(directory, frame.filename);
+    if (dirname(target) !== directory) {
+      return {
+        ok: false,
+        verified,
+        invalidFilename: frame.filename,
+        message: `frame escaparia da pasta: ${frame.filename}`,
+      };
+    }
+    try {
+      const actual = await sha256File(target);
+      if (actual !== frame.sha256) {
+        return {
+          ok: false,
+          verified,
+          invalidFilename: frame.filename,
+          message: `hash divergente no frame ${frame.filename}`,
+        };
+      }
+    } catch (error: unknown) {
+      return {
+        ok: false,
+        verified,
+        invalidFilename: frame.filename,
+        message: `não foi possível verificar ${frame.filename}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      };
+    }
+    verified += 1;
+  }
+  return { ok: true, verified };
+}
+
+async function sha256File(path: string): Promise<string> {
+  const hash = createHash("sha256");
+  for await (const chunk of createReadStream(path)) {
+    hash.update(chunk as Buffer);
+  }
+  return hash.digest("hex");
 }
 
 /** Um segmento de caminho, sem separadores nem travessia. */
@@ -220,7 +332,7 @@ function crc32(data: Buffer): number {
  */
 export async function appendExportBytes(request: ExportAppendRequest): Promise<ExportAppendResult> {
   const directory = resolve(request.directory);
-  const target = resolve(directory, safeSegment(request.filename));
+  const target = resolve(directory, exportOutputSegment(request.filename));
   if (dirname(target) !== directory) {
     return { ok: false, bytes: 0, message: "nome de arquivo escaparia da pasta" };
   }
@@ -235,6 +347,20 @@ export async function appendExportBytes(request: ExportAppendRequest): Promise<E
       message: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+/**
+ * Preserva o ponto inicial somente para o namespace privado dos jobs.
+ *
+ * `safeSegment` remove pontos iniciais para arquivos pedidos pelo usuário. O
+ * MP4 transacional, porém, precisa escrever exatamente o mesmo nome reservado
+ * que `export:finalize` renomeará depois.
+ */
+function exportOutputSegment(value: string): string {
+  if (value.startsWith(".theatrum-") && basename(value) === value && !/[\\/:*?"<>|]/.test(value)) {
+    return value;
+  }
+  return safeSegment(value);
 }
 
 export interface ExportAppendRequest {

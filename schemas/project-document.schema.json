@@ -2560,6 +2560,36 @@
                     }
                   ]
                 },
+                "trackMatte": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": {},
+                      "properties": {
+                        "mode": {
+                          "enum": [
+                            "alpha",
+                            "alpha-inverted",
+                            "luma",
+                            "luma-inverted"
+                          ],
+                          "type": "string"
+                        },
+                        "source": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "source",
+                        "mode"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "transform": {
                   "additionalProperties": {},
                   "properties": {
@@ -3934,6 +3964,7 @@
                 "size",
                 "transform",
                 "blendMode",
+                "trackMatte",
                 "motionBlur",
                 "props",
                 "effects",
@@ -3951,6 +3982,32 @@
           "pixelAspect": {
             "exclusiveMinimum": 0,
             "type": "number"
+          },
+          "referenceAudio": {
+            "anyOf": [
+              {
+                "additionalProperties": {},
+                "properties": {
+                  "assetSrc": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "startFrame": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "assetSrc",
+                  "startFrame"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "root": {
             "minLength": 1,

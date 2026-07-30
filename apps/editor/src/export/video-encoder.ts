@@ -54,6 +54,8 @@ export interface VideoEncodeSession {
   readonly push: (frame: ComposedFrame, index: number) => Promise<void>;
   /** Fecha o arquivo: drena o encoder e escreve o último fragmento. */
   readonly finish: () => Promise<{ readonly frames: number; readonly bytes: number }>;
+  /** Cancela o codec e espera qualquer escrita temporária já enfileirada. */
+  readonly abort: () => Promise<void>;
   readonly close: () => void;
 }
 
@@ -235,6 +237,14 @@ export function createVideoEncodeSession(options: VideoEncodeOptions): VideoEnco
       flushFragment(true);
       await writeChain;
       return { frames: encodedFrames, bytes: writtenBytes };
+    },
+
+    abort: async () => {
+      if (encoder.state !== "closed") encoder.close();
+      // A publicação/remoção do temporário só pode vir depois de toda escrita
+      // que já atravessou o IPC. Sem esta barreira, um append atrasado poderia
+      // recriar o arquivo parcial depois de o cancelamento dizer que o removeu.
+      await writeChain;
     },
 
     close: () => {

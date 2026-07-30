@@ -24,6 +24,8 @@ data/models-index.json
 
 # saída de teste
 coverage/
+artifacts/
+exports/
 tests/golden/frames/*.actual.png
 tests/golden/frames/*.diff.png
 .tmp-*

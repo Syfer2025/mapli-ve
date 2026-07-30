@@ -519,10 +519,10 @@ Registrados agora para não serem descobertos na Fase 8.
 
 | #   | Risco                                                       | Impacto                    | Mitigação                                                                                                              |
 | --- | ----------------------------------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| R1  | _Settle_ do mapa não converge em algum frame (tile ausente) | Frame corrompido no export | Timeout + retry + política configurável (falhar / aceitar / repetir último). Log por frame.                            |
+| R1  | _Settle_ do mapa não converge em algum frame (tile ausente) | Frame corrompido no export | Timeout com falha fechada por padrão; continuação só quando explicitamente pedida. Diagnóstico por frame.              |
 | R2  | Slot `below-labels` exige contexto WebGL compartilhado      | Feature adiada             | Isolado atrás do `Compositor`; produto completo sem ele (Fase 11)                                                      |
 | R3  | `readPixels` sincroniza a GPU e domina o tempo de export    | Export lento               | Pool de PBO / `OffscreenCanvas`; preferir WebCodecs (`VideoFrame` do canvas, sem readback)                             |
-| R4  | Limite de canvas/textura em 8K                              | Export 8K falha            | `pixelRatio=2` sobre canvas 4K (caminho principal); render em tiles como fallback com ressalva de rótulos nas costuras |
+| R4  | Limite de canvas/textura em 8K                              | Export 8K falha            | Teto direto de 8192 px e guarda da superfície real; tiles ficam como alternativa futura, sujeitos a costuras de rótulo |
 | R5  | Alpha channel + mapa são incompatíveis                      | Confusão de usuário        | Modo `matte` explícito: alpha desativa a base e exporta só overlays                                                    |
 | R6  | WebCodecs sem alpha confiável                               | Formatos limitados         | ProRes 4444 e PNG sequence via FFmpeg para alpha                                                                       |
 | R7  | Determinismo quebra por descuido (`Math.random()`)          | Export não reproduzível    | Regra ESLint custom `no-nondeterminism` + teste de golden frame no CI local                                            |

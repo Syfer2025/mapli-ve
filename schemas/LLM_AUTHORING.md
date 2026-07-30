@@ -1,58 +1,71 @@
-# Autoria de Scene Script — Theatrum
+# LLM Authoring — Scene Script v1
 
-Produza somente JSON válido no formato `theatrum-scene`, versão 1.
-Os únicos campos obrigatórios na raiz são `format`, `version`, `meta` e `timeline`.
-Tempo numérico significa segundos. Prefira strings como `4s`, `90f` ou `1m30s`.
-Use coordenadas como `[longitude, latitude]`. Nunca invente uma cidade ambígua.
-Campos desconhecidos são erro; use apenas os verbos e campos do catálogo abaixo.
+<!-- GERADO por tools/gen-scene-script-authoring.ts. NÃO EDITE À MÃO. -->
 
-## Estrutura mínima
+Escreva somente JSON válido. O compilador rejeita campos desconhecidos e
+devolve todos os erros com JSON Pointer e sugestões `didYouMean`.
+
+## Envelope mínimo
 
 ```json
 {
   "format": "theatrum-scene",
+  "version": 1,
   "meta": {
-    "duration": "10s",
+    "title": "Título",
     "fps": 60,
     "resolution": "1920x1080",
-    "title": "Título da cena"
+    "duration": "30s"
   },
-  "timeline": [],
-  "version": 1
+  "timeline": []
 }
 ```
 
-## camera
+Tempos aceitos: `4s`, `500ms`, `90f`, `1m30s`, `1:30`,
+`00:01:30:15`, `after:id`, `after:id+2s`, `with:id` e `end-4s`.
+Números puros significam segundos. Tempos relativos são permitidos em `at`;
+`duration` e `delay` devem ser absolutos.
 
-### `camera.focus`
+Lugares aceitam `[lng, lat]`, `{ "lng": 0, "lat": 0 }`, uma chave de
+`places` ou uma consulta qualificada do gazetteer, como `"Kursk, RU"`.
+Nunca invente coordenadas para resolver ambiguidade: qualifique cidade/estado/país.
+
+## Registry de verbos
+
+### Câmera
+
+#### `camera.focus`
 
 Move a câmera para um ponto.
 
-Obrigatórios: `at`, `on`, `duration`.
+Campos obrigatórios: `at`, `on`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `on`, `zoom`, `bearing`, `pitch`, `duration`.
 
 ```json
 {
   "at": "0s",
   "do": "camera.focus",
-  "duration": "1s",
   "on": [
     0,
     0
-  ]
+  ],
+  "duration": "1s"
 }
 ```
 
-### `camera.frame`
+#### `camera.frame`
 
 Enquadra vários pontos.
 
-Obrigatórios: `at`, `on`, `duration`.
+Campos obrigatórios: `at`, `on`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `on`, `padding`, `duration`.
 
 ```json
 {
   "at": "0s",
   "do": "camera.frame",
-  "duration": "1s",
   "on": [
     [
       0,
@@ -62,63 +75,72 @@ Obrigatórios: `at`, `on`, `duration`.
       10,
       10
     ]
-  ]
+  ],
+  "duration": "1s"
 }
 ```
 
-### `camera.orbit`
+#### `camera.orbit`
 
 Orbita ao redor de um ponto.
 
-Obrigatórios: `at`, `on`, `duration`.
+Campos obrigatórios: `at`, `on`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `on`, `revolutions`, `duration`.
 
 ```json
 {
   "at": "0s",
   "do": "camera.orbit",
-  "duration": "1s",
   "on": [
     0,
     0
-  ]
+  ],
+  "duration": "1s"
 }
 ```
 
-### `camera.follow`
+#### `camera.follow`
 
 Segue uma unidade.
 
-Obrigatórios: `at`, `unit`, `duration`.
+Campos obrigatórios: `at`, `unit`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `unit`, `damping`, `duration`.
 
 ```json
 {
   "at": "0s",
   "do": "camera.follow",
-  "duration": "1s",
-  "unit": "unit-1"
+  "unit": "unit-1",
+  "duration": "1s"
 }
 ```
 
-### `camera.shake`
+#### `camera.shake`
 
 Aplica tremor de impacto.
 
-Obrigatórios: `at`, `intensity`, `duration`.
+Campos obrigatórios: `at`, `intensity`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `intensity`, `duration`.
 
 ```json
 {
   "at": "0s",
   "do": "camera.shake",
-  "duration": "1s",
-  "intensity": 0.5
+  "intensity": 0.5,
+  "duration": "1s"
 }
 ```
 
-### `camera.reset`
+#### `camera.reset`
 
 Restaura o enquadramento inicial.
 
-Obrigatórios: `at`, `duration`.
+Campos obrigatórios: `at`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `duration`.
 
 ```json
 {
@@ -128,516 +150,35 @@ Obrigatórios: `at`, `duration`.
 }
 ```
 
-## combat
+### Unidades
 
-### `battle`
-
-Cria batalha com efeitos.
-
-Obrigatórios: `at`, `at_place`, `intensity`, `duration`.
-
-```json
-{
-  "at": "0s",
-  "at_place": [
-    0,
-    0
-  ],
-  "do": "battle",
-  "duration": "1s",
-  "intensity": "medium"
-}
-```
-
-### `bombard`
-
-Cria bombardeio.
-
-Obrigatórios: `at`, `at_place`, `duration`.
-
-```json
-{
-  "at": "0s",
-  "at_place": [
-    0,
-    0
-  ],
-  "do": "bombard",
-  "duration": "1s"
-}
-```
-
-### `airstrike`
-
-Cria ataque aéreo.
-
-Obrigatórios: `at`, `at_place`, `duration`.
-
-```json
-{
-  "at": "0s",
-  "at_place": [
-    0,
-    0
-  ],
-  "do": "airstrike",
-  "duration": "1s"
-}
-```
-
-### `missile.launch`
-
-Lança míssil.
-
-Obrigatórios: `at`, `from`, `to`, `duration`.
-
-```json
-{
-  "at": "0s",
-  "do": "missile.launch",
-  "duration": "1s",
-  "from": [
-    0,
-    0
-  ],
-  "to": [
-    10,
-    10
-  ]
-}
-```
-
-### `siege`
-
-Cria cerco.
-
-Obrigatórios: `at`, `at_place`, `duration`.
-
-```json
-{
-  "at": "0s",
-  "at_place": [
-    0,
-    0
-  ],
-  "do": "siege",
-  "duration": "1s"
-}
-```
-
-### `amphibious.landing`
-
-Cria desembarque.
-
-Obrigatórios: `at`, `from`, `at_place`, `duration`.
-
-```json
-{
-  "at": "0s",
-  "at_place": [
-    0,
-    0
-  ],
-  "do": "amphibious.landing",
-  "duration": "1s",
-  "from": [
-    0,
-    0
-  ]
-}
-```
-
-### `airdrop`
-
-Lança paraquedistas.
-
-Obrigatórios: `at`, `from`, `at_place`, `duration`.
-
-```json
-{
-  "at": "0s",
-  "at_place": [
-    0,
-    0
-  ],
-  "do": "airdrop",
-  "duration": "1s",
-  "from": [
-    0,
-    0
-  ]
-}
-```
-
-### `naval.blockade`
-
-Cria bloqueio naval.
-
-Obrigatórios: `at`, `at_place`, `radius`, `duration`.
-
-```json
-{
-  "at": "0s",
-  "at_place": [
-    0,
-    0
-  ],
-  "do": "naval.blockade",
-  "duration": "1s",
-  "radius": 25
-}
-```
-
-## control
-
-### `wait`
-
-Cria um espaçador temporal.
-
-Obrigatórios: `at`, `duration`.
-
-```json
-{
-  "at": "0s",
-  "do": "wait",
-  "duration": "1s"
-}
-```
-
-### `marker`
-
-Cria marcador na timeline.
-
-Obrigatórios: `at`, `label`.
-
-```json
-{
-  "at": "0s",
-  "do": "marker",
-  "label": "Marcador"
-}
-```
-
-### `group.begin`
-
-Inicia um grupo.
-
-Obrigatórios: `at`, `label`.
-
-```json
-{
-  "at": "0s",
-  "do": "group.begin",
-  "label": "Marcador"
-}
-```
-
-### `group.end`
-
-Encerra um grupo.
-
-Obrigatórios: `at`, `label`.
-
-```json
-{
-  "at": "0s",
-  "do": "group.end",
-  "label": "Marcador"
-}
-```
-
-## geography
-
-### `area.highlight`
-
-Destaca uma região.
-
-Obrigatórios: `at`, `region`, `duration`.
-
-```json
-{
-  "at": "0s",
-  "do": "area.highlight",
-  "duration": "1s",
-  "region": "region-1"
-}
-```
-
-### `area.transfer`
-
-Transfere controle territorial.
-
-Obrigatórios: `at`, `region`, `from`, `to`, `duration`.
-
-```json
-{
-  "at": "0s",
-  "do": "area.transfer",
-  "duration": "1s",
-  "from": "faction-a",
-  "region": "region-1",
-  "to": "faction-b"
-}
-```
-
-### `frontline.set`
-
-Desenha uma linha de frente.
-
-Obrigatórios: `at`, `through`, `duration`.
-
-```json
-{
-  "at": "0s",
-  "do": "frontline.set",
-  "duration": "1s",
-  "through": [
-    [
-      0,
-      0
-    ],
-    [
-      10,
-      10
-    ]
-  ]
-}
-```
-
-### `frontline.shift`
-
-Move uma linha de frente.
-
-Obrigatórios: `at`, `to`, `duration`.
-
-```json
-{
-  "at": "0s",
-  "do": "frontline.shift",
-  "duration": "1s",
-  "to": [
-    [
-      0,
-      0
-    ],
-    [
-      10,
-      10
-    ]
-  ]
-}
-```
-
-### `border.show`
-
-Mostra fronteiras de um dataset.
-
-Obrigatórios: `at`, `dataset`, `duration`.
-
-```json
-{
-  "at": "0s",
-  "dataset": "borders.geojson",
-  "do": "border.show",
-  "duration": "1s"
-}
-```
-
-### `encircle`
-
-Anima um cerco.
-
-Obrigatórios: `at`, `duration`.
-
-```json
-{
-  "at": "0s",
-  "do": "encircle",
-  "duration": "1s"
-}
-```
-
-### `supply.line`
-
-Cria linha de suprimento.
-
-Obrigatórios: `at`, `from`, `to`, `duration`.
-
-```json
-{
-  "at": "0s",
-  "do": "supply.line",
-  "duration": "1s",
-  "from": [
-    0,
-    0
-  ],
-  "to": [
-    10,
-    10
-  ]
-}
-```
-
-## text
-
-### `text.title`
-
-Mostra um título.
-
-Obrigatórios: `at`, `text`, `duration`.
-
-```json
-{
-  "at": "0s",
-  "do": "text.title",
-  "duration": "1s",
-  "text": "Texto"
-}
-```
-
-### `text.caption`
-
-Mostra uma legenda.
-
-Obrigatórios: `at`, `text`, `duration`.
-
-```json
-{
-  "at": "0s",
-  "do": "text.caption",
-  "duration": "1s",
-  "text": "Texto"
-}
-```
-
-### `text.callout`
-
-Mostra chamada ligada a um ponto.
-
-Obrigatórios: `at`, `text`, `at_place`, `duration`.
-
-```json
-{
-  "at": "0s",
-  "at_place": [
-    0,
-    0
-  ],
-  "do": "text.callout",
-  "duration": "1s",
-  "text": "Texto"
-}
-```
-
-### `text.date`
-
-Mostra uma data.
-
-Obrigatórios: `at`, `date`, `duration`.
-
-```json
-{
-  "at": "0s",
-  "date": "1941-06-22",
-  "do": "text.date",
-  "duration": "1s"
-}
-```
-
-### `text.counter`
-
-Anima um contador.
-
-Obrigatórios: `at`, `from`, `to`, `duration`.
-
-```json
-{
-  "at": "0s",
-  "do": "text.counter",
-  "duration": "1s",
-  "from": 0,
-  "to": 100
-}
-```
-
-### `label.place`
-
-Rotula um lugar.
-
-Obrigatórios: `at`, `place`, `duration`.
-
-```json
-{
-  "at": "0s",
-  "do": "label.place",
-  "duration": "1s",
-  "place": [
-    0,
-    0
-  ]
-}
-```
-
-### `arrow.draw`
-
-Desenha uma seta.
-
-Obrigatórios: `at`, `duration`.
-
-```json
-{
-  "at": "0s",
-  "do": "arrow.draw",
-  "duration": "1s"
-}
-```
-
-### `legend.show`
-
-Mostra uma legenda de facções.
-
-Obrigatórios: `at`, `items`, `duration`.
-
-```json
-{
-  "at": "0s",
-  "do": "legend.show",
-  "duration": "1s",
-  "items": [
-    {
-      "color": "#8b2635",
-      "label": "Facção"
-    }
-  ]
-}
-```
-
-## units
-
-### `unit.spawn`
+#### `unit.spawn`
 
 Faz uma unidade aparecer.
 
-Obrigatórios: `at`, `unit`, `at_place`.
+Campos obrigatórios: `at`, `unit`, `at_place`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `unit`, `at_place`, `fade`.
 
 ```json
 {
   "at": "0s",
+  "do": "unit.spawn",
+  "unit": "unit-1",
   "at_place": [
     0,
     0
-  ],
-  "do": "unit.spawn",
-  "unit": "unit-1"
+  ]
 }
 ```
 
-### `unit.advance`
+#### `unit.advance`
 
 Avança uma unidade por path ou destino.
 
-Obrigatórios: `at`, `unit`.
+Campos obrigatórios: `at`, `unit`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `unit`, `along`, `to`, `duration`, `trail`.
 
 ```json
 {
@@ -647,11 +188,13 @@ Obrigatórios: `at`, `unit`.
 }
 ```
 
-### `unit.retreat`
+#### `unit.retreat`
 
 Recua uma unidade.
 
-Obrigatórios: `at`, `unit`.
+Campos obrigatórios: `at`, `unit`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `unit`, `along`, `to`, `duration`.
 
 ```json
 {
@@ -661,79 +204,89 @@ Obrigatórios: `at`, `unit`.
 }
 ```
 
-### `unit.patrol`
+#### `unit.patrol`
 
 Patrulha um path.
 
-Obrigatórios: `at`, `unit`, `along`, `duration`.
+Campos obrigatórios: `at`, `unit`, `along`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `unit`, `along`, `cycles`, `duration`.
 
 ```json
 {
-  "along": "path-1",
   "at": "0s",
   "do": "unit.patrol",
-  "duration": "1s",
-  "unit": "unit-1"
+  "unit": "unit-1",
+  "along": "path-1",
+  "duration": "1s"
 }
 ```
 
-### `unit.attack`
+#### `unit.attack`
 
 Avança e engaja um alvo.
 
-Obrigatórios: `at`, `unit`, `target`.
+Campos obrigatórios: `at`, `unit`, `target`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `unit`, `target`, `duration`.
 
 ```json
 {
   "at": "0s",
   "do": "unit.attack",
-  "target": "unit-2",
-  "unit": "unit-1"
+  "unit": "unit-1",
+  "target": "unit-2"
 }
 ```
 
-### `unit.intercept`
+#### `unit.intercept`
 
 Traça curso de interceptação.
 
-Obrigatórios: `at`, `unit`, `target`.
+Campos obrigatórios: `at`, `unit`, `target`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `unit`, `target`, `duration`.
 
 ```json
 {
   "at": "0s",
   "do": "unit.intercept",
-  "target": "unit-2",
-  "unit": "unit-1"
+  "unit": "unit-1",
+  "target": "unit-2"
 }
 ```
 
-### `unit.dogfight`
+#### `unit.dogfight`
 
 Cria combate aéreo.
 
-Obrigatórios: `at`, `units`, `at_place`, `duration`.
+Campos obrigatórios: `at`, `units`, `at_place`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `units`, `at_place`, `duration`.
 
 ```json
 {
   "at": "0s",
+  "do": "unit.dogfight",
+  "units": [
+    "unit-1",
+    "unit-2"
+  ],
   "at_place": [
     0,
     0
   ],
-  "do": "unit.dogfight",
-  "duration": "1s",
-  "units": [
-    "unit-1",
-    "unit-2"
-  ]
+  "duration": "1s"
 }
 ```
 
-### `unit.destroy`
+#### `unit.destroy`
 
 Remove uma unidade.
 
-Obrigatórios: `at`, `unit`.
+Campos obrigatórios: `at`, `unit`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `unit`, `explosion`.
 
 ```json
 {
@@ -743,46 +296,595 @@ Obrigatórios: `at`, `unit`.
 }
 ```
 
-### `unit.split`
+#### `unit.split`
 
 Divide uma unidade.
 
-Obrigatórios: `at`, `unit`, `into`, `at_place`.
+Campos obrigatórios: `at`, `unit`, `into`, `at_place`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `unit`, `into`, `at_place`.
 
 ```json
 {
   "at": "0s",
-  "at_place": [
-    0,
-    0
-  ],
   "do": "unit.split",
+  "unit": "unit-1",
   "into": [
     "unit-a",
     "unit-b"
   ],
-  "unit": "unit-1"
+  "at_place": [
+    0,
+    0
+  ]
 }
 ```
 
-### `unit.merge`
+#### `unit.merge`
 
 Reúne unidades.
 
-Obrigatórios: `at`, `units`, `into`, `at_place`.
+Campos obrigatórios: `at`, `units`, `into`, `at_place`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `units`, `into`, `at_place`.
 
 ```json
 {
   "at": "0s",
+  "do": "unit.merge",
+  "units": [
+    "unit-1",
+    "unit-2"
+  ],
+  "into": "unit-merged",
+  "at_place": [
+    0,
+    0
+  ]
+}
+```
+
+### Combate
+
+#### `battle`
+
+Cria batalha com efeitos.
+
+Campos obrigatórios: `at`, `at_place`, `intensity`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `at_place`, `intensity`, `duration`, `label`.
+
+```json
+{
+  "at": "0s",
+  "do": "battle",
   "at_place": [
     0,
     0
   ],
-  "do": "unit.merge",
-  "into": "unit-merged",
-  "units": [
-    "unit-1",
-    "unit-2"
-  ]
+  "intensity": "medium",
+  "duration": "1s"
 }
 ```
+
+#### `bombard`
+
+Cria bombardeio.
+
+Campos obrigatórios: `at`, `at_place`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `from`, `at_place`, `count`, `duration`.
+
+```json
+{
+  "at": "0s",
+  "do": "bombard",
+  "at_place": [
+    0,
+    0
+  ],
+  "duration": "1s"
+}
+```
+
+#### `airstrike`
+
+Cria ataque aéreo.
+
+Campos obrigatórios: `at`, `at_place`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `unit`, `at_place`, `duration`.
+
+```json
+{
+  "at": "0s",
+  "do": "airstrike",
+  "at_place": [
+    0,
+    0
+  ],
+  "duration": "1s"
+}
+```
+
+#### `missile.launch`
+
+Lança míssil.
+
+Campos obrigatórios: `at`, `from`, `to`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `from`, `to`, `duration`, `trail`.
+
+```json
+{
+  "at": "0s",
+  "do": "missile.launch",
+  "from": [
+    0,
+    0
+  ],
+  "to": [
+    10,
+    10
+  ],
+  "duration": "1s"
+}
+```
+
+#### `siege`
+
+Cria cerco.
+
+Campos obrigatórios: `at`, `at_place`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `at_place`, `duration`, `label`.
+
+```json
+{
+  "at": "0s",
+  "do": "siege",
+  "at_place": [
+    0,
+    0
+  ],
+  "duration": "1s"
+}
+```
+
+#### `amphibious.landing`
+
+Cria desembarque.
+
+Campos obrigatórios: `at`, `from`, `at_place`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `from`, `at_place`, `duration`.
+
+```json
+{
+  "at": "0s",
+  "do": "amphibious.landing",
+  "from": [
+    0,
+    0
+  ],
+  "at_place": [
+    0,
+    0
+  ],
+  "duration": "1s"
+}
+```
+
+#### `airdrop`
+
+Lança paraquedistas.
+
+Campos obrigatórios: `at`, `from`, `at_place`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `from`, `at_place`, `duration`.
+
+```json
+{
+  "at": "0s",
+  "do": "airdrop",
+  "from": [
+    0,
+    0
+  ],
+  "at_place": [
+    0,
+    0
+  ],
+  "duration": "1s"
+}
+```
+
+#### `naval.blockade`
+
+Cria bloqueio naval.
+
+Campos obrigatórios: `at`, `at_place`, `radius`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `at_place`, `radius`, `duration`.
+
+```json
+{
+  "at": "0s",
+  "do": "naval.blockade",
+  "at_place": [
+    0,
+    0
+  ],
+  "radius": 25,
+  "duration": "1s"
+}
+```
+
+### Geografia
+
+#### `area.highlight`
+
+Destaca uma região.
+
+Campos obrigatórios: `at`, `region`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `region`, `faction`, `duration`, `fade`.
+
+```json
+{
+  "at": "0s",
+  "do": "area.highlight",
+  "region": "region-1",
+  "duration": "1s"
+}
+```
+
+#### `area.transfer`
+
+Transfere controle territorial.
+
+Campos obrigatórios: `at`, `region`, `from`, `to`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `region`, `from`, `to`, `duration`.
+
+```json
+{
+  "at": "0s",
+  "do": "area.transfer",
+  "region": "region-1",
+  "from": "faction-a",
+  "to": "faction-b",
+  "duration": "1s"
+}
+```
+
+#### `frontline.set`
+
+Desenha uma linha de frente.
+
+Campos obrigatórios: `at`, `through`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `through`, `duration`.
+
+```json
+{
+  "at": "0s",
+  "do": "frontline.set",
+  "through": [
+    [
+      0,
+      0
+    ],
+    [
+      10,
+      10
+    ]
+  ],
+  "duration": "1s"
+}
+```
+
+#### `frontline.shift`
+
+Move uma linha de frente.
+
+Campos obrigatórios: `at`, `to`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `to`, `duration`.
+
+```json
+{
+  "at": "0s",
+  "do": "frontline.shift",
+  "to": [
+    [
+      0,
+      0
+    ],
+    [
+      10,
+      10
+    ]
+  ],
+  "duration": "1s"
+}
+```
+
+#### `border.show`
+
+Mostra fronteiras de um dataset.
+
+Campos obrigatórios: `at`, `dataset`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `dataset`, `duration`.
+
+```json
+{
+  "at": "0s",
+  "do": "border.show",
+  "dataset": "borders.geojson",
+  "duration": "1s"
+}
+```
+
+#### `encircle`
+
+Anima um cerco.
+
+Campos obrigatórios: `at`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `region`, `at_place`, `duration`.
+
+```json
+{
+  "at": "0s",
+  "do": "encircle",
+  "duration": "1s"
+}
+```
+
+#### `supply.line`
+
+Cria linha de suprimento.
+
+Campos obrigatórios: `at`, `from`, `to`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `from`, `to`, `duration`, `flow`.
+
+```json
+{
+  "at": "0s",
+  "do": "supply.line",
+  "from": [
+    0,
+    0
+  ],
+  "to": [
+    10,
+    10
+  ],
+  "duration": "1s"
+}
+```
+
+### Texto e gráficos
+
+#### `text.title`
+
+Mostra um título.
+
+Campos obrigatórios: `at`, `text`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `text`, `subtitle`, `position`, `duration`, `reveal`.
+
+```json
+{
+  "at": "0s",
+  "do": "text.title",
+  "text": "Texto",
+  "duration": "1s"
+}
+```
+
+#### `text.caption`
+
+Mostra uma legenda.
+
+Campos obrigatórios: `at`, `text`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `text`, `position`, `duration`.
+
+```json
+{
+  "at": "0s",
+  "do": "text.caption",
+  "text": "Texto",
+  "duration": "1s"
+}
+```
+
+#### `text.callout`
+
+Mostra chamada ligada a um ponto.
+
+Campos obrigatórios: `at`, `text`, `at_place`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `text`, `at_place`, `duration`, `leader`.
+
+```json
+{
+  "at": "0s",
+  "do": "text.callout",
+  "text": "Texto",
+  "at_place": [
+    0,
+    0
+  ],
+  "duration": "1s"
+}
+```
+
+#### `text.date`
+
+Mostra uma data.
+
+Campos obrigatórios: `at`, `date`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `date`, `position`, `duration`.
+
+```json
+{
+  "at": "0s",
+  "do": "text.date",
+  "date": "1941-06-22",
+  "duration": "1s"
+}
+```
+
+#### `text.counter`
+
+Anima um contador.
+
+Campos obrigatórios: `at`, `from`, `to`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `from`, `to`, `label`, `duration`.
+
+```json
+{
+  "at": "0s",
+  "do": "text.counter",
+  "from": 0,
+  "to": 100,
+  "duration": "1s"
+}
+```
+
+#### `label.place`
+
+Rotula um lugar.
+
+Campos obrigatórios: `at`, `place`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `place`, `duration`, `style`.
+
+```json
+{
+  "at": "0s",
+  "do": "label.place",
+  "place": [
+    0,
+    0
+  ],
+  "duration": "1s"
+}
+```
+
+#### `arrow.draw`
+
+Desenha uma seta.
+
+Campos obrigatórios: `at`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `along`, `from`, `to`, `duration`, `style`.
+
+```json
+{
+  "at": "0s",
+  "do": "arrow.draw",
+  "duration": "1s"
+}
+```
+
+#### `legend.show`
+
+Mostra uma legenda de facções.
+
+Campos obrigatórios: `at`, `items`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `items`, `position`, `duration`.
+
+```json
+{
+  "at": "0s",
+  "do": "legend.show",
+  "items": [
+    {
+      "label": "Facção",
+      "color": "#8b2635"
+    }
+  ],
+  "duration": "1s"
+}
+```
+
+### Controle
+
+#### `wait`
+
+Cria um espaçador temporal.
+
+Campos obrigatórios: `at`, `duration`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `duration`.
+
+```json
+{
+  "at": "0s",
+  "do": "wait",
+  "duration": "1s"
+}
+```
+
+#### `marker`
+
+Cria marcador na timeline.
+
+Campos obrigatórios: `at`, `label`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `label`, `color`.
+
+```json
+{
+  "at": "0s",
+  "do": "marker",
+  "label": "Marcador"
+}
+```
+
+#### `group.begin`
+
+Inicia um grupo.
+
+Campos obrigatórios: `at`, `label`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `label`.
+
+```json
+{
+  "at": "0s",
+  "do": "group.begin",
+  "label": "Marcador"
+}
+```
+
+#### `group.end`
+
+Encerra um grupo.
+
+Campos obrigatórios: `at`, `label`.
+
+Campos aceitos: `at`, `id`, `ease`, `delay`, `comment`, `label`.
+
+```json
+{
+  "at": "0s",
+  "do": "group.end",
+  "label": "Marcador"
+}
+```
+
+## Ciclo de correção
+
+Se a compilação falhar, corrija cada item de `diagnostics`. Use `path` para
+localizar o campo exato e prefira a primeira opção de `didYouMean` quando ela
+corresponder à intenção. Não remova entradas corretas para esconder erros.

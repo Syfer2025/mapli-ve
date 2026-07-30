@@ -19,7 +19,9 @@ import {
   type AssetKind,
 } from "@theatrum/assets";
 import type { AssetDescriptor } from "@theatrum/schema";
+import type { UnitCatalog, UnitDefinition } from "@theatrum/plugin-host";
 import { assetThumbnailUrl } from "../../assets/asset-media.js";
+import { bundledUnitSvgUrl, loadBundledUnitCatalog } from "../../assets/bundled-units.js";
 import { editorActions } from "../../document/editor-session.js";
 import {
   filterLocalModels,
@@ -32,6 +34,7 @@ import {
 import { useEditorSession } from "../../document/useEditorSession.js";
 import { Button, Panel } from "../../ui/index.js";
 import { encodeStudioDrop, STUDIO_DROP_MIME } from "../viewport/studio-drop.js";
+import { BundledContentSection } from "./BundledContentSection.js";
 import "./LibraryPanel.css";
 
 interface EditingState {
@@ -190,9 +193,98 @@ export function LibraryPanel(): ReactNode {
           </div>
         )}
 
+        <BundledUnitsSection query={query} />
+        <BundledContentSection query={query} />
         <LocalModelsSection query={query} />
       </div>
     </Panel>
+  );
+}
+
+function BundledUnitsSection({ query }: { readonly query: string }): ReactNode {
+  const [catalog, setCatalog] = useState<UnitCatalog | null | undefined>(undefined);
+  const [open, setOpen] = useState(true);
+  const [status, setStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void loadBundledUnitCatalog().then((loaded) => {
+      if (active) setCatalog(loaded);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (catalog === undefined || catalog === null) return null;
+  const visible = catalog.search(query, { limit: 30 });
+  const expanded = open || query.trim().length > 0;
+
+  const addUnit = (unit: UnitDefinition): void => {
+    const type =
+      unit.category === "armor"
+        ? "unit.armor"
+        : unit.category === "infantry"
+          ? "unit.infantry"
+          : "symbol.icon";
+    const nodeId = editorActions.addNodeOfType(type);
+    if (nodeId === null) {
+      setStatus("Não foi possível adicionar a unidade à composição atual.");
+      return;
+    }
+    editorActions.renameNode(nodeId, unit.name);
+    if (type === "symbol.icon") {
+      editorActions.setPropertyValue(
+        nodeId,
+        "props.iconId",
+        unit.category.slice(0, 3).toUpperCase(),
+        false,
+      );
+    } else {
+      editorActions.setPropertyValue(nodeId, "props.callsign", unit.name, false);
+      editorActions.setPropertyValue(nodeId, "props.assetId", `lib:${unit.id}`, false);
+    }
+    setStatus(`${unit.name} adicionada à cena.`);
+  };
+
+  return (
+    <section className="library__local library__bundled">
+      <button
+        type="button"
+        className="library__local-toggle"
+        aria-expanded={expanded}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span>{expanded ? "▾" : "▸"} Unidades históricas e modernas</span>
+        <small>{catalog.size} símbolos · WWI, WWII e moderno · NATO APP-6</small>
+      </button>
+      {status === null ? null : <p className="library__local-status">{status}</p>}
+      {!expanded ? null : visible.length === 0 ? (
+        <p className="library__local-status">Nenhuma unidade empacotada corresponde à busca.</p>
+      ) : (
+        <ul className="library__unit-grid" role="list">
+          {visible.map(({ unit }) => (
+            <li key={unit.id}>
+              <button
+                type="button"
+                title={`${unit.name} · ${unit.nation} · ${unit.serviceFrom}–${unit.serviceTo} · ${unit.app6 ?? "APP-6"}`}
+                onClick={() => addUnit(unit)}
+              >
+                <svg viewBox="0 0 96 64" aria-hidden>
+                  <use href={bundledUnitSvgUrl(unit)} />
+                </svg>
+                <span>
+                  <strong>{unit.name}</strong>
+                  <small>
+                    {unit.nation} · {unit.serviceFrom}–{unit.serviceTo}
+                  </small>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -327,6 +419,8 @@ function AssetCard({
   const tags = assetTags(asset);
   const thumbnail = assetThumbnailUrl(asset.src);
   const isModel = asset.kind === "model";
+  const isAudio = asset.kind === "audio";
+  const canApply = !isModel && !isAudio;
   const isEditing = editing !== null && editing.id === asset.id;
 
   const onEditKey = (event: KeyboardEvent<HTMLInputElement>): void => {
@@ -363,7 +457,7 @@ function AssetCard({
           <img src={thumbnail} alt="" loading="lazy" draggable={false} />
         ) : (
           <span className="library-card__thumb-icon" aria-hidden>
-            ◈
+            {isAudio ? "♫" : "◈"}
           </span>
         )}
       </div>
@@ -418,8 +512,14 @@ function AssetCard({
       <div className="library-card__actions">
         <Button
           size="sm"
-          disabled={isModel}
-          title={isModel ? "Modelos 3D entram no viewport 3D (fase futura)" : "Adicionar à cena"}
+          disabled={!canApply}
+          title={
+            isModel
+              ? "Modelos 3D entram no viewport 3D (fase futura)"
+              : isAudio
+                ? "Use este áudio como referência na Timeline"
+                : "Adicionar à cena"
+          }
           onClick={() => editorActions.applyAsset(asset.id)}
         >
           Aplicar

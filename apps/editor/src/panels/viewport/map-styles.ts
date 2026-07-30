@@ -8,7 +8,11 @@ import type {
 import { detailedBasemapSourceUrl, type DetailedBasemap } from "./detailed-basemap.js";
 import { rasterSourceUrl, type RasterBasemap } from "./raster-basemap.js";
 
-export type MapStyleId = "dark-relief" | "historical-parchment" | "minimal-political";
+export type MapStyleId =
+  | "dark-relief"
+  | "historical-parchment"
+  | "minimal-political"
+  | "strategic-war-room";
 
 export interface MapStyleOption {
   readonly id: MapStyleId;
@@ -19,12 +23,14 @@ const MAP_STYLE_LABELS: Readonly<Record<MapStyleId, string>> = {
   "dark-relief": "Relevo escuro",
   "historical-parchment": "Pergaminho histórico",
   "minimal-political": "Político minimalista",
+  "strategic-war-room": "Sala de guerra estratégica",
 };
 
 export const MAP_STYLE_OPTIONS: readonly MapStyleOption[] = [
   { id: "dark-relief", label: MAP_STYLE_LABELS["dark-relief"] },
   { id: "historical-parchment", label: MAP_STYLE_LABELS["historical-parchment"] },
   { id: "minimal-political", label: MAP_STYLE_LABELS["minimal-political"] },
+  { id: "strategic-war-room", label: MAP_STYLE_LABELS["strategic-war-room"] },
 ];
 
 const BASEMAP_URL = `pmtiles://${DATA_BASE_URL}/basemap/natural-earth-world.pmtiles`;
@@ -84,6 +90,18 @@ const PALETTES: Readonly<Record<MapStyleId, Palette>> = {
     label: "#ecf0f3",
     labelHalo: "#11171d",
     city: "#5bb6aa",
+  },
+  "strategic-war-room": {
+    ocean: "#08111b",
+    land: "#1b2530",
+    landAlternate: "#222e3a",
+    border: "#a9b6c4",
+    disputed: "#d1a75b",
+    water: "#0e2537",
+    waterLine: "#386982",
+    label: "#dce5ee",
+    labelHalo: "#08111b",
+    city: "#dce5ee",
   },
 };
 
@@ -216,6 +234,16 @@ function layers(palette: Palette): LayerSpecification[] {
 /** Gera uma cópia nova: o MapLibre anexa estado interno ao style em runtime. */
 export function createMapStyle(styleId: MapStyleId): StyleSpecification {
   const palette = PALETTES[styleId];
+  const styleLayers =
+    styleId === "strategic-war-room"
+      ? layers(palette).filter(
+          (layer) =>
+            layer.id !== "country-labels" &&
+            layer.id !== "geographic-lines" &&
+            layer.id !== "cities" &&
+            layer.id !== "city-labels",
+        )
+      : layers(palette);
   return {
     version: 8,
     name: MAP_STYLE_LABELS[styleId],
@@ -239,7 +267,7 @@ export function createMapStyle(styleId: MapStyleId): StyleSpecification {
         data: RIVERS_URL,
       },
     },
-    layers: layers(palette),
+    layers: styleLayers,
   };
 }
 

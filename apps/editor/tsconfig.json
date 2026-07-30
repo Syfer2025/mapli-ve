@@ -16,13 +16,15 @@
       "@theatrum/core-utils": ["../../packages/core-utils/src/index.ts"],
       "@theatrum/schema": ["../../packages/schema/src/index.ts"],
       "@theatrum/document": ["../../packages/document/src/index.ts"],
+      "@theatrum/engine": ["../../packages/engine/src/index.ts"],
       "@theatrum/scene-graph": ["../../packages/scene-graph/src/index.ts"],
       "@theatrum/animation": ["../../packages/animation/src/index.ts"],
       "@theatrum/behaviors": ["../../packages/behaviors/src/index.ts"],
       "@theatrum/effects": ["../../packages/effects/src/index.ts"],
       "@theatrum/renderer": ["../../packages/renderer/src/index.ts"],
       "@theatrum/commands": ["../../packages/commands/src/index.ts"],
-      "@theatrum/project-io": ["../../packages/project-io/src/index.ts"]
+      "@theatrum/project-io": ["../../packages/project-io/src/index.ts"],
+      "@theatrum/scripting": ["../../packages/scripting/src/index.ts"]
     }
   },
   "//include": "Os pacotes entram por `paths` como fonte; as declarações ambientes deles (ex.: subcaminhos do Pixi sem tipos) precisam entrar neste programa também.",

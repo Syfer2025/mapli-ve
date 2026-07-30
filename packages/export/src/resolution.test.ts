@@ -91,18 +91,17 @@ describe("planExportResolution", () => {
     expect(plan.output.every((side) => side % 2 === 0)).toBe(true);
   });
 
-  it("recusa acima do teto em vez de cortar em silêncio", () => {
-    // O MapLibre corta: pedir 7680×4320 devolveu 4096×2304 sem erro. Um export
-    // de 8K que sai 4K sem avisar é pior que um export que não começa.
-    expect(() => planExportResolution({ ...HD, scale: 4 })).toThrow(ExportResolutionError);
-    expect(() => planExportResolution({ ...HD, scale: 4 })).toThrow(/maxCanvasSize/);
+  it("aceita 8K e recusa acima do teto em vez de cortar em silêncio", () => {
+    expect(planExportResolution({ ...HD, scale: 4 }).output).toEqual([7680, 4320]);
+    expect(() => planExportResolution({ ...HD, scale: 8 })).toThrow(ExportResolutionError);
+    expect(() => planExportResolution({ ...HD, scale: 8 })).toThrow(/maxCanvasSize/);
   });
 
   it("aplica o teto ao render ampliado, não só ao arquivo final", () => {
     expect(planExportResolution({ ...HD, supersampling: 2 }).render).toEqual([3840, 2160]);
-    expect(() => planExportResolution({ ...HD, scale: 2, supersampling: 2 })).toThrow(
-      /7680×4320 de render/,
-    );
+    expect(planExportResolution({ ...HD, scale: 2, supersampling: 2 }).render).toEqual([
+      7680, 4320,
+    ]);
     expect(
       planExportResolution({
         compositionWidth: 2048,
@@ -112,18 +111,20 @@ describe("planExportResolution", () => {
     ).toEqual([4096, 4096]);
     expect(() =>
       planExportResolution({
-        compositionWidth: 2050,
-        compositionHeight: 2050,
+        compositionWidth: 4100,
+        compositionHeight: 4100,
         supersampling: 2,
       }),
     ).toThrow(ExportResolutionError);
   });
 
-  it("4K passa no teto padrão, e é a fronteira", () => {
+  it("8K passa no teto padrão, e 8192 é a fronteira", () => {
     const quatroK = planExportResolution({ compositionWidth: 3840, compositionHeight: 2160 });
     expect(quatroK.output).toEqual([3840, 2160]);
-    expect(DEFAULT_MAX_DIMENSION).toBe(4096);
-    expect(() => planExportResolution({ compositionWidth: 4098, compositionHeight: 2160 })).toThrow(
+    const oitoK = planExportResolution({ compositionWidth: 7680, compositionHeight: 4320 });
+    expect(oitoK.output).toEqual([7680, 4320]);
+    expect(DEFAULT_MAX_DIMENSION).toBe(8192);
+    expect(() => planExportResolution({ compositionWidth: 8194, compositionHeight: 4320 })).toThrow(
       ExportResolutionError,
     );
   });

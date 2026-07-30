@@ -10,9 +10,81 @@ morde, e como não repetir erro já cometido.
 
 ---
 
-## 1. Onde parou
+## 0. Estado atual — 2026-07-30
 
-Cadeia final verde — **1.162 testes funcionais em 115 arquivos**, suíte isolada
+Esta seção é a passagem de bastão autoritativa. As seções seguintes preservam
+medições e diagnósticos históricos; contagens e resultados nelas não devem ser
+tratados como validação da árvore atual.
+
+### Mapa como documento
+
+`composition.map.styleId` e `composition.camera` são a verdade da vista. O
+MapLibre recebe o estado avaliado no playhead, e gestos consolidados voltam pelo
+Command Bus, com keyframe quando a propriedade está animada. Save/reopen e
+undo/redo preservam câmera e estilo. A ausência de um pacote regional ou
+satélite opcional mostra fallback explícito sem alterar a escolha persistida.
+Ver [ADR-026](adr/ADR-026-map-view-is-document-state.md).
+
+### Export
+
+- O settle padrão é `fail`; mapa, assets, superfícies, frame observado ou
+  repaints que não convergem encerram o job antes de compor/escrever o frame.
+- MP4, GIF e MOV usam temporário no mesmo diretório e publicação por rename
+  atômico ([ADR-027](adr/ADR-027-fail-closed-and-atomic-export.md)).
+- A fila persiste no renderer, executa serialmente no viewport vivo e transforma
+  job `running` recuperado em `paused`. Não existe Render Window oculta.
+- Checkpoints reutilizam sequência de PNG/GIF/ProRes. MP4 H.264 direto reinicia o
+  stream ao retomar.
+- A fila guarda composição/opções, não um snapshot imutável do documento. Editar
+  durante o job ativo o interrompe.
+- Escala e supersampling são separados. O teto padrão do render interno é
+  8192 px por eixo, sujeito também à capacidade concreta da GPU.
+
+Continuam sem evidência atual o ensaio de 90 s em 4K/60, a execução 8K na
+máquina-alvo, a retirada de PMTiles real durante o job e a retomada depois de
+reiniciar o aplicativo.
+
+### Scene Script e conteúdo
+
+O Scene Script v1 possui compilador assíncrono/offline, tempo relativo,
+gazetteer, registro de verbos, diagnósticos semânticos, emissor, modal de
+importação e um único comando reversível. `LLM_AUTHORING.md` é gerado do
+registro. A exportação inversa devolve somente a fonte normalizada preservada e
+avisa quando edições posteriores foram omitidas.
+
+O agente ChatGPT/Codex desta conversa é o **Maestro**. O editor publica a
+superfície local `window.__theatrumMaestro`, acessada por
+`tools/maestro.mjs`: Scene Script cria a cena integral e lotes do Command Bus
+fazem mudanças pontuais. Diagnósticos do compilador voltam ao agente e nenhuma
+tentativa inválida toca o documento. O aplicativo não contém modelo, painel de
+chat ou chave de API.
+
+O `plugin-host` possui manifest, descoberta por porta, registries, host com
+descarte e placeholder de nó desconhecido. O shell/editor ainda não oferece
+loader e gestão de plugins arbitrários. O catálogo empacotado de unidades já
+aparece na Biblioteca; bandeiras, paletas e presets gerados ainda não estão
+todos ligados à UI.
+
+### Fase 11
+
+Expressões seguras de propriedade e os núcleos determinísticos de cache de
+preview/waveform de referência estão implementados
+([ADR-030](adr/ADR-030-safe-property-expressions.md),
+[ADR-031](adr/ADR-031-preview-cache-and-reference-audio.md)). O Inspector já
+edita/remove expressões pelo Command Bus e mostra falha recuperável. Presets de
+workspace e atalhos configuráveis também estão implementados como preferências
+locais ([ADR-032](adr/ADR-032-shortcuts-and-workspace-presets.md)). Cache e
+waveform ainda precisam da integração visual, e o onboarding completo continua
+pendente. Áudio não reproduz nem entra no export. O soak de quatro horas **não
+foi executado**.
+
+O instalador foi excluído deste ciclo: não reconstruir, publicar ou prometer um
+artefato como parte desta retomada.
+
+## 1. Registro histórico anterior — não é status da árvore atual
+
+O trecho abaixo registra a bancada anterior. Por exemplo, ela anotou **1.162
+testes funcionais em 115 arquivos**, suíte isolada
 de performance com 6/6 testes, 362 módulos e 963 dependências sem violação de
 camada; build electron-vite e pacote Windows verificados. Os orçamentos de
 performance ficam isolados dos workers funcionais para medir o motor, não a
@@ -166,23 +238,31 @@ para as peças e os três defeitos silenciosos que só a medição em pixel acho
 **7E.4, VFX volumétrico: bloqueado por ferramenta, não por decisão.** Os 7,6 GB
 de VDB da JangaFX que o dono deixou não rodam em WebGL — é formato de volume para
 renderizador offline. O caminho certo é converter em flipbook num passo de
-bootstrap, e isso exige Blender, Houdini ou uma biblioteca OpenVDB. O instalador
-registrado anteriormente inclui um sidecar FFmpeg para os formatos da Fase 8,
-mas esta máquina não tem FFmpeg nem ffprobe disponíveis para a prova local; mesmo
-com eles, FFmpeg não lê VDB. Blender/Houdini/OpenVDB continuam ausentes. A
+bootstrap, e isso exige Blender, Houdini ou uma biblioteca OpenVDB. A receita de
+empacotamento prevê um sidecar FFmpeg para os formatos da Fase 8, mas este ciclo
+não revalidou instalador algum; de todo modo, FFmpeg não lê VDB.
+Blender/Houdini/OpenVDB continuam ausentes. A
 alternativa de custo zero é usar o vídeo de preview como textura, com qualidade
 menor.
 
 ## 3. O que vem agora
 
-O reflexo planar do piso, último pedaço pendente do pedido de luz/sombra/reflexo,
-está fechado pelo [ADR-018](adr/ADR-018-studio-planar-floor-reflection.md). Os
-formatos principais da Fase 8 também estão entregues: MP4 H.264, GIF, ProRes 4444
-com alfa e PNG normal/alfa. Nesta retomada, `verify:phase8` deu 7/7 e
-`verify:phase8-video`, 6/6; `verify:phase8-formats` ficou bloqueado por
-`ffmpeg ENOENT`, sem download. O instalador NSIS já teve os 15.034 arquivos de
-dados offline e o FFmpeg fixado provados na máquina anterior, mas o arquivo em
-`release/` ainda deve ser regenerado antes da entrega externa.
+O próximo trabalho é fechar a validação integrada dos itens descritos na §0 e
+ligar as fundações da Fase 11 à UI em blocos pequenos. Não registre uma nova
+contagem total como atual antes de executar a cadeia final nesta árvore.
+
+Prioridade:
+
+1. validar os fluxos curtos de mapa/documento, export fail-closed/atômico, fila,
+   checkpoint, Scene Script e conteúdo empacotado;
+2. executar os ensaios de aceitação longos da Fase 8;
+3. ligar cache de preview e waveform de referência ao editor;
+4. completar onboarding e o polimento restante;
+5. só então executar o soak de quatro horas.
+
+O histórico de diagnóstico abaixo continua útil para não repetir investigações,
+mas expressões como “o próximo bloco” dentro dele pertencem à data em que foram
+escritas.
 
 **Módulos novos estão estacionados de propósito.** Palco de voo, simulador de
 combate, editor de personagem modular e animação de asset foram decididos em
@@ -260,11 +340,15 @@ Estado dos três blocos desta retomada, na ordem combinada:
 2. **Supersampling determinístico:** fechado. SS 2× renderiza maior, reduz com
    box nosso e repete byte a byte; o preview tem controle explícito, desligado por
    padrão.
-3. **Motion blur por acumulação:** é o próximo bloco e ainda não foi iniciado.
-   Continua limitado ao export, com settle por subframe e acumulador reutilizado,
-   conforme o [ADR-025](adr/ADR-025-motion-blur-accumulation.md).
+3. **Motion blur por acumulação:** implementado depois deste registro histórico,
+   limitado ao export, com settle por subframe e acumulador reutilizado conforme
+   o [ADR-025](adr/ADR-025-motion-blur-accumulation.md).
 
 ### 3.1 A resolução do export: decidida, ligada e ampliada por SS
+
+> As medições históricas desta seção foram feitas com o teto anterior de
+> 4096 px. O estado atual usa 8192 px com guarda de conformidade da superfície,
+> conforme o [ADR-034](adr/ADR-034-direct-8k-with-conformance-guard.md).
 
 **2026-07-29.** O gatilho que o [ADR-013](adr/ADR-013-export-frame-composition.md)
 declarou — "quando alguém pedir export acima do tamanho da janela" — disparou. Foi
@@ -817,8 +901,10 @@ físico **1951×1129**, target **976×565**, ANGLE/RTX 4090, zero disjoints:
 **A fronteira da medição importa.** CPU vai de `evaluate` até terminar Three,
 marcadores e submissão Pixi. GPU mede só o canvas Three; Pixi usa outro contexto e
 o compositor do Chromium fica fora. Isso prova o custo incremental do reflexo
-dentro dos 16,6 ms de 1080p, não a GPU completa do frame apresentado. A medição 4K
-espera a janela de render do ADR-013; não há extrapolação.
+dentro dos 16,6 ms de 1080p, não a GPU completa do frame apresentado. A medição
+4K ficou pendente naquele momento. A janela de render foi depois recusada pelo
+ADR-022; a prova atual deve usar o redimensionamento temporário das superfícies
+vivas, sem extrapolar os números de 1080p.
 
 Depois do bloco, `verify:phase8` ficou **7/7** e `verify:phase8-video`, **6/6**.
 `verify:phase8-formats` parou em `ffmpeg ENOENT`; ferramenta ausente não foi
@@ -1350,29 +1436,21 @@ Malha geográfica: `pnpm data:fetch` baixa as origens fixadas por hash e
 
 ## 7. Fases seguintes
 
-Ordem atual do roteiro combinado com o dono: o próximo bloco de produto é a
-**timeline própria do modo palco**, descrita no começo da §3. Formatos extras e
-instalador estão concluídos; o primeiro passe de **polimento, medição de
-performance, guia de uso e projetos de exemplo** também foi entregue. Os três
-gates de motor/timeline passam em `pnpm test:perf`, e os exemplos são gerados
-byte-idênticos por `pnpm examples:build`. Os blocos 7C/7D e a **Fase 7 de Ações**
-já foram concluídos. A ação operacional pendente nesse bloco é rodar novamente
-`pnpm dist:win` quando a autorização externa estiver disponível, para incorporar
-os exemplos ao executável.
+Ordem atual:
 
-Duas pendências arquiteturais herdadas que ainda valem atenção:
+1. fechar a validação integrada das Fases 8–10 sem transformar resultados
+   históricos em prova da árvore atual;
+2. integrar cache de preview e waveform ao editor;
+3. concluir o onboarding;
+4. executar todos os orçamentos aplicáveis e o soak de quatro horas;
+5. somente então declarar a Fase 11 concluída.
 
-1. **Critério 4 da Fase 6** está registrado como "delta mínimo de blend sob
-   investigação de tolerância". É a mesma família de problema que o critério 2 da
-   Fase 8 — arquivos idênticos byte a byte — vai cobrar a sério.
-2. **`packages/engine` continua stub** enquanto `apps/editor` importa L2 e L3
-   direto, divergindo de [02-MODULES](02-MODULES.md). A janela de render isolada
-   da continuação da Fase 8 deve fechar essa decisão.
+`packages/engine` já não é vazio, mas continua sem `createEngine`: hoje concentra
+artefatos derivados da Fase 11. Isso não pede uma janela oculta; o export usa a
+superfície viva por decisão.
 
-A Fase 8 é a que decide o projeto. O critério 2 dela — exportar o mesmo projeto
-duas vezes e obter arquivos idênticos byte a byte — é descrito no roteiro como o
-mais importante de todos, e é a conta que toda a disciplina de determinismo das
-fases anteriores existe para pagar.
+Empacotamento/instalador está fora deste ciclo. Não há ação `dist:win` implícita
+na conclusão das fases acima.
 
 ## 8. Estilo de trabalho combinado com o dono
 

@@ -383,6 +383,34 @@ describe("CommandBus", () => {
     );
     expect(document.get().compositions.map(({ id }) => id)).toEqual(["cmp_main", "cmp_copy"]);
   });
+
+  it("importa um documento inteiro como um único undo", () => {
+    const initial = {
+      ...createEmptyProjectDocument({ name: "Antes" }),
+      legacySceneField: "preservado apenas pelo undo",
+    };
+    const imported = createEmptyProjectDocument({
+      id: "prj_scene_script",
+      name: "Depois",
+      compositionId: "cmp_scene_script",
+      rootNodeId: "nd_scene_script_root",
+    });
+    const document = createDocumentStore(initial);
+    const bus = createCommandBus(document);
+
+    expectOk(
+      bus,
+      command("project.replace-document", {
+        document: imported,
+      }),
+    );
+    expect(document.get()).toEqual(imported);
+    expect(bus.history.entries()).toHaveLength(1);
+    expect(bus.history.entries()[0]?.commandTypes).toEqual(["project.replace-document"]);
+
+    expect(bus.undo()).toBe(true);
+    expect(document.get()).toEqual(initial);
+  });
 });
 
 function expectOk(bus: CommandBus, value: unknown): void {

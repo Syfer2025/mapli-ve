@@ -277,6 +277,18 @@ export const GuideSchema = z
   })
   .passthrough();
 
+/**
+ * Faixa de áudio usada somente como referência editorial. O arquivo continua
+ * pertencendo à Biblioteca e é apontado pelo mesmo `src` persistido usado
+ * pelos nós visuais; não há mixagem nem reprodução implícita no documento.
+ */
+export const ReferenceAudioSchema = z
+  .object({
+    assetSrc: NonEmptyStringSchema,
+    startFrame: FrameSchema,
+  })
+  .passthrough();
+
 export const CompositionSchema = z
   .object({
     id: IdentifierSchema,
@@ -294,6 +306,7 @@ export const CompositionSchema = z
     nodes: z.record(IdentifierSchema, NodeSchema),
     markers: z.array(MarkerSchema),
     guides: z.array(GuideSchema),
+    referenceAudio: ReferenceAudioSchema.nullable().optional(),
     seed: z.number().int(),
   })
   .passthrough()
@@ -440,6 +453,7 @@ export type Camera = z.infer<typeof CameraSchema>;
 export type MapSettings = z.infer<typeof MapSettingsSchema>;
 export type Marker = z.infer<typeof MarkerSchema>;
 export type Guide = z.infer<typeof GuideSchema>;
+export type ReferenceAudio = z.infer<typeof ReferenceAudioSchema>;
 export type Composition = z.infer<typeof CompositionSchema>;
 export type AssetDescriptor = z.infer<typeof AssetDescriptorSchema>;
 export type GeoDataDescriptor = z.infer<typeof GeoDataDescriptorSchema>;

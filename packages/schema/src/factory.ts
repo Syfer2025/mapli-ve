@@ -57,7 +57,7 @@ export function createEmptyProjectDocument(options: EmptyProjectOptions = {}): P
         workArea: [0, duration],
         background: "#0a0e14",
         map: {
-          styleId: "style_minimal_political",
+          styleId: "minimal-political",
           projection: "mercator",
           terrain: null,
           visible: true,
@@ -110,6 +110,7 @@ export function createEmptyProjectDocument(options: EmptyProjectOptions = {}): P
         },
         markers: [],
         guides: [],
+        referenceAudio: null,
         seed: 0,
       },
     ],

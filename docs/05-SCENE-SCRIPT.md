@@ -5,6 +5,11 @@ bezier, matriz de transformação ou numeração de frame.
 
 O editor não contém IA. Contém um **compilador**.
 
+> **Estado em 2026-07-30:** o contrato v1, o compilador assíncrono/offline, o
+> gazetteer, os diagnósticos, o emissor, a importação transacional pela UI e a
+> geração de `LLM_AUTHORING.md` estão implementados. A validação integrada final
+> dos critérios da Fase 9 ainda precisa ser executada nesta árvore.
+
 ---
 
 ## 1. Por que um segundo formato
@@ -400,9 +405,11 @@ pobre; um arco suave é a convenção estabelecida em infográfico geopolítico.
 
 ## 8. Referência: verbos da timeline
 
-Registro completo. Todo verbo mapeia para uma Action Template
-([02-MODULES.md § behaviors](02-MODULES.md#behaviors)) — o compilador não tem
-lógica de animação própria.
+O registro abaixo é a fonte do contrato de autoria. O emissor traduz cada verbo
+para estruturas existentes do documento — câmera, nodes, paths, Actions ou
+visuais genéricos determinísticos. Isso não significa que cada verbo já possua
+um renderer especializado e exclusivo; alguns compartilham primitivas de texto,
+geografia e ação.
 
 ### Câmera
 
@@ -525,81 +532,96 @@ dica e sugestões.
 
 **Validações semânticas** — não apenas sintáticas:
 
-- Velocidade implausível (distância geodésica ÷ duração vs `defaultSpeed` da unidade)
-- Entrada além do fim da composição
-- Sobreposição contraditória (duas `unit.advance` da mesma unidade no mesmo instante)
-- Referência circular em tempo relativo (`after:a` em `a`)
-- Unidade referenciada sem `spawn` nem posição inicial
-- Lugar ambíguo no gazetteer
-- Região sem correspondência no dataset de fronteiras
+- IDs duplicados e referências ausentes, com sugestões quando há candidatos
+- Ciclo ou referência ausente em tempo relativo (`after:a` em `a`)
+- Entrada antes de zero ou além do fim da composição
+- Sobreposição contraditória de movimentos da mesma unidade
+- Grupos `group.begin` / `group.end` desequilibrados
+- Lugar ausente ou ambíguo no gazetteer
+- Velocidade implausível em movimentos por path
+- Unidade declarada e não usada, como informação não bloqueante
 
 Uma revisão de plausibilidade física é o tipo de coisa que um LLM erra com
 frequência (tanques atravessando a Rússia em 3 s). Detectar isso na compilação
 economiza uma ida e volta.
+
+Validações como correspondência de regiões com toda a malha geográfica ou a
+obrigatoriedade de `spawn` antes de qualquer uso não fazem parte do contrato v1
+implementado e não devem ser presumidas pelo consumidor.
 
 **Contrato de compilação:** se houver qualquer `error`, `document` é `null`.
 Nunca produz documento parcialmente válido. `warning` e `info` compilam.
 
 ---
 
-## 10. Como entregar o contrato a uma IA
+## 10. Maestro e contrato para IAs
 
-`tools/gen-schema.ts` produz, a cada build:
+`tools/gen-scene-script-authoring.ts` produz:
 
 ```
-schemas/
-├─ scene-script.schema.json      JSON Schema draft 2020-12
-├─ project-document.schema.json
-├─ verbs.json                    catálogo de verbos com campos e exemplos
-└─ LLM_AUTHORING.md              prompt de sistema pronto para colar
+LLM_AUTHORING.md                  contrato e catálogo de verbos para a IA
 ```
 
 `LLM_AUTHORING.md` é gerado a partir do registro de verbos — não é escrito à mão.
-Adicionar um verbo novo atualiza automaticamente o documento entregue à IA.
-Assim o contrato não desatualiza.
+Adicionar um verbo novo atualiza o documento entregue à IA. O comando
+`pnpm scene:authoring:verify` falha se o arquivo versionado divergir do registro.
+O JSON Schema do documento continua sendo gerado pelo fluxo geral de schema; não
+é produto desse script.
 
-Fluxo de uso pretendido:
+O Maestro é o agente ChatGPT/Codex desta conversa, não um chat embutido no
+Theatrum. Ele usa o mesmo contrato para gerar Scene Script, chama o editor aberto
+pela ponte local e só aplica o documento depois de uma validação completa.
+Diagnósticos voltam ao mesmo agente para correção.
 
 ```mermaid
 sequenceDiagram
     participant U as Você
-    participant AI as LLM (fora do app)
+    participant AI as Maestro
     participant ED as Theatrum
 
-    U->>AI: cola LLM_AUTHORING.md + "faça uma cena sobre Kursk"
-    AI-->>U: kursk.scene.json
-    U->>ED: Arquivo → Importar Scene Script
-    ED->>ED: compileScene()
+    U->>AI: "faça uma cena sobre Kursk"
+    AI->>ED: tools/maestro.mjs apply-scene
+    ED->>ED: compileScene(scene)
     alt sem erros
-        ED-->>U: animação montada, editável
+        ED-->>AI: aplicada como uma ação reversível
+        AI-->>U: cena criada e validada
     else com erros
-        ED-->>U: painel de diagnósticos + botão "copiar erros"
-        U->>AI: cola os erros
-        AI-->>U: kursk.scene.json corrigido
+        ED-->>AI: diagnósticos com JSON Pointer
+        AI->>ED: Scene Script corrigido
     end
 ```
 
-Nenhuma chamada de rede sai do editor em nenhum momento. A IA fica fora, onde
-você já a usa.
+Para alterações pontuais, o Maestro usa `tools/maestro.mjs apply-commands`: um
+lote passa pelo Command Bus e vira uma única entrada de undo. Isso preserva
+intervenções manuais que não fazem parte do pedido.
+
+Não há credencial de provedor no Theatrum. A superfície
+`window.__theatrumMaestro` expõe contexto e operações validadas ao controle local
+do Codex; `tools/maestro.mjs` faz a ponte pela porta de depuração que o Electron
+abre somente em desenvolvimento.
+
+O fluxo manual continua suportado: o JSON também pode ser importado por **Scene
+Script…**, mas o fluxo normal do Maestro não pede ao operador para copiar e
+colar arquivos.
 
 ---
 
 ## 11. Round-trip
 
-O caminho de volta (Document → Scene Script) é **parcial por natureza** e
-declarado como tal: um keyframe ajustado à mão não tem verbo equivalente.
+O caminho de volta (Document → Scene Script) é **parcial por natureza**. O
+compilador guarda no nó raiz a fonte normalizada que originou o documento:
 
-O que é gerado no export para Scene Script:
+- se o documento veio de uma importação Scene Script, a exportação devolve essa
+  fonte validada;
+- se o documento foi editado ou ganhou conteúdo depois da importação, a fonte
+  ainda é devolvida, acompanhada de warning de que as edições não entraram;
+- se a composição não veio do compilador, a exportação falha com diagnóstico
+  `unsupported-export`.
 
-- Actions em modo `live` → verbo original com parâmetros
-- Paths → `paths` com `through` (se os vértices ainda correspondem a lugares)
-- Câmera com keyframes reconhecíveis → `camera.focus` / `camera.frame`
-- Nós de texto → `text.*`
+A versão v1 não tenta reconhecer keyframes, Actions ou hierarquias arbitrárias e
+não cria bloco `"raw"`. O `.theatrum` continua preservando integralmente essas
+edições; só a representação declarativa parcial as omite.
 
-O que **não** é: keyframes editados manualmente, efeitos ajustados, hierarquia
-complexa. Esses aparecem como um bloco `"raw"` com referência ao nó, preservando a
-informação sem fingir que é declarativa.
-
-Uso real: pegar uma cena feita à mão, exportar Scene Script, mandar para um LLM
-pedindo "faça o mesmo para a Batalha de Moscou". É reaproveitamento de estrutura,
-não round-trip fiel — e é declarado assim para não criar expectativa falsa.
+Uso real: reaproveitar a estrutura original de uma cena importada e pedir a um
+LLM uma variação. Não é round-trip fiel depois de edição manual, e o warning
+torna essa perda explícita.

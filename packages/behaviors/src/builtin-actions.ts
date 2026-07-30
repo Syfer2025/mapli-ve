@@ -29,6 +29,7 @@ const MoveParamsSchema = z
     autoOrient: z.boolean(),
     showRoute: z.boolean(),
     color: ColorSchema,
+    durationFrames: z.number().int().positive().max(36_000).optional(),
   })
   .strict();
 
@@ -417,13 +418,17 @@ function expandMovement(
   const base = pathContext(params.pathId, context);
   if ("expansion" in base) return base.expansion;
   const { geometry } = base;
-  const oneWay = durationFromDistance(
-    geometry.totalLength,
-    params.speedKmh,
-    context.composition.fps,
-  );
   const legs = spec.patrol ? params.cycles * 2 : params.cycles;
-  const duration = Math.max(1, oneWay * legs);
+  const duration =
+    params.durationFrames ??
+    Math.max(
+      1,
+      durationFromDistance(geometry.totalLength, params.speedKmh, context.composition.fps) * legs,
+    );
+  const oneWay =
+    params.durationFrames === undefined
+      ? duration / legs
+      : Math.max(1, Math.floor(params.durationFrames / legs));
   const progress = movementProgress(context.action.id, context.action.startFrame, oneWay, {
     reverse: spec.direction === "reverse",
     patrol: spec.patrol === true,
@@ -512,7 +517,7 @@ function expandProjectile(
   }
 
   const behaviors: ActionBehaviorPlacement[] = [];
-  if (spec.moveOwner === true) {
+  if (spec.moveOwner === true && context.owner.parent !== null) {
     behaviors.push({
       nodeId: context.owner.id,
       behavior: {
@@ -660,12 +665,19 @@ function makeRouteNode(
   const filled = style === "filled";
   const supply = style === "supply";
   const blockade = style === "blockade";
+  const progressDuration = Math.max(
+    1,
+    (progress.at(-1)?.frame ?? context.action.startFrame + 1) - context.action.startFrame,
+  );
   return makeNode(context, "route", {
     type: "route",
     name: "Rota da ação",
     anchor: anchorAt(geometry, 0),
     size: { mode: "screen", size: [64, 64] },
-    timeRange: { in: 0, out: context.composition.duration },
+    timeRange: {
+      in: context.action.startFrame,
+      out: Math.min(context.composition.duration, context.action.startFrame + progressDuration),
+    },
     props: {
       pathId: animatable(pathId),
       color: animatable(color),

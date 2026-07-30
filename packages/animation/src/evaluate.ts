@@ -2,6 +2,7 @@ import { clamp01, type Vec2 } from "@theatrum/core-math";
 import { topologicalOrder, type EvaluatedNodeLike } from "@theatrum/scene-graph";
 import type {
   Anchor,
+  AnimatableProperty,
   BlendMode,
   Composition,
   EffectInstanceData,
@@ -10,7 +11,11 @@ import type {
   SizeSpec,
   TrackMatte,
 } from "@theatrum/schema";
-import { evaluateProperty } from "./property.js";
+import {
+  evaluateProperty,
+  evaluatePropertyResult,
+  type PropertyExpressionDiagnostic,
+} from "./property.js";
 
 export interface EvaluatedCamera {
   readonly center: Vec2;
@@ -46,6 +51,17 @@ export interface EvaluatedScene {
   readonly camera: EvaluatedCamera;
   readonly nodes: ReadonlyMap<string, EvaluatedNode>;
   readonly drawOrder: readonly string[];
+  /**
+   * Falhas de expressão recuperáveis; o frame usa o valor base nesses casos.
+   * `evaluate()` sempre preenche o campo; ele é opcional para cenas sintéticas
+   * criadas por adapters e fixtures anteriores à Fase 11.
+   */
+  readonly diagnostics?: readonly PropertyExpressionDiagnostic[];
+}
+
+export interface EvaluatedValueResult<T> {
+  readonly value: T;
+  readonly diagnostics: readonly PropertyExpressionDiagnostic[];
 }
 
 export interface EvaluateOptions {
@@ -87,18 +103,21 @@ export function evaluate(
       ? requestedFrame
       : Math.max(0, Math.min(composition.duration, requestedFrame));
   const evaluated = new Map<string, EvaluatedNode>();
+  const diagnostics: PropertyExpressionDiagnostic[] = [];
   const drawOrder = expandComposition(document, composition, frame, evaluated, {
     prefix: "",
     parentId: null,
     stack: [composition.id],
+    diagnostics,
   });
 
   return Object.freeze({
     compositionId: composition.id,
     frame,
-    camera: evaluateCamera(composition, frame),
+    camera: evaluateCamera(composition, frame, diagnostics),
     nodes: evaluated,
     drawOrder: Object.freeze(drawOrder),
+    diagnostics: Object.freeze(diagnostics),
   });
 }
 
@@ -109,6 +128,8 @@ interface ExpansionContext {
   readonly parentId: string | null;
   /** Composições no caminho, para barrar aninhamento cíclico. */
   readonly stack: readonly string[];
+  /** Diagnósticos recuperáveis produzidos pelas propriedades desta avaliação. */
+  readonly diagnostics: PropertyExpressionDiagnostic[];
 }
 
 /** Profundidade prática de aninhamento; acima disso o documento é ilegível. */
@@ -141,9 +162,24 @@ function expandComposition(
     const parentId =
       source.parent === null ? context.parentId : `${context.prefix}${source.parent}`;
     const parent = parentId === null ? undefined : evaluated.get(parentId);
+    const propertyRoot = `compositions.${composition.id}.nodes.${source.id}`;
     const localFrame =
-      source.timeRemap === null ? frame : evaluateProperty(source.timeRemap, frame);
-    const localOpacity = clamp01(evaluateProperty(source.transform.opacity, localFrame));
+      source.timeRemap === null
+        ? frame
+        : evaluateTrackedProperty(
+            source.timeRemap,
+            frame,
+            `${propertyRoot}.timeRemap`,
+            context.diagnostics,
+          );
+    const localOpacity = clamp01(
+      evaluateTrackedProperty(
+        source.transform.opacity,
+        localFrame,
+        `${propertyRoot}.transform.opacity`,
+        context.diagnostics,
+      ),
+    );
     const opacity = localOpacity * (parent?.opacity ?? 1);
     const inTimeRange = frame >= source.timeRange.in && frame <= source.timeRange.out;
     const selectedBySolo = soloSet === null || soloSet.has(source.id);
@@ -161,16 +197,63 @@ function expandComposition(
         anchor: cloneValue(source.anchor),
         size: cloneValue(source.size),
         transform: Object.freeze({
-          position: tuple2(evaluateProperty(source.transform.position, localFrame)),
-          rotation: evaluateProperty(source.transform.rotation, localFrame),
-          scale: tuple2(evaluateProperty(source.transform.scale, localFrame)),
+          position: tuple2(
+            evaluateTrackedProperty(
+              source.transform.position,
+              localFrame,
+              `${propertyRoot}.transform.position`,
+              context.diagnostics,
+            ),
+          ),
+          rotation: evaluateTrackedProperty(
+            source.transform.rotation,
+            localFrame,
+            `${propertyRoot}.transform.rotation`,
+            context.diagnostics,
+          ),
+          scale: tuple2(
+            evaluateTrackedProperty(
+              source.transform.scale,
+              localFrame,
+              `${propertyRoot}.transform.scale`,
+              context.diagnostics,
+            ),
+          ),
           opacity: localOpacity,
-          anchorPoint: tuple2(evaluateProperty(source.transform.anchorPoint, localFrame)),
-          skew: tuple2(evaluateProperty(source.transform.skew, localFrame)),
+          anchorPoint: tuple2(
+            evaluateTrackedProperty(
+              source.transform.anchorPoint,
+              localFrame,
+              `${propertyRoot}.transform.anchorPoint`,
+              context.diagnostics,
+            ),
+          ),
+          skew: tuple2(
+            evaluateTrackedProperty(
+              source.transform.skew,
+              localFrame,
+              `${propertyRoot}.transform.skew`,
+              context.diagnostics,
+            ),
+          ),
           rotationReference: source.transform.rotationReference,
         }),
-        props: evaluateValue(source.props, localFrame),
-        effects: Object.freeze(source.effects.map((effect) => evaluateEffect(effect, localFrame))),
+        props: evaluateValueTracked(
+          source.props,
+          localFrame,
+          `${propertyRoot}.props`,
+          context.diagnostics,
+        ),
+        effects: Object.freeze(
+          source.effects.map((effect) =>
+            evaluateEffect(
+              effect,
+              localFrame,
+              `${propertyRoot}.effects.${effect.id}`,
+              context.diagnostics,
+            ),
+          ),
+        ),
         opacity,
         visible,
         locked: source.locked,
@@ -194,6 +277,7 @@ function expandComposition(
           prefix: `${id}/`,
           parentId: id,
           stack: [...context.stack, nested.id],
+          diagnostics: context.diagnostics,
         }),
       );
     }
@@ -227,23 +311,60 @@ function nestedComposition(
   return document.compositions.find((candidate) => candidate.id === compositionId);
 }
 
-function evaluateCamera(composition: Composition, frame: number): EvaluatedCamera {
+function evaluateCamera(
+  composition: Composition,
+  frame: number,
+  diagnostics: PropertyExpressionDiagnostic[],
+): EvaluatedCamera {
+  const propertyRoot = `compositions.${composition.id}.camera`;
   return Object.freeze({
-    center: tuple2(evaluateProperty(composition.camera.center, frame)),
-    zoom: evaluateProperty(composition.camera.zoom, frame),
-    bearing: evaluateProperty(composition.camera.bearing, frame),
-    pitch: evaluateProperty(composition.camera.pitch, frame),
-    roll: evaluateProperty(composition.camera.roll, frame),
-    fov: evaluateProperty(composition.camera.fov, frame),
+    center: tuple2(
+      evaluateTrackedProperty(
+        composition.camera.center,
+        frame,
+        `${propertyRoot}.center`,
+        diagnostics,
+      ),
+    ),
+    zoom: evaluateTrackedProperty(
+      composition.camera.zoom,
+      frame,
+      `${propertyRoot}.zoom`,
+      diagnostics,
+    ),
+    bearing: evaluateTrackedProperty(
+      composition.camera.bearing,
+      frame,
+      `${propertyRoot}.bearing`,
+      diagnostics,
+    ),
+    pitch: evaluateTrackedProperty(
+      composition.camera.pitch,
+      frame,
+      `${propertyRoot}.pitch`,
+      diagnostics,
+    ),
+    roll: evaluateTrackedProperty(
+      composition.camera.roll,
+      frame,
+      `${propertyRoot}.roll`,
+      diagnostics,
+    ),
+    fov: evaluateTrackedProperty(composition.camera.fov, frame, `${propertyRoot}.fov`, diagnostics),
   });
 }
 
-function evaluateEffect(effect: EffectInstanceData, frame: number): EvaluatedEffect {
+function evaluateEffect(
+  effect: EffectInstanceData,
+  frame: number,
+  propertyRoot: string,
+  diagnostics: PropertyExpressionDiagnostic[],
+): EvaluatedEffect {
   return Object.freeze({
     id: effect.id,
     type: effect.type,
     enabled: effect.enabled,
-    params: evaluateValue(effect.params, frame),
+    params: evaluateValueTracked(effect.params, frame, `${propertyRoot}.params`, diagnostics),
   });
 }
 
@@ -252,20 +373,73 @@ function evaluateEffect(effect: EffectInstanceData, frame: number): EvaluatedEff
  * adicionados ao registry tenham novas propriedades sem alterar o avaliador.
  */
 export function evaluateValue<T>(value: T, frame: number): T {
+  return evaluateValueTracked(value, frame, null, []);
+}
+
+/** Avalia wrappers recursivos e expõe as falhas recuperadas no percurso. */
+export function evaluateValueResult<T>(
+  value: T,
+  frame: number,
+  propertyPath: string | null = null,
+): EvaluatedValueResult<T> {
+  const diagnostics: PropertyExpressionDiagnostic[] = [];
+  return Object.freeze({
+    value: evaluateValueTracked(value, frame, propertyPath, diagnostics),
+    diagnostics: Object.freeze(diagnostics),
+  });
+}
+
+function evaluateValueTracked<T>(
+  value: T,
+  frame: number,
+  propertyPath: string | null,
+  diagnostics: PropertyExpressionDiagnostic[],
+): T {
   if (isAnimatableProperty(value)) {
-    return evaluateValue(evaluateProperty(value, frame), frame) as T;
+    const evaluated = evaluateTrackedProperty(value, frame, propertyPath, diagnostics);
+    return evaluateValueTracked(evaluated, frame, propertyPath, diagnostics) as T;
   }
   if (Array.isArray(value)) {
-    return Object.freeze(value.map((entry) => evaluateValue(entry, frame))) as T;
+    return Object.freeze(
+      value.map((entry, index) =>
+        evaluateValueTracked(
+          entry,
+          frame,
+          childPropertyPath(propertyPath, `[${index}]`),
+          diagnostics,
+        ),
+      ),
+    ) as T;
   }
   if (typeof value === "object" && value !== null) {
     return Object.freeze(
       Object.fromEntries(
-        Object.entries(value).map(([key, entry]) => [key, evaluateValue(entry, frame)]),
+        Object.entries(value).map(([key, entry]) => [
+          key,
+          evaluateValueTracked(entry, frame, childPropertyPath(propertyPath, key), diagnostics),
+        ]),
       ),
     ) as T;
   }
   return value;
+}
+
+function evaluateTrackedProperty<T>(
+  property: AnimatableProperty<T>,
+  frame: number,
+  propertyPath: string | null,
+  diagnostics: PropertyExpressionDiagnostic[],
+): T {
+  // O caso comum preserva o caminho antigo sem alocar o envelope de diagnóstico.
+  if (property.expression === null) return evaluateProperty(property, frame);
+  const result = evaluatePropertyResult(property, frame, propertyPath);
+  diagnostics.push(...result.diagnostics);
+  return result.value;
+}
+
+function childPropertyPath(parent: string | null, child: string): string | null {
+  if (parent === null) return null;
+  return child.startsWith("[") ? `${parent}${child}` : `${parent}.${child}`;
 }
 
 function isAnimatableProperty(value: unknown): value is {

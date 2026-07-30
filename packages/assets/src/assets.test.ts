@@ -25,10 +25,13 @@ describe("classificação de arquivos", () => {
     expect(assetKindForFile("bandeira.svg", "image/svg+xml")).toBe("svg");
     expect(assetKindForFile("tanque.glb", "model/gltf-binary")).toBe("model");
     expect(assetKindForFile("cena.GLTF", "")).toBe("model");
+    expect(assetKindForFile("narração.WAV", "")).toBe("audio");
+    expect(assetKindForFile("trilha.mp3", "audio/mpeg")).toBe("audio");
   });
 
   it("usa o mime quando a extensão é desconhecida e rejeita o resto", () => {
     expect(assetKindForFile("sem-extensao", "image/webp")).toBe("image");
+    expect(assetKindForFile("sem-extensao", "audio/ogg")).toBe("audio");
     expect(assetKindForFile("notas.txt", "text/plain")).toBeNull();
     expect(assetKindForFile("video.mp4", "video/mp4")).toBeNull();
   });
@@ -126,5 +129,22 @@ describe("varredura de usos", () => {
     });
 
     expect(findAssetReferences(document, "assets/ab/inexistente.png")).toEqual([]);
+  });
+
+  it("encontra a faixa de áudio de referência da composição", () => {
+    const document = createEmptyProjectDocument();
+    const composition = document.compositions[0]!;
+    const src = "assets/ab/narracao.wav";
+    composition.referenceAudio = { assetSrc: src, startFrame: 12 };
+
+    expect(findAssetReferences(document, src)).toEqual([
+      {
+        compositionId: composition.id,
+        compositionName: composition.name,
+        nodeId: composition.id,
+        nodeName: "Áudio de referência",
+        propertyPath: "referenceAudio.assetSrc",
+      },
+    ]);
   });
 });

@@ -35,7 +35,8 @@ function isPreviewFactor(value: number): boolean {
 /**
  * Densidade efetiva compartilhada por MapLibre e Pixi no preview.
  *
- * O MapLibre reduz sozinho o pixel ratio quando um eixo passaria de 4096. Fazer
+ * O MapLibre reduz sozinho o pixel ratio quando um eixo passaria do teto
+ * configurado (8192 nesta construção). Fazer
  * a mesma conta antes de criar o ScreenScene impede mapa e overlay de ficarem
  * com backing stores diferentes em tela HiDPI larga.
  */

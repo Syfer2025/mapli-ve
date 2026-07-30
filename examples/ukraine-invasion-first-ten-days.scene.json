@@ -1,0 +1,948 @@
+{
+  "format": "theatrum-scene",
+  "version": 1,
+  "meta": {
+    "title": "Ucrânia — os primeiros dez dias da invasão em grande escala",
+    "fps": 60,
+    "resolution": "1920x1080",
+    "duration": "2m02s",
+    "background": "#08111B"
+  },
+  "map": {
+    "style": "strategic-war-room",
+    "projection": "mercator",
+    "terrain": {
+      "enabled": false,
+      "exaggeration": 1
+    }
+  },
+  "defaults": {
+    "unitSize": 48,
+    "textFont": "Arial",
+    "ease": "cinematic",
+    "labelPosition": "above"
+  },
+  "factions": {
+    "ukraine": {
+      "color": "#4C8DFF",
+      "label": "Ucrânia"
+    },
+    "russia": {
+      "color": "#E05252",
+      "label": "Rússia"
+    },
+    "belarus": {
+      "color": "#9A6C7A",
+      "label": "Belarus"
+    },
+    "civilians": {
+      "color": "#F5C451",
+      "label": "Deslocamento civil"
+    },
+    "neutral": {
+      "color": "#DCE5EE",
+      "label": "Contexto"
+    }
+  },
+  "places": {
+    "UCRÂNIA": [31.2, 48.7],
+    "BELARUS": [27.8, 53.15],
+    "RÚSSIA": [39.2, 52.25],
+    "Lviv": [24.0316, 49.8429],
+    "Fronteira polonesa": [22.93, 49.805],
+    "Gomel": [30.9754, 52.4345],
+    "Chernobyl": [30.099, 51.389],
+    "Chernihiv": [31.2893, 51.4982],
+    "Hostomel": [30.2765, 50.5853],
+    "Bucha": [30.212, 50.5434],
+    "Irpin": [30.2506, 50.5218],
+    "Kyiv": [30.5234, 50.4501],
+    "Sumy": [34.7981, 50.9077],
+    "Belgorod": [36.5872, 50.5954],
+    "Kharkiv": [36.2304, 49.9935],
+    "Donetsk": [37.8028, 48.0159],
+    "Rostov": [39.7015, 47.2357],
+    "Mariupol": [37.5493, 47.0971],
+    "Crimeia": [33.691, 46.1605],
+    "Sevastopol": [33.5254, 44.6166],
+    "Kherson": [32.6169, 46.6354],
+    "Mykolaiv": [31.9946, 46.975],
+    "Odesa": [30.7233, 46.4825],
+    "Melitopol": [35.367, 46.848],
+    "Berdiansk": [36.7981, 46.755],
+    "Enerhodar": [34.6584, 47.4987],
+    "Zaporizhzhia": [35.1396, 47.8388]
+  },
+  "paths": {
+    "eixo_norte_oeste": {
+      "through": ["Gomel", "Chernobyl", "Hostomel", "Kyiv"],
+      "smooth": true,
+      "geodesic": true
+    },
+    "eixo_norte_leste": {
+      "through": ["Gomel", "Chernihiv", "Kyiv"],
+      "smooth": true,
+      "geodesic": true
+    },
+    "eixo_kharkiv": {
+      "through": ["Belgorod", "Kharkiv"],
+      "smooth": false,
+      "geodesic": true
+    },
+    "eixo_donbas": {
+      "through": ["Donetsk", "Mariupol"],
+      "smooth": true,
+      "geodesic": true
+    },
+    "eixo_sul_oeste": {
+      "through": ["Crimeia", "Kherson", "Mykolaiv"],
+      "smooth": true,
+      "geodesic": true
+    },
+    "eixo_sul_leste": {
+      "through": ["Crimeia", "Melitopol", "Berdiansk", "Mariupol"],
+      "smooth": true,
+      "geodesic": true
+    },
+    "eixo_enerhodar": {
+      "through": ["Crimeia", "Melitopol", "Enerhodar"],
+      "smooth": true,
+      "geodesic": true
+    },
+    "suprimento_norte": {
+      "through": ["Gomel", "Chernobyl", "Hostomel"],
+      "smooth": true,
+      "geodesic": true
+    },
+    "corredor_refugiados": {
+      "through": ["Kyiv", "Lviv", "Fronteira polonesa"],
+      "smooth": true,
+      "geodesic": true
+    }
+  },
+  "timeline": [
+    {
+      "at": "0s",
+      "do": "camera.frame",
+      "on": ["Lviv", "BELARUS", "RÚSSIA", "Rostov", "Crimeia", "Odesa"],
+      "padding": 0.14,
+      "duration": "3s",
+      "ease": "cinematic"
+    },
+    {
+      "at": "0s",
+      "do": "area.highlight",
+      "region": "c:UKR",
+      "faction": "ukraine",
+      "duration": "2m02s",
+      "fade": "in-out"
+    },
+    {
+      "at": "0s",
+      "do": "area.highlight",
+      "region": "c:RUS",
+      "faction": "russia",
+      "duration": "2m02s",
+      "fade": "in-out"
+    },
+    {
+      "at": "0s",
+      "do": "area.highlight",
+      "region": "c:BLR",
+      "faction": "belarus",
+      "duration": "2m02s",
+      "fade": "in-out"
+    },
+    {
+      "at": "0.8s",
+      "do": "text.title",
+      "text": "A INVASÃO DA UCRÂNIA",
+      "subtitle": "Os primeiros dez dias · 24 fev — 5 mar 2022",
+      "position": "center",
+      "duration": "4.2s",
+      "reveal": "fade"
+    },
+    {
+      "at": "4.6s",
+      "do": "label.place",
+      "place": "UCRÂNIA",
+      "duration": "7s",
+      "style": {
+        "fontSize": 32,
+        "color": "#8EB6FF",
+        "offset": [0, -12]
+      }
+    },
+    {
+      "at": "5s",
+      "do": "label.place",
+      "place": "BELARUS",
+      "duration": "6.6s",
+      "style": {
+        "fontSize": 28,
+        "color": "#C49AAA"
+      }
+    },
+    {
+      "at": "5.4s",
+      "do": "label.place",
+      "place": "RÚSSIA",
+      "duration": "6.2s",
+      "style": {
+        "fontSize": 32,
+        "color": "#FF9292"
+      }
+    },
+    {
+      "at": "6.2s",
+      "do": "text.caption",
+      "text": "Azul: Ucrânia · vermelho: Rússia · vinho: Belarus",
+      "position": "bottom-left",
+      "duration": "5s"
+    },
+    {
+      "at": "8.2s",
+      "do": "text.caption",
+      "text": "As setas indicam direções de avanço — não controle integral do território.",
+      "position": "bottom-right",
+      "duration": "3.4s"
+    },
+
+    {
+      "at": "12s",
+      "do": "marker",
+      "label": "DIA 1 · OFENSIVA EM MÚLTIPLOS EIXOS",
+      "color": "#E05252"
+    },
+    {
+      "at": "12s",
+      "do": "camera.frame",
+      "on": ["Lviv", "Gomel", "Belgorod", "Rostov", "Crimeia", "Odesa"],
+      "padding": 0.12,
+      "duration": "2.4s"
+    },
+    {
+      "at": "12s",
+      "do": "text.date",
+      "date": "24 FEV 2022 · DIA 1",
+      "position": "top-left",
+      "duration": "9.4s"
+    },
+    {
+      "at": "13.4s",
+      "do": "text.caption",
+      "text": "Ataques de mísseis abrem uma ofensiva terrestre lançada do norte, nordeste, leste e sul.",
+      "position": "bottom-left",
+      "duration": "7.6s"
+    },
+    {
+      "at": "14.5s",
+      "do": "missile.launch",
+      "from": "Rostov",
+      "to": "Kyiv",
+      "duration": "2.2s",
+      "trail": true
+    },
+    {
+      "at": "14.8s",
+      "do": "label.place",
+      "place": "Kyiv",
+      "duration": "6.4s",
+      "style": {
+        "fontSize": 22,
+        "color": "#FFFFFF",
+        "offset": [0, -26]
+      }
+    },
+    {
+      "at": "15s",
+      "do": "arrow.draw",
+      "along": "eixo_norte_oeste",
+      "duration": "6s",
+      "style": {
+        "color": "#E05252",
+        "width": 5
+      }
+    },
+    {
+      "at": "15.6s",
+      "do": "arrow.draw",
+      "along": "eixo_kharkiv",
+      "duration": "5.4s",
+      "style": {
+        "color": "#E05252",
+        "width": 5
+      }
+    },
+    {
+      "at": "16.2s",
+      "do": "arrow.draw",
+      "along": "eixo_sul_oeste",
+      "duration": "4.8s",
+      "style": {
+        "color": "#E05252",
+        "width": 5
+      }
+    },
+    {
+      "at": "16.8s",
+      "do": "arrow.draw",
+      "along": "eixo_sul_leste",
+      "duration": "4.2s",
+      "style": {
+        "color": "#E05252",
+        "width": 5
+      }
+    },
+
+    {
+      "at": "22s",
+      "do": "marker",
+      "label": "DIA 2 · HOSTOMEL E A CORRIDA POR KYIV",
+      "color": "#E05252"
+    },
+    {
+      "at": "22s",
+      "do": "camera.focus",
+      "on": "Hostomel",
+      "zoom": 7,
+      "pitch": 0,
+      "bearing": 0,
+      "duration": "2.3s"
+    },
+    {
+      "at": "22s",
+      "do": "text.date",
+      "date": "25 FEV 2022 · DIA 2",
+      "position": "top-left",
+      "duration": "9.4s"
+    },
+    {
+      "at": "23.4s",
+      "do": "text.caption",
+      "text": "A 20 km de Kyiv, o assalto a Hostomel tenta abrir uma ponte aérea junto à capital.",
+      "position": "bottom-left",
+      "duration": "7.6s"
+    },
+    {
+      "at": "24.3s",
+      "do": "label.place",
+      "place": "Hostomel",
+      "duration": "6.8s",
+      "style": {
+        "fontSize": 22,
+        "color": "#FFFFFF",
+        "offset": [-70, -48]
+      }
+    },
+    {
+      "at": "24.8s",
+      "do": "airdrop",
+      "from": "Gomel",
+      "at_place": "Hostomel",
+      "duration": "3.2s"
+    },
+    {
+      "at": "25.5s",
+      "do": "arrow.draw",
+      "along": "eixo_norte_oeste",
+      "duration": "5.4s",
+      "style": {
+        "color": "#E05252",
+        "width": 5
+      }
+    },
+    {
+      "at": "26.4s",
+      "do": "battle",
+      "at_place": "Hostomel",
+      "intensity": "high",
+      "duration": "4.5s",
+      "label": "Batalha pelo aeroporto Antonov"
+    },
+    {
+      "at": "27.5s",
+      "do": "text.caption",
+      "text": "O aeroporto não se torna a ponte aérea decisiva planejada.",
+      "position": "top-right",
+      "duration": "3.6s"
+    },
+
+    {
+      "at": "32s",
+      "do": "marker",
+      "label": "DIA 3 · A CAPITAL RESISTE",
+      "color": "#4C8DFF"
+    },
+    {
+      "at": "32s",
+      "do": "camera.frame",
+      "on": ["Chernihiv", "Kyiv", "Sumy", "Kharkiv"],
+      "padding": 0.18,
+      "duration": "2.4s"
+    },
+    {
+      "at": "32s",
+      "do": "text.date",
+      "date": "26 FEV 2022 · DIA 3",
+      "position": "top-left",
+      "duration": "9.4s"
+    },
+    {
+      "at": "33.4s",
+      "do": "text.caption",
+      "text": "Combates alcançam os acessos de Kyiv e Kharkiv, mas as defesas ucranianas mantêm as cidades.",
+      "position": "bottom-left",
+      "duration": "7.6s"
+    },
+    {
+      "at": "34.4s",
+      "do": "label.place",
+      "place": "Kyiv",
+      "duration": "6.5s",
+      "style": {
+        "fontSize": 22,
+        "color": "#8EB6FF",
+        "offset": [0, -30]
+      }
+    },
+    {
+      "at": "34.9s",
+      "do": "battle",
+      "at_place": "Kyiv",
+      "intensity": "high",
+      "duration": "5.3s",
+      "label": "Combates nos acessos à capital"
+    },
+    {
+      "at": "35.4s",
+      "do": "label.place",
+      "place": "Kharkiv",
+      "duration": "5.5s",
+      "style": {
+        "fontSize": 22,
+        "color": "#8EB6FF",
+        "offset": [0, -30]
+      }
+    },
+    {
+      "at": "35.9s",
+      "do": "battle",
+      "at_place": "Kharkiv",
+      "intensity": "high",
+      "duration": "4.3s",
+      "label": "Defesa de Kharkiv"
+    },
+    {
+      "at": "36.7s",
+      "do": "frontline.set",
+      "through": ["Bucha", "Irpin", "Kyiv"],
+      "duration": "4.3s"
+    },
+
+    {
+      "at": "42s",
+      "do": "marker",
+      "label": "DIA 4 · NORTE TRAVADO, SUL EM MOVIMENTO",
+      "color": "#DCE5EE"
+    },
+    {
+      "at": "42s",
+      "do": "camera.frame",
+      "on": ["Gomel", "Kyiv", "Kharkiv", "Kherson", "Mariupol"],
+      "padding": 0.13,
+      "duration": "2.5s"
+    },
+    {
+      "at": "42s",
+      "do": "text.date",
+      "date": "27 FEV 2022 · DIA 4",
+      "position": "top-left",
+      "duration": "9.4s"
+    },
+    {
+      "at": "43.5s",
+      "do": "text.caption",
+      "text": "Ao norte, resistência e logística reduzem o ritmo. No sul, os eixos vindos da Crimeia avançam mais.",
+      "position": "bottom-left",
+      "duration": "7.5s"
+    },
+    {
+      "at": "44.6s",
+      "do": "supply.line",
+      "from": "Gomel",
+      "to": "Hostomel",
+      "duration": "6.2s",
+      "flow": true
+    },
+    {
+      "at": "45.2s",
+      "do": "text.callout",
+      "text": "NORTE · linhas de suprimento longas e avanço irregular",
+      "at_place": "Chernobyl",
+      "duration": "5.5s",
+      "leader": true
+    },
+    {
+      "at": "45.8s",
+      "do": "arrow.draw",
+      "along": "eixo_sul_leste",
+      "duration": "5s",
+      "style": {
+        "color": "#E05252",
+        "width": 5
+      }
+    },
+    {
+      "at": "46.5s",
+      "do": "text.callout",
+      "text": "SUL · pressão crescente sobre o litoral do mar de Azov",
+      "at_place": "Mariupol",
+      "duration": "4.2s",
+      "leader": true
+    },
+
+    {
+      "at": "52s",
+      "do": "marker",
+      "label": "DIA 5 · ESCALADA DO FOGO SOBRE KHARKIV",
+      "color": "#E05252"
+    },
+    {
+      "at": "52s",
+      "do": "camera.focus",
+      "on": "Kharkiv",
+      "zoom": 6.6,
+      "pitch": 0,
+      "bearing": 0,
+      "duration": "2.4s"
+    },
+    {
+      "at": "52s",
+      "do": "text.date",
+      "date": "28 FEV 2022 · DIA 5",
+      "position": "top-left",
+      "duration": "9.4s"
+    },
+    {
+      "at": "53.5s",
+      "do": "text.caption",
+      "text": "Artilharia pesada marca uma escalada dos ataques contra Kharkiv; as primeiras negociações não interrompem os combates.",
+      "position": "bottom-left",
+      "duration": "7.5s"
+    },
+    {
+      "at": "54.5s",
+      "do": "label.place",
+      "place": "Kharkiv",
+      "duration": "6.4s",
+      "style": {
+        "fontSize": 24,
+        "color": "#FFFFFF",
+        "offset": [0, -38]
+      }
+    },
+    {
+      "at": "55s",
+      "do": "bombard",
+      "from": "Belgorod",
+      "at_place": "Kharkiv",
+      "count": 8,
+      "duration": "4.8s"
+    },
+    {
+      "at": "56s",
+      "do": "text.caption",
+      "text": "KHARKIV · emprego crescente de fogo pesado contra a cidade",
+      "position": "top-right",
+      "duration": "4.8s"
+    },
+
+    {
+      "at": "62s",
+      "do": "marker",
+      "label": "DIA 6 · ATAQUES A CENTROS URBANOS",
+      "color": "#E05252"
+    },
+    {
+      "at": "62s",
+      "do": "camera.frame",
+      "on": ["Gomel", "Kyiv", "Belgorod", "Kharkiv"],
+      "padding": 0.17,
+      "duration": "2.4s"
+    },
+    {
+      "at": "62s",
+      "do": "text.date",
+      "date": "1 MAR 2022 · DIA 6",
+      "position": "top-left",
+      "duration": "9.4s"
+    },
+    {
+      "at": "63.5s",
+      "do": "text.caption",
+      "text": "Ataques atingem o centro de Kharkiv e a torre de televisão de Kyiv, enquanto o avanço terrestre perde velocidade.",
+      "position": "bottom-left",
+      "duration": "7.5s"
+    },
+    {
+      "at": "64.6s",
+      "do": "label.place",
+      "place": "Kharkiv",
+      "duration": "6.2s",
+      "style": {
+        "fontSize": 22,
+        "color": "#FFFFFF",
+        "offset": [0, -30]
+      }
+    },
+    {
+      "at": "65s",
+      "do": "missile.launch",
+      "from": "Belgorod",
+      "to": "Kharkiv",
+      "duration": "2.6s",
+      "trail": true
+    },
+    {
+      "at": "65.8s",
+      "do": "label.place",
+      "place": "Kyiv",
+      "duration": "5s",
+      "style": {
+        "fontSize": 22,
+        "color": "#FFFFFF",
+        "offset": [0, -30]
+      }
+    },
+    {
+      "at": "66.4s",
+      "do": "missile.launch",
+      "from": "Gomel",
+      "to": "Kyiv",
+      "duration": "2.8s",
+      "trail": true
+    },
+    {
+      "at": "67.4s",
+      "do": "text.callout",
+      "text": "O choque inicial não produz a queda rápida das principais cidades.",
+      "at_place": "Kyiv",
+      "duration": "3.5s",
+      "leader": true
+    },
+
+    {
+      "at": "72s",
+      "do": "marker",
+      "label": "DIA 7 · KHERSON OCUPADA, MARIUPOL CERCADA",
+      "color": "#E05252"
+    },
+    {
+      "at": "72s",
+      "do": "camera.frame",
+      "on": ["Kherson", "Mykolaiv", "Mariupol", "Zaporizhzhia"],
+      "padding": 0.19,
+      "duration": "2.4s"
+    },
+    {
+      "at": "72s",
+      "do": "text.date",
+      "date": "2 MAR 2022 · DIA 7",
+      "position": "top-left",
+      "duration": "9.4s"
+    },
+    {
+      "at": "73.5s",
+      "do": "text.caption",
+      "text": "Kherson torna-se a primeira capital regional ocupada; a pressão fecha-se sobre Mariupol.",
+      "position": "bottom-left",
+      "duration": "7.5s"
+    },
+    {
+      "at": "74.5s",
+      "do": "area.highlight",
+      "region": "s:UA-65",
+      "faction": "russia",
+      "duration": "6.4s",
+      "fade": "in-out"
+    },
+    {
+      "at": "74.6s",
+      "do": "label.place",
+      "place": "Kherson",
+      "duration": "6.2s",
+      "style": {
+        "fontSize": 22,
+        "color": "#FFFFFF",
+        "offset": [-20, -32]
+      }
+    },
+    {
+      "at": "75.1s",
+      "do": "arrow.draw",
+      "from": "Kherson",
+      "to": "Mykolaiv",
+      "duration": "5.6s",
+      "style": {
+        "color": "#E05252",
+        "width": 5
+      }
+    },
+    {
+      "at": "76.1s",
+      "do": "label.place",
+      "place": "Mariupol",
+      "duration": "4.7s",
+      "style": {
+        "fontSize": 22,
+        "color": "#FFFFFF",
+        "offset": [20, -32]
+      }
+    },
+    {
+      "at": "76.5s",
+      "do": "encircle",
+      "at_place": "Mariupol",
+      "duration": "4.3s"
+    },
+    {
+      "at": "77.2s",
+      "do": "siege",
+      "at_place": "Mariupol",
+      "duration": "3.5s",
+      "label": "Mariupol cercada"
+    },
+
+    {
+      "at": "82s",
+      "do": "marker",
+      "label": "DIA 8 · UM MILHÃO DE REFUGIADOS",
+      "color": "#F5C451"
+    },
+    {
+      "at": "82s",
+      "do": "camera.frame",
+      "on": ["Kyiv", "Lviv", "Fronteira polonesa"],
+      "padding": 0.2,
+      "duration": "2.5s"
+    },
+    {
+      "at": "82s",
+      "do": "text.date",
+      "date": "3 MAR 2022 · DIA 8",
+      "position": "top-left",
+      "duration": "9.4s"
+    },
+    {
+      "at": "83.5s",
+      "do": "text.caption",
+      "text": "Em sete dias, um milhão de pessoas já havia cruzado as fronteiras da Ucrânia, segundo o ACNUR.",
+      "position": "bottom-left",
+      "duration": "7.5s"
+    },
+    {
+      "at": "84.5s",
+      "do": "label.place",
+      "place": "Kyiv",
+      "duration": "6.2s",
+      "style": {
+        "fontSize": 20,
+        "color": "#FFFFFF",
+        "offset": [0, -26]
+      }
+    },
+    {
+      "at": "84.8s",
+      "do": "arrow.draw",
+      "along": "corredor_refugiados",
+      "duration": "5.8s",
+      "style": {
+        "color": "#F5C451",
+        "width": 5
+      }
+    },
+    {
+      "at": "85.2s",
+      "do": "label.place",
+      "place": "Lviv",
+      "duration": "5.4s",
+      "style": {
+        "fontSize": 20,
+        "color": "#FDE49A",
+        "offset": [0, -28]
+      }
+    },
+    {
+      "at": "85.7s",
+      "do": "text.counter",
+      "from": 0,
+      "to": 1000000,
+      "label": "REFUGIADOS EM SETE DIAS",
+      "duration": "5s"
+    },
+
+    {
+      "at": "92s",
+      "do": "marker",
+      "label": "DIA 9 · A USINA DE ZAPORIZHZHIA",
+      "color": "#F2994A"
+    },
+    {
+      "at": "92s",
+      "do": "camera.focus",
+      "on": "Enerhodar",
+      "zoom": 6.5,
+      "pitch": 0,
+      "bearing": 0,
+      "duration": "2.4s"
+    },
+    {
+      "at": "92s",
+      "do": "text.date",
+      "date": "4 MAR 2022 · DIA 9",
+      "position": "top-left",
+      "duration": "9.4s"
+    },
+    {
+      "at": "93.5s",
+      "do": "text.caption",
+      "text": "Combates atingem o complexo nuclear de Zaporizhzhia; o incêndio fica restrito a um prédio de treinamento.",
+      "position": "bottom-left",
+      "duration": "7.5s"
+    },
+    {
+      "at": "94.5s",
+      "do": "label.place",
+      "place": "Enerhodar",
+      "duration": "6.4s",
+      "style": {
+        "fontSize": 24,
+        "color": "#FFFFFF",
+        "offset": [0, -38]
+      }
+    },
+    {
+      "at": "95s",
+      "do": "arrow.draw",
+      "along": "eixo_enerhodar",
+      "duration": "5.6s",
+      "style": {
+        "color": "#E05252",
+        "width": 5
+      }
+    },
+    {
+      "at": "95.6s",
+      "do": "bombard",
+      "from": "Melitopol",
+      "at_place": "Enerhodar",
+      "count": 5,
+      "duration": "3.7s"
+    },
+    {
+      "at": "96.4s",
+      "do": "text.caption",
+      "text": "Sem liberação radioativa; a equipe regular permanece operando a usina.",
+      "position": "top-right",
+      "duration": "4.4s"
+    },
+
+    {
+      "at": "102s",
+      "do": "marker",
+      "label": "DIA 10 · O QUADRO OPERACIONAL",
+      "color": "#DCE5EE"
+    },
+    {
+      "at": "102s",
+      "do": "camera.frame",
+      "on": ["Gomel", "Kyiv", "Kharkiv", "Mariupol", "Kherson", "Odesa"],
+      "padding": 0.13,
+      "duration": "2.8s"
+    },
+    {
+      "at": "102s",
+      "do": "text.date",
+      "date": "5 MAR 2022 · DIA 10",
+      "position": "top-left",
+      "duration": "11.3s"
+    },
+    {
+      "at": "103.7s",
+      "do": "text.caption",
+      "text": "Em dez dias, a tentativa de vitória rápida já havia falhado no norte.",
+      "position": "bottom-left",
+      "duration": "9.2s"
+    },
+    {
+      "at": "104.8s",
+      "do": "frontline.set",
+      "through": ["Chernobyl", "Hostomel", "Bucha", "Irpin", "Kyiv"],
+      "duration": "8s"
+    },
+    {
+      "at": "105.4s",
+      "do": "frontline.set",
+      "through": ["Sumy", "Kharkiv", "Donetsk"],
+      "duration": "7.4s"
+    },
+    {
+      "at": "106s",
+      "do": "frontline.set",
+      "through": ["Mykolaiv", "Kherson", "Melitopol", "Mariupol"],
+      "duration": "6.8s"
+    },
+    {
+      "at": "106.5s",
+      "do": "text.caption",
+      "text": "NORTE · Kyiv continua fora do controle russo.",
+      "position": "top-right",
+      "duration": "2.4s"
+    },
+    {
+      "at": "109s",
+      "do": "text.caption",
+      "text": "NORDESTE · Kharkiv, Sumy e Chernihiv resistem.",
+      "position": "top-right",
+      "duration": "2.4s"
+    },
+    {
+      "at": "111.5s",
+      "do": "text.caption",
+      "text": "SUL · Kherson ocupada; Mariupol sob cerco.",
+      "position": "top-right",
+      "duration": "1.5s"
+    },
+
+    {
+      "at": "114s",
+      "do": "camera.frame",
+      "on": ["Lviv", "Gomel", "Kharkiv", "Mariupol", "Kherson", "Odesa"],
+      "padding": 0.13,
+      "duration": "3s"
+    },
+    {
+      "at": "114.7s",
+      "do": "text.title",
+      "text": "DEZ DIAS",
+      "subtitle": "O choque inicial encontra resistência — e a guerra torna-se prolongada",
+      "position": "center",
+      "duration": "5.8s",
+      "reveal": "fade"
+    },
+    {
+      "at": "118s",
+      "do": "text.caption",
+      "text": "Fontes: avaliações diárias ISW/CTP · ACNUR · AIEA",
+      "position": "bottom-left",
+      "duration": "3.5s"
+    },
+    {
+      "at": "121s",
+      "do": "marker",
+      "label": "FIM · PRIMEIROS DEZ DIAS",
+      "color": "#DCE5EE"
+    }
+  ]
+}

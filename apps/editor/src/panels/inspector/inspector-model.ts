@@ -1,5 +1,6 @@
 import type { NodeTypeDefinition, PropertyDescriptor, PropertyGroup } from "@theatrum/scene-graph";
-import type { Node } from "@theatrum/schema";
+import { evaluatePropertyResult, type PropertyExpressionDiagnostic } from "@theatrum/animation";
+import type { AnimatableProperty, Node } from "@theatrum/schema";
 import { resolveNodeAnimatableProperty } from "../../document/optional-animatable-property.js";
 import { parsePropertyPath } from "../timeline/timeline-model.js";
 
@@ -10,6 +11,8 @@ export interface InspectorProperty {
   readonly keyframeCount: number;
   readonly animated: boolean;
   readonly available: boolean;
+  readonly expression: string | null | undefined;
+  readonly animatableProperty: AnimatableProperty<unknown> | undefined;
 }
 
 export interface InspectorGroup {
@@ -102,6 +105,24 @@ export function readPath(source: object, path: string): unknown {
   return value;
 }
 
+/**
+ * Diagnóstico recuperável usado pelo Inspector.
+ *
+ * Avalia a mesma linguagem e a mesma compatibilidade de tipo do render. Uma
+ * expressão inválida devolve a primeira causa; o avaliador conserva o valor
+ * estático/interpolado, portanto a UI pode permitir que o texto seja corrigido
+ * sem quebrar o frame.
+ */
+export function propertyExpressionDiagnostic(
+  property: AnimatableProperty<unknown>,
+  expression: string | null,
+  frame: number,
+  path: string,
+): PropertyExpressionDiagnostic | undefined {
+  if (expression === null) return undefined;
+  return evaluatePropertyResult({ ...property, expression }, frame, path).diagnostics[0];
+}
+
 function inspectorProperty(
   node: Node,
   definition: NodeTypeDefinition,
@@ -116,6 +137,8 @@ function inspectorProperty(
       keyframeCount: property?.keyframes.length ?? 0,
       animated: (property?.keyframes.length ?? 0) > 0,
       available: property !== undefined,
+      expression: property?.expression,
+      animatableProperty: property,
     });
   }
 
@@ -127,6 +150,8 @@ function inspectorProperty(
     keyframeCount: 0,
     animated: false,
     available: value !== undefined,
+    expression: undefined,
+    animatableProperty: undefined,
   });
 }
 

@@ -12,9 +12,9 @@
     "pnpm": ">=11"
   },
   "scripts": {
-    "predev": "pnpm data:verify",
+    "predev": "pnpm data:verify && pnpm content:verify",
     "dev": "electron-vite dev",
-    "prebuild": "pnpm data:verify",
+    "prebuild": "pnpm data:verify && pnpm content:verify",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "data:fetch": "node tools/fetch-data.ts",
@@ -27,7 +27,11 @@
     "models:repack": "node tools/pack-model-textures.ts",
     "models:index": "node tools/build-model-index.ts",
     "models:verify": "node tools/build-model-index.ts --verify",
-    "schema:gen": "tsx tools/gen-schema.ts",
+    "content:build": "node --require ./tools/node-userinfo-shim.cjs --import tsx tools/generate-bundled-content.ts",
+    "content:verify": "node --require ./tools/node-userinfo-shim.cjs --import tsx tools/generate-bundled-content.ts --verify",
+    "schema:gen": "node --require ./tools/node-userinfo-shim.cjs --import tsx tools/gen-schema.ts",
+    "scene:authoring": "node --require ./tools/node-userinfo-shim.cjs --import tsx tools/gen-scene-script-authoring.ts",
+    "scene:authoring:verify": "node --require ./tools/node-userinfo-shim.cjs --import tsx tools/gen-scene-script-authoring.ts --verify",
     "verify:phase2": "node tools/verify-phase2.mjs",
     "verify:phase3": "node tools/verify-phase3.mjs",
     "verify:phase4": "node tools/verify-phase4.mjs",
@@ -41,6 +45,10 @@
     "verify:phase8-video": "node tools/verify-phase8-video.mjs",
     "verify:phase8-formats": "node tools/verify-phase8-formats.ts",
     "verify:phase8": "node tools/verify-phase8.mjs",
+    "verify:phase8-8k": "node tools/verify-phase8-8k.mjs",
+    "verify:phase9": "node --require ./tools/node-userinfo-shim.cjs --import tsx tools/verify-phase9.ts",
+    "verify:phase11-soak": "node tools/verify-phase11-soak.mjs",
+    "verify:phase11-soak:smoke": "node tools/verify-phase11-soak.mjs --smoke",
     "sidecar:prepare": "node tools/prepare-ffmpeg-sidecar.ts",
     "examples:build": "node --require ./tools/node-userinfo-shim.cjs --import tsx tools/build-examples.ts",
     "dist:dir": "pnpm build && pnpm examples:build && pnpm sidecar:prepare && electron-builder --win --x64 --dir",
@@ -57,7 +65,7 @@
     "test:perf": "vitest run --config vitest.perf.config.ts --reporter=verbose",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
-    "check": "pnpm data:verify && pnpm geo:verify && pnpm typecheck && pnpm lint && pnpm lint:arch && pnpm test && pnpm build"
+    "check": "pnpm data:verify && pnpm content:verify && pnpm geo:verify && pnpm typecheck && pnpm lint && pnpm lint:arch && pnpm test && pnpm build"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -35,9 +35,11 @@ rate limit ou telemetria.
 3. **Velocidade de produção.** Ações prontas ("bombardear", "avançar",
    "interceptar") transformam 40 keyframes manuais em um clique — mas geram
    keyframes reais e editáveis, não caixas-pretas.
-4. **Autoria por IA.** Qualquer LLM, sem integração alguma, deve conseguir
-   escrever um arquivo JSON que o editor importa e transforma em animação
-   completa. Ver [05-SCENE-SCRIPT.md](05-SCENE-SCRIPT.md).
+4. **Autoria dirigida por IA.** O agente ChatGPT/Codex desta conversa é o
+   Maestro: recebe a intenção do operador, planeja uma cena realizável, opera o
+   editor pela ponte local, valida o resultado e corrige diagnósticos. O
+   aplicativo não embute outro modelo. Ver
+   [05-SCENE-SCRIPT.md](05-SCENE-SCRIPT.md).
 5. **Longevidade.** O formato de projeto é versionado e migrável. Módulos são
    substituíveis. Nenhuma dependência não substituível.
 
@@ -45,18 +47,18 @@ rate limit ou telemetria.
 
 Registrados para impedir escopo se alargando por conta própria.
 
-| Não faremos                                        | Motivo                                                                  |
-| -------------------------------------------------- | ----------------------------------------------------------------------- |
-| Autenticação, contas, multiusuário                 | Uso interno, uma máquina                                                |
-| Sincronização em nuvem, colaboração                | Idem                                                                    |
-| Cobrança, licenciamento, SaaS                      | Idem                                                                    |
-| Telemetria, analytics                              | Idem                                                                    |
-| IA integrada (LLM embutido)                        | Estrutura é preparada para IA externa; o editor não chama modelo nenhum |
-| Física real (balística, fluidos, colisão)          | Animação é dirigida por keyframe e efeito, não simulada                 |
-| Edição de áudio além de referência                 | Áudio entra no NLE depois; aqui serve só de guia de tempo               |
-| Edição de vídeo geral (corte, transição de clipes) | Não é um NLE; é um gerador de camadas                                   |
-| Build para web / mobile                            | Desktop Windows, offline                                                |
-| Suporte a navegador arbitrário                     | Chromium do Electron, versão fixa                                       |
+| Não faremos                                        | Motivo                                                              |
+| -------------------------------------------------- | ------------------------------------------------------------------- |
+| Autenticação, contas, multiusuário                 | Uso interno, uma máquina                                            |
+| Sincronização em nuvem, colaboração                | Idem                                                                |
+| Cobrança, licenciamento, SaaS                      | Idem                                                                |
+| Telemetria, analytics                              | Idem                                                                |
+| LLM embutido ou credencial de IA no aplicativo     | O Maestro é o agente ChatGPT/Codex externo que já conduz a conversa |
+| Física real (balística, fluidos, colisão)          | Animação é dirigida por keyframe e efeito, não simulada             |
+| Edição de áudio além de referência                 | Áudio entra no NLE depois; aqui serve só de guia de tempo           |
+| Edição de vídeo geral (corte, transição de clipes) | Não é um NLE; é um gerador de camadas                               |
+| Build para web / mobile                            | Desktop Windows, offline                                            |
+| Suporte a navegador arbitrário                     | Chromium do Electron, versão fixa                                   |
 
 **Áudio:** uma trilha de referência importável (waveform na timeline, para
 sincronizar animação com narração) _está_ no escopo, na Fase 11. Mixagem,

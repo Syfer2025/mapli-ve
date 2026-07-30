@@ -8,6 +8,7 @@ import {
 } from "react";
 import type { NodeCategory, NodeTypeDefinition } from "@theatrum/scene-graph";
 import type { Composition } from "@theatrum/schema";
+import { createUnresolvedNodePlaceholder } from "@theatrum/plugin-host";
 import { editorActions, nodeTypeRegistry } from "../../document/editor-session.js";
 import { useEditorSession } from "../../document/useEditorSession.js";
 import { Button, Panel } from "../../ui/index.js";
@@ -227,6 +228,8 @@ function NodeBranch({
 }): ReactNode {
   const node = composition.nodes[nodeId];
   if (node === undefined) return null;
+  const unresolved =
+    nodeTypeRegistry.get(node.type) === undefined ? createUnresolvedNodePlaceholder(node) : null;
 
   const onDrop = (event: DragEvent<HTMLDivElement>): void => {
     event.preventDefault();
@@ -243,6 +246,8 @@ function NodeBranch({
         role="treeitem"
         aria-selected={selectedIds.includes(node.id)}
         data-selected={selectedIds.includes(node.id) || undefined}
+        data-unresolved={unresolved === null ? undefined : true}
+        title={unresolved?.label}
         draggable={node.id !== composition.root}
         style={{ "--tree-depth": depth } as React.CSSProperties}
         onClick={(event) =>
@@ -264,7 +269,13 @@ function NodeBranch({
         onDrop={onDrop}
       >
         <span className="project-tree__disclosure">{node.children.length > 0 ? "▾" : ""}</span>
-        <span className="project-tree__label" data-label={node.label} />
+        {unresolved === null ? (
+          <span className="project-tree__label" data-label={node.label} />
+        ) : (
+          <span className="project-tree__unresolved-icon" aria-label="Plugin ausente">
+            !
+          </span>
+        )}
         {renaming?.id === node.id ? (
           <input
             className="project-tree__rename"
@@ -282,7 +293,9 @@ function NodeBranch({
         ) : (
           <span className="project-tree__name">{node.name}</span>
         )}
-        <span className="project-tree__meta">{node.type}</span>
+        <span className="project-tree__meta">
+          {unresolved === null ? node.type : "plugin ausente"}
+        </span>
       </div>
       {node.children.map((childId) => (
         <NodeBranch

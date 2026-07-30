@@ -328,6 +328,17 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
     "map-overlay",
     (override) => {
       applyOverrideToElement(rootRef.current, override);
+      const measured =
+        override === null
+          ? mapRef.current?.getCanvas()
+          : { clientWidth: override.width, clientHeight: override.height };
+      if (measured !== undefined) {
+        const width = Math.max(1, Math.round(measured.clientWidth));
+        const height = Math.max(1, Math.round(measured.clientHeight));
+        setSurfaceSize((current) =>
+          current[0] === width && current[1] === height ? current : [width, height],
+        );
+      }
     },
     // **Este é o predicado que a regressão do critério 6 cobrou.** O mapa
     // redimensiona de forma síncrona em `map.resize()`; o Pixi só chega ao tamanho

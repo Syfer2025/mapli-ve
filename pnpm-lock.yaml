@@ -95,12 +95,18 @@ importers:
       '@theatrum/effects':
         specifier: workspace:*
         version: link:../../packages/effects
+      '@theatrum/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
       '@theatrum/export':
         specifier: workspace:*
         version: link:../../packages/export
       '@theatrum/gis':
         specifier: workspace:*
         version: link:../../packages/gis
+      '@theatrum/plugin-host':
+        specifier: workspace:*
+        version: link:../../packages/plugin-host
       '@theatrum/project-io':
         specifier: workspace:*
         version: link:../../packages/project-io
@@ -113,6 +119,9 @@ importers:
       '@theatrum/schema':
         specifier: workspace:*
         version: link:../../packages/schema
+      '@theatrum/scripting':
+        specifier: workspace:*
+        version: link:../../packages/scripting
       '@theatrum/shell':
         specifier: workspace:*
         version: link:../shell
@@ -430,6 +439,12 @@ importers:
       '@theatrum/document':
         specifier: workspace:*
         version: link:../document
+      '@theatrum/gis':
+        specifier: workspace:*
+        version: link:../gis
+      '@theatrum/scene-graph':
+        specifier: workspace:*
+        version: link:../scene-graph
       '@theatrum/schema':
         specifier: workspace:*
         version: link:../schema
@@ -445,6 +460,9 @@ importers:
       '@theatrum/schema':
         specifier: workspace:*
         version: link:../packages/schema
+      '@theatrum/scripting':
+        specifier: workspace:*
+        version: link:../packages/scripting
 
 packages:
 

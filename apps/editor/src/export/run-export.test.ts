@@ -153,7 +153,7 @@ describe("runExport", () => {
     }
   });
 
-  it("conta settleFailed quando a quietude não chega, sem abortar o job", async () => {
+  it("a política continue captura o timeout, mas o marca como duvidoso", async () => {
     // Nunca para de repintar: o teto de settle é atingido no frame.
     const h = host({
       observe: (() => {
@@ -164,13 +164,42 @@ describe("runExport", () => {
         };
       })(),
     });
-    const report = await runExport({ plan: { ...PLAN, durationFrames: 1 }, host: h.host });
+    const report = await runExport({
+      plan: { ...PLAN, durationFrames: 1 },
+      host: h.host,
+      settlePolicy: "continue",
+    });
     expect(report.settleFailed).toBe(1);
-    // Escreveu de qualquer jeito: relatar é melhor que perder o job inteiro, e o
-    // relatório é que diz ao usuário para não confiar naquele frame.
+    // Continuar é uma escolha explícita da bancada; o produto usa `fail`.
     expect(report.written).toBe(1);
+    expect(report.settlePolicy).toBe("continue");
+    expect(report.terminatedBySettle).toBe(false);
     expect(report.settleP99Ms).toBeGreaterThan(0);
   }, 20_000);
+
+  it("mapBusy preso falha fechado por padrão e não escreve o frame contaminado", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    try {
+      const h = host({ mapBusy: () => true });
+      const exporting = runExport({
+        plan: { ...PLAN, durationFrames: 3 },
+        host: h.host,
+      });
+      await vi.runAllTimersAsync();
+      const report = await exporting;
+
+      expect(report.settlePolicy).toBe("fail");
+      expect(report.terminatedBySettle).toBe(true);
+      expect(report.aborted).toBe(false);
+      expect(report.settleFailed).toBe(1);
+      expect(report.settleFailures[0]?.reason).toBe("map-busy");
+      expect(report.written).toBe(0);
+      expect(h.written).toEqual([]);
+      expect(report.errors[0]).toContain("nenhum pixel desse frame foi escrito");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
   it("conta saídas repetidas separadamente quando outputFps é maior", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
@@ -191,6 +220,7 @@ describe("runExport", () => {
       const exporting = runExport({
         plan: { ...PLAN, durationFrames: 2, outputFps: 60 },
         host: failingHost,
+        settlePolicy: "continue",
       });
       await vi.runAllTimersAsync();
       const report = await exporting;
@@ -214,6 +244,71 @@ describe("runExport", () => {
     });
     expect(report.aborted).toBe(true);
     expect(report.written).toBe(2);
+  });
+
+  it("retoma no índice confirmado, preserva nomes e grava checkpoints periódicos", async () => {
+    const h = host();
+    const checkpoints: {
+      completedFrames: number;
+      totalFrames: number;
+      lastFilename: string | null;
+      complete: boolean;
+    }[] = [];
+    const report = await runExport({
+      plan: PLAN,
+      host: h.host,
+      resumeFromOutputIndex: 2,
+      checkpointEvery: 2,
+      onCheckpoint: (checkpoint) => {
+        checkpoints.push(checkpoint);
+      },
+    });
+
+    expect(report.reused).toBe(2);
+    expect(report.written).toBe(3);
+    expect(h.written.map(({ filename }) => filename)).toEqual([
+      "frame_0002.png",
+      "frame_0003.png",
+      "frame_0004.png",
+    ]);
+    expect(checkpoints).toEqual([
+      {
+        completedFrames: 4,
+        totalFrames: 5,
+        lastFilename: "frame_0003.png",
+        complete: false,
+      },
+      {
+        completedFrames: 5,
+        totalFrames: 5,
+        lastFilename: "frame_0004.png",
+        complete: true,
+      },
+    ]);
+  });
+
+  it("recusa checkpoint fora do plano antes de tocar o host", async () => {
+    const h = host();
+    await expect(
+      runExport({ plan: PLAN, host: h.host, resumeFromOutputIndex: 6 }),
+    ).rejects.toThrow("checkpoint inválido");
+    expect(h.written).toEqual([]);
+  });
+
+  it("para de forma segura se a persistência do checkpoint falhar", async () => {
+    const h = host();
+    const report = await runExport({
+      plan: PLAN,
+      host: h.host,
+      checkpointEvery: 1,
+      onCheckpoint: () => {
+        throw new Error("disco de checkpoints indisponível");
+      },
+    });
+
+    expect(report.written).toBe(1);
+    expect(report.errors[0]).toContain("checkpoint 1/5 falhou");
+    expect(h.written).toHaveLength(1);
   });
 
   it("falha de escrita entra no relatório e não derruba o resto", async () => {
@@ -393,6 +488,53 @@ describe("runExport", () => {
     }
   });
 
+  it("settle falho numa subamostra descarta o frame temporal inteiro", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    try {
+      let current = -1;
+      let sampleSeekCount = 0;
+      let writes = 0;
+      const seeks: number[] = [];
+      const motionHost: ExportHost = {
+        seek: (frame) => {
+          current = frame;
+          seeks.push(frame);
+          if (!Number.isInteger(frame)) sampleSeekCount += 1;
+        },
+        observe: () => ({ frame: current, renders: sampleSeekCount }),
+        // A primeira amostra estabiliza; a segunda simula o PMTiles preso.
+        mapBusy: () => sampleSeekCount >= 2,
+        assetsBusy: () => false,
+        surfacesBusy: () => false,
+        compose: () => FRAME,
+        writeFrame: () => {
+          writes += 1;
+          return Promise.resolve({ ok: true, sha256: "não deveria escrever" });
+        },
+      };
+      const exporting = runExport({
+        plan: { ...PLAN, durationFrames: 3, range: { first: 1, last: 1 } },
+        host: motionHost,
+        motionBlur: { shutterAngle: 180, samples: 4 },
+      });
+      await vi.runAllTimersAsync();
+      const report = await exporting;
+
+      expect(report.terminatedBySettle).toBe(true);
+      expect(report.settleFailures[0]).toMatchObject({
+        sampleIndex: 1,
+        reason: "map-busy",
+      });
+      expect(report.motionBlur.accumulatedSamples).toBe(1);
+      expect(report.motionBlur.resolvedFrames).toBe(0);
+      expect(report.written).toBe(0);
+      expect(writes).toBe(0);
+      expect(seeks.at(-1)).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("exceção numa subamostra restaura o centro antes de subir ao serviço", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
     try {
@@ -555,6 +697,7 @@ describe("runExport", () => {
         plan: { ...PLAN, durationFrames: 3, range: { first: 1, last: 1 } },
         host: roundedHost,
         motionBlur: { shutterAngle: 180, samples: 4 },
+        settlePolicy: "continue",
       });
       await vi.runAllTimersAsync();
       const report = await exporting;
@@ -568,6 +711,7 @@ describe("runExport", () => {
           outputFrame: 1,
           sampleIndex,
           sampleFrame,
+          reason: "frame-mismatch",
         })),
       );
       expect(report.motionBlur.processedSamples).toBe(4);

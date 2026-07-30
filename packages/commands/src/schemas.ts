@@ -14,9 +14,12 @@ import {
   FrameSchema,
   MapSettingsSchema,
   NodeSchema,
+  PaletteSchema,
   PathDataSchema,
   PathVertexSchema,
+  ProjectDocumentSchema,
   ProjectSettingsSchema,
+  ReferenceAudioSchema,
   SizeSpecSchema,
   TrackMatteSchema,
   UnknownAnimatablePropertySchema,
@@ -87,6 +90,10 @@ export const CommandSchemas = {
     "project.update-settings",
     z.object({ settings: ProjectSettingsSchema.partial() }).strict(),
   ),
+  "project.replace-document": commandSchema(
+    "project.replace-document",
+    z.object({ document: ProjectDocumentSchema }).strict(),
+  ),
 
   "composition.create": commandSchema(
     "composition.create",
@@ -150,6 +157,15 @@ export const CommandSchemas = {
   "composition.set-map": commandSchema(
     "composition.set-map",
     z.object({ compositionId: IdentifierSchema, map: MapSettingsSchema }).strict(),
+  ),
+  "composition.set-reference-audio": commandSchema(
+    "composition.set-reference-audio",
+    z
+      .object({
+        compositionId: IdentifierSchema,
+        referenceAudio: ReferenceAudioSchema.nullable(),
+      })
+      .strict(),
   ),
 
   "node.create": commandSchema(
@@ -524,6 +540,8 @@ export const CommandSchemas = {
     "asset.set-tags",
     z.object({ assetId: IdentifierSchema, tags: z.array(z.string()) }).strict(),
   ),
+
+  "palette.add": commandSchema("palette.add", z.object({ palette: PaletteSchema }).strict()),
 
   "camera.set-follow": commandSchema(
     "camera.set-follow",

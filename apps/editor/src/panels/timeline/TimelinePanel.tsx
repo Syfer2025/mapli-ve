@@ -1,6 +1,9 @@
 import { BUILTIN_BEHAVIORS } from "@theatrum/behaviors";
+import { hashObject } from "@theatrum/core-utils";
 import { format, frame, timeBase } from "@theatrum/core-time";
+import type { ReferenceAudioAnalysis } from "@theatrum/engine";
 import { createBuiltinNodeTypeRegistry, type NodeTypeRegistry } from "@theatrum/scene-graph";
+import { assetDisplayName } from "@theatrum/assets";
 import {
   useEffect,
   memo,
@@ -13,8 +16,10 @@ import {
   type WheelEvent,
 } from "react";
 import { useWorkspaceContentMode } from "../../app/workspace-content-mode.js";
+import { loadReferenceAudioAnalysis } from "../../audio/reference-audio-analysis.js";
 import { editorActions } from "../../document/editor-session.js";
 import { useEditorSession } from "../../document/useEditorSession.js";
+import { cachedPreviewFrames, subscribePreviewCache } from "../../preview/preview-cache-session.js";
 import { Button, Panel } from "../../ui/index.js";
 import {
   DEFAULT_TIMELINE_THEME,
@@ -41,9 +46,12 @@ import {
   updateTimelineSessionState,
   useTimelineSessionState,
 } from "./timeline-session-state.js";
+import { visibleWaveformBars } from "./reference-audio-waveform.js";
+import { previewFrameRanges } from "./preview-cache-ranges.js";
 import "./TimelinePanel.css";
 
 const BUILTIN_REGISTRY = createBuiltinNodeTypeRegistry();
+const AUDIO_WAVEFORM_HEIGHT = 44;
 
 /** Rótulo de comportamento vem do registry; a timeline só recebe o mapa pronto. */
 const BEHAVIOR_LABELS: Readonly<Record<string, string>> = Object.freeze(
@@ -74,10 +82,42 @@ export function TimelinePanel({ registry = BUILTIN_REGISTRY }: TimelinePanelProp
   const { expandedNodeIds, scrollY, view } = timelineState;
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [size, setSize] = useState({ width: 1, height: 1 });
+  const [audioAnalysis, setAudioAnalysis] = useState<ReferenceAudioAnalysis | null>(null);
+  const [audioStatus, setAudioStatus] = useState("");
+  const [previewCacheVersion, setPreviewCacheVersion] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const audioCanvasRef = useRef<HTMLCanvasElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
   const canvasPaneRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
   const frameStateRef = useRef<TimelineFrameState>(EMPTY_FRAME_STATE);
+  const audioAssets = useMemo(
+    () => session.document.assets.filter((asset) => asset.kind === "audio"),
+    [session.document.assets],
+  );
+  const referenceAudioAsset = useMemo(
+    () =>
+      composition?.referenceAudio === undefined || composition.referenceAudio === null
+        ? undefined
+        : session.document.assets.find(
+            (asset) => asset.src === composition.referenceAudio?.assetSrc,
+          ),
+    [composition?.referenceAudio, session.document.assets],
+  );
+  const hasReferenceAudio = composition?.referenceAudio != null;
+  const documentFingerprint = useMemo(() => hashObject(session.document), [session.document]);
+  const cachedRanges = useMemo(
+    () =>
+      previewFrameRanges(
+        composition === undefined ? [] : cachedPreviewFrames(composition.id, documentFingerprint),
+      ),
+    [composition?.id, documentFingerprint, previewCacheVersion],
+  );
+
+  useEffect(
+    () => subscribePreviewCache(() => setPreviewCacheVersion((version) => version + 1)),
+    [],
+  );
 
   useEffect(() => {
     enterTimelineComposition(
@@ -105,14 +145,55 @@ export function TimelinePanel({ registry = BUILTIN_REGISTRY }: TimelinePanelProp
       const bounds = element.getBoundingClientRect();
       setSize({
         width: Math.max(1, Math.floor(bounds.width)),
-        height: Math.max(1, Math.floor(bounds.height)),
+        height: Math.max(
+          1,
+          Math.floor(bounds.height) - (hasReferenceAudio ? AUDIO_WAVEFORM_HEIGHT : 0),
+        ),
       });
     };
     resize();
     const observer = new ResizeObserver(resize);
     observer.observe(element);
     return () => observer.disconnect();
-  }, []);
+  }, [hasReferenceAudio]);
+
+  useEffect(() => {
+    const reference = composition?.referenceAudio;
+    if (composition === undefined || reference === undefined || reference === null) {
+      setAudioAnalysis(null);
+      setAudioStatus("");
+      return;
+    }
+    if (referenceAudioAsset === undefined) {
+      setAudioAnalysis(null);
+      setAudioStatus("O áudio de referência não está disponível na Biblioteca.");
+      return;
+    }
+    let cancelled = false;
+    setAudioAnalysis(null);
+    setAudioStatus("Analisando áudio de referência…");
+    void loadReferenceAudioAnalysis({
+      assetSrc: reference.assetSrc,
+      name: assetDisplayName(referenceAudioAsset),
+      fps: composition.fps,
+      startFrame: reference.startFrame,
+    }).then(
+      (analysis) => {
+        if (cancelled) return;
+        setAudioAnalysis(analysis);
+        setAudioStatus(`Waveform pronta: ${analysis.track.durationFrames} frames, sem reprodução.`);
+      },
+      (error: unknown) => {
+        if (cancelled) return;
+        setAudioStatus(
+          error instanceof Error ? `Áudio indisponível: ${error.message}` : "Áudio indisponível.",
+        );
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [composition?.fps, composition?.referenceAudio, referenceAudioAsset]);
 
   const projection = useMemo<TimelineProjection>(() => {
     if (composition === undefined) return EMPTY_PROJECTION;
@@ -178,6 +259,38 @@ export function TimelinePanel({ registry = BUILTIN_REGISTRY }: TimelinePanelProp
     context.setTransform(deviceScale, 0, 0, deviceScale, 0, 0);
     renderTimeline(context, model, viewport, session.playheadFrame, readTheme());
   }, [model, session.playheadFrame, size.height, size.width, viewport]);
+
+  useEffect(() => {
+    const canvas = audioCanvasRef.current;
+    if (canvas === null) return;
+    const height = AUDIO_WAVEFORM_HEIGHT;
+    const deviceScale = Math.max(1, window.devicePixelRatio);
+    canvas.width = Math.round(size.width * deviceScale);
+    canvas.height = Math.round(height * deviceScale);
+    canvas.style.width = `${size.width}px`;
+    canvas.style.height = `${height}px`;
+    const context = canvas.getContext("2d");
+    if (context === null) return;
+    context.setTransform(deviceScale, 0, 0, deviceScale, 0, 0);
+    context.clearRect(0, 0, size.width, height);
+    if (audioAnalysis === null) return;
+    context.fillStyle = "rgba(8, 18, 28, 0.82)";
+    context.fillRect(0, 0, size.width, height);
+    context.strokeStyle = "rgba(107, 211, 255, 0.25)";
+    context.beginPath();
+    context.moveTo(0, height / 2);
+    context.lineTo(size.width, height / 2);
+    context.stroke();
+    context.fillStyle = "rgba(91, 205, 255, 0.72)";
+    for (const bar of visibleWaveformBars(audioAnalysis, view, size.width, height)) {
+      context.fillRect(
+        bar.x,
+        bar.minY,
+        Math.max(1, Math.min(bar.width, 3)),
+        Math.max(1, bar.maxY - bar.minY),
+      );
+    }
+  }, [audioAnalysis, size.width, view]);
 
   frameStateRef.current = { model, viewport, contentMode, diagnostic };
 
@@ -408,6 +521,46 @@ export function TimelinePanel({ registry = BUILTIN_REGISTRY }: TimelinePanelProp
             />
             Snap
           </label>
+          <select
+            className="timeline-panel__audio-select"
+            aria-label="Áudio de referência"
+            value={composition?.referenceAudio?.assetSrc ?? ""}
+            onChange={(event) =>
+              editorActions.setReferenceAudio(
+                event.target.value === "" ? null : event.target.value,
+                session.playheadFrame,
+              )
+            }
+          >
+            <option value="">Sem áudio</option>
+            {audioAssets.map((asset) => (
+              <option value={asset.src} key={asset.id}>
+                {assetDisplayName(asset)}
+              </option>
+            ))}
+          </select>
+          <Button size="sm" onClick={() => audioInputRef.current?.click()}>
+            Áudio…
+          </Button>
+          <input
+            ref={audioInputRef}
+            className="timeline-panel__audio-input"
+            type="file"
+            accept=".wav,.mp3,.ogg,.m4a,audio/wav,audio/mpeg,audio/ogg,audio/mp4"
+            aria-label="Importar áudio de referência"
+            tabIndex={-1}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file === undefined) return;
+              void editorActions.importAssetFiles([file]).then((sources) => {
+                const source = sources.at(-1);
+                if (source !== undefined) {
+                  editorActions.setReferenceAudio(source, session.playheadFrame);
+                }
+              });
+            }}
+          />
           <output className="timeline-panel__timecode" aria-label="Tempo atual">
             {format(frame(session.playheadFrame), timeBase(model.fps), "timecode")}
           </output>
@@ -553,9 +706,39 @@ export function TimelinePanel({ registry = BUILTIN_REGISTRY }: TimelinePanelProp
               );
             })}
           </div>
+          {hasReferenceAudio && (
+            <div className="timeline-panel__audio-header" title={audioStatus}>
+              ♫{" "}
+              {referenceAudioAsset === undefined
+                ? "Áudio ausente"
+                : assetDisplayName(referenceAudioAsset)}
+            </div>
+          )}
         </div>
 
         <div className="timeline-panel__canvas-pane" ref={canvasPaneRef}>
+          <div
+            className="timeline-panel__preview-cache"
+            aria-label={`${cachedRanges.reduce(
+              (total, range) => total + range.endFrameExclusive - range.startFrame,
+              0,
+            )} frames com preview em memória`}
+          >
+            {cachedRanges.map((range) => {
+              const left = Math.max(0, (range.startFrame - view.startFrame) * view.pixelsPerFrame);
+              const right = Math.min(
+                size.width,
+                (range.endFrameExclusive - view.startFrame) * view.pixelsPerFrame,
+              );
+              if (right <= left) return null;
+              return (
+                <span
+                  key={`${range.startFrame}:${range.endFrameExclusive}`}
+                  style={{ left, width: Math.max(1, right - left) }}
+                />
+              );
+            })}
+          </div>
           <canvas
             ref={canvasRef}
             className="timeline-panel__canvas"
@@ -580,6 +763,16 @@ export function TimelinePanel({ registry = BUILTIN_REGISTRY }: TimelinePanelProp
               }
             }}
           />
+          {hasReferenceAudio && (
+            <canvas
+              ref={audioCanvasRef}
+              className="timeline-panel__audio-waveform"
+              aria-label="Forma de onda do áudio de referência sincronizada por frame"
+            />
+          )}
+          <output className="timeline-panel__accessible" aria-live="polite">
+            {audioStatus}
+          </output>
           <AccessibleKeyframes model={model} />
           {diagnostic !== null && (
             <p className="timeline-panel__empty" role="status">

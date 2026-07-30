@@ -306,7 +306,7 @@ que transforma `(documento, frame)` em cena avaliada.
 function evaluate(
   doc: ProjectDocument,
   compositionId: string,
-  frame: Frame,
+  frame: number,
   opts?: EvaluateOptions,
 ): EvaluatedScene;
 
@@ -315,11 +315,23 @@ interface EvaluatedScene {
   readonly camera: EvaluatedCamera;
   readonly nodes: ReadonlyMap<string, EvaluatedNode>;
   readonly drawOrder: readonly string[];
+  readonly diagnostics?: readonly PropertyExpressionDiagnostic[];
 }
 
 // Interpolação de uma propriedade
-function evaluateProperty<T>(prop: AnimatableProperty<T>, frame: Frame): T;
+function evaluateProperty<T>(prop: AnimatableProperty<T>, frame: number): T;
+function evaluatePropertyResult<T>(
+  prop: AnimatableProperty<T>,
+  frame: number,
+): EvaluatedValueResult<T>;
 function keyframeSegment(prop: AnimatableProperty, frame: Frame): Segment | null;
+
+// Linguagem fechada de expressões — parser/AST/intérprete próprios
+function compileExpression(source: string): CompileExpressionResult;
+function evaluateExpression(
+  program: ExpressionProgram,
+  context: { value: ExpressionValue; frame: number },
+): EvaluateExpressionResult;
 
 // Edição de keyframes (usada pelos handlers de comando, não muta nada aqui)
 function insertKeyframe<T>(
@@ -349,6 +361,10 @@ interface EvaluationCache {
 - Nenhuma alocação de ID. Nós sintéticos de Actions recebem ID derivado
   deterministicamente (`hashSeed(parentId, actionId, index)`).
 - O cache é uma otimização transparente: desligá-lo muda apenas o desempenho.
+- Uma expressão recebe somente `value` (o valor depois dos keyframes) e `frame`.
+  Não executa JavaScript, não acessa o host e tem limites de tamanho e operações.
+  Falha de parse, tipo ou valor não finito conserva o valor base e aparece em
+  `EvaluatedScene.diagnostics`.
 
 ## `gis`
 
@@ -585,6 +601,11 @@ const CINEMATIC_PRESETS: Record<"push-in" | "pull-out" | "reveal" | "sweep" | "s
 
 **Invariantes.**
 
+- O estado autoritativo é `composition.camera`, avaliado no playhead inclusive em
+  subframes. `CameraPort.current()` é observação da superfície, não uma segunda
+  verdade persistente.
+- Gestos interativos são consolidados e enviados ao Command Bus. Aplicação
+  programática do documento ao mapa não realimenta novos comandos.
 - Em export, sempre `jump`. `ease` do MapLibre é assíncrono e dependente de tempo
   real — usá-lo no export produziria posição errada.
 - Zoom é logarítmico (convenção MapLibre). Interpolar zoom linearmente dá
@@ -730,55 +751,55 @@ Formato completo: [04-PROJECT-FORMAT.md](04-PROJECT-FORMAT.md).
 
 ## `export`
 
-**Responsabilidade.** Fila de render, bombeamento de frames, codificação.
+**Responsabilidade.** Planejamento de frames, resolução, supersampling, motion
+blur e contratos puros usados pelo bombeamento e pela codificação. A execução da
+fila vive hoje em `apps/editor`, e a publicação/escrita fica nos adapters do
+shell.
 
 ```ts
-interface RenderQueue {
-  enqueue(job: RenderJobSpec): JobId;
-  start(id: JobId): Promise<Result<RenderReport, RenderError>>;
-  cancel(id: JobId): void;
-  jobs(): readonly RenderJob[];
-}
-interface RenderJobSpec {
-  compositionId: string;
-  range: [Frame, Frame];
-  output: OutputSpec; // codec, container, bitrate, alpha
-  resolution: Vec2;
-  pixelRatio: number;
-  settlePolicy: SettlePolicy; // o que fazer se o mapa não estabilizar
-  onProgress?: (p: RenderProgress) => void;
-}
-interface FramePump {
-  step(frame: Frame): Promise<CapturedFrame>;
-}
+type SettlePolicy = "fail" | "continue";
+
+function buildFramePlan(spec: FramePlanSpec): readonly PlannedFrame[];
+function resolveExportResolution(input: ExportResolutionInput): ExportResolutionResult;
+function motionBlurSamples(frame: number, spec: MotionBlurSpec): readonly number[];
 ```
 
-**Depende de.** `engine` internals via injeção, `renderer`, `camera`, `EncoderPort`.
+**Depende de.** `core-*` e contratos de dados; o pump recebe mapa, superfícies,
+compositor e writers por injeção.
 
 **Invariantes.**
 
-- Um frame só é escrito depois de `settle` bem-sucedido, ou conforme a
-  `settlePolicy` explícita. Nunca silenciosamente.
-- Relatório final registra por frame: tempo de settle, tentativas, tamanho. Um
-  export com 3 frames duvidosos é detectável.
-- Buffers de frame vêm de pool. Export de 5400 frames não deve gerar pressão de GC.
-- Cancelar mata o processo FFmpeg e remove arquivo parcial.
+- A política padrão é `fail`: se mapa, assets, superfícies ou frame observado não
+  convergirem, aquele frame não é composto nem escrito e o job falha.
+  `continue` existe somente para diagnóstico explícito.
+- MP4, GIF e MOV são gravados em temporário no diretório de destino e publicados
+  por `rename` apenas quando concluídos. Falha não deixa um novo arquivo final
+  plausível e parcial.
+- O teto padrão é 8192 px por dimensão. Escala de saída e supersampling são
+  multiplicadores distintos; preflight também recusa uma superfície que a
+  GPU/Chromium concretos não consigam criar.
+- A fila persistente do editor executa serialmente no viewport vivo. Jobs
+  interrompidos voltam pausados; checkpoints reutilizam a sequência de
+  PNG/GIF/ProRes, enquanto MP4 H.264 direto reinicia o stream.
+- A fila ainda referencia a composição corrente, não um snapshot imutável do
+  documento. Alteração durante o job ativo aborta a execução.
 
-Detalhes de codec e do caminho 8K: [06-RENDER-PIPELINE.md § 7](06-RENDER-PIPELINE.md#7-codificação).
+Detalhes de settle, publicação e do caminho 8K:
+[06-RENDER-PIPELINE.md](06-RENDER-PIPELINE.md).
 
 ## `scripting`
 
 **Responsabilidade.** Compilar Scene Script (formato para IA) em `ProjectDocument`.
 
 ```ts
-function compileScene(script: unknown, ctx: CompileContext): CompileResult;
+function compileScene(
+  script: string | unknown,
+  options?: CompileSceneOptions,
+): Promise<CompileSceneResult>;
 
-interface CompileResult {
-  document: ProjectDocument | null;
-  diagnostics: readonly Diagnostic[]; // com JSON pointer, para autocorreção por IA
-}
-interface Diagnostic {
+interface SceneDiagnostic {
   severity: "error" | "warning" | "info";
+  code: SceneDiagnosticCode;
   path: string; // "/timeline/4/along"
   message: string;
   hint?: string;
@@ -786,8 +807,9 @@ interface Diagnostic {
 }
 
 interface VerbRegistry {
-  register(verb: VerbDefinition): Disposable;
-  list(): readonly VerbDefinition[];
+  list(): readonly SceneVerbDefinition[];
+  get(name: string): SceneVerbDefinition | undefined;
+  suggest(name: string): readonly string[];
 }
 ```
 
@@ -800,44 +822,84 @@ interface VerbRegistry {
   `document: null` com diagnósticos.
 - Diagnósticos carregam JSON pointer e `didYouMean` — desenhados para um LLM ler o
   erro e corrigir sozinho na segunda tentativa.
-- Todo verbo do Scene Script mapeia para uma Action Template ou comando já
-  existente. O compilador não tem lógica de animação própria; é tradução.
+- O registro é a fonte do contrato e de `LLM_AUTHORING.md`. O emissor traduz os
+  verbos para câmeras, unidades, paths, actions e visuais determinísticos; nem
+  todo verbo tem ainda um renderer especializado próprio.
+- A exportação inversa v1 só é fiel para a fonte normalizada embutida pelo próprio
+  compilador. Edições posteriores são omitidas com warning, não convertidas em
+  JSON inventado.
 
 Formato: [05-SCENE-SCRIPT.md](05-SCENE-SCRIPT.md).
 
-## `plugin-host`
+## Maestro
 
-**Responsabilidade.** Carregar plugins locais e expor pontos de extensão.
+**Responsabilidade.** Permitir que o agente ChatGPT/Codex desta conversa
+transforme intenção em ações validadas do editor aberto.
 
-```ts
-interface PluginHost {
-  discover(dir: string): Promise<readonly PluginManifest[]>;
-  load(id: string): Promise<Result<LoadedPlugin, PluginError>>;
-  unload(id: string): void;
-}
-interface PluginApi {
-  nodeTypes: NodeTypeRegistry;
-  effects: EffectRegistry;
-  actions: ActionRegistry;
-  verbs: VerbRegistry;
-  exporters: ExporterRegistry;
-  commands: Pick<CommandBus, "register">;
-  panels: PanelRegistry;
-  mapStyles: MapStyleRegistry;
-  logger: Logger;
-}
-```
+`apps/editor/src/maestro/codex-control.ts` publica
+`window.__theatrumMaestro` apenas no renderer local. `tools/maestro.mjs` acessa
+essa superfície pela porta de depuração do Electron em desenvolvimento e
+devolve contexto, resultado e diagnósticos ao mesmo agente que conversa com o
+operador. Não existe modelo, chat ou credencial de IA dentro do aplicativo.
 
-**Depende de.** todos os registries de L2/L3.
+As duas fronteiras de escrita são:
+
+- `apply-scene` → `scripting.compileScene()` →
+  `project.replace-document`;
+- `apply-commands` → lote validado → `CommandBus.transaction()`.
+
+A ponte não faz requisição a provedor. O shell não conhece chave de IA e a
+superfície de controle existe para a sessão local de desenvolvimento.
 
 **Invariantes.**
 
-- Plugin só toca no sistema pela `PluginApi`. Sem acesso ao documento direto, sem
-  `require` de pacote interno.
+- tentativa inválida não altera o documento;
+- o modelo nunca possui uma terceira rota de mutação;
+- edições pontuais preservam conteúdo manual não relacionado;
+- um lote confirmado é uma entrada de undo;
+- o Maestro lê os diagnósticos e itera até obter uma cena válida.
+
+## `plugin-host`
+
+**Responsabilidade.** Validar e descobrir plugins locais por portas injetadas,
+gerir ativação/descarte e expor registries delimitados. Também valida e pesquisa
+o catálogo de conteúdo empacotado.
+
+```ts
+function parsePluginManifest(input: unknown): Result<PluginManifest, ManifestDiagnostic[]>;
+function discoverPlugins(
+  root: string,
+  fs: PluginFileSystem,
+): Promise<Result<PluginDiscovery, PluginDiscoveryDiagnostic>>;
+function createPluginHost<C>(options: {
+  targets: PluginExtensionTargets<C>;
+  loader?: PluginModuleLoader<C>;
+}): PluginHost<C>;
+function createNamedExtensionRegistry<T extends { id: string }>(): NamedExtensionRegistry<T>;
+function parseUnitCatalog(
+  input: unknown,
+): Result<readonly UnitDefinition[], UnitCatalogDiagnostic[]>;
+```
+
+Os pontos declarados pelo manifest são `nodeTypes`, `effects`, `actions`,
+`verbs`, `exporters`, `panels`, `mapStyles` e `commands`.
+
+**Depende de.** `schema` e `core-utils`; os registries concretos entram por
+injeção.
+
+**Invariantes.**
+
+- Plugin só registra contribuições pela API escopada que recebe.
 - `unload` é completo — todo registro devolve `Disposable`. Recarregar plugin em
   dev não deixa resíduo.
-- Sem sandbox (uso interno, plugins são do próprio operador). Registrado como
-  decisão consciente, não esquecimento.
+- Manifest exige API compatível, SemVer, ID estável e entrada relativa sem `..`.
+- Nó de tipo desconhecido pode virar placeholder `unresolved` sem perder seu
+  payload validado.
+
+> **Integração atual:** o núcleo do host está implementado, mas o shell/editor
+> ainda não fornece descoberta, loader de módulos ou gestão de plugins pela UI.
+> O catálogo empacotado de unidades já é carregado pela Biblioteca; paletas e
+> presets gerados ainda não estão todos ligados ao editor.
 
 ---
 
@@ -845,8 +907,8 @@ interface PluginApi {
 
 ## `engine`
 
-**Responsabilidade.** Montar tudo, gerir ciclo de vida, e ser a **única** porta de
-entrada da UI.
+**Responsabilidade-alvo.** Montar serviços e gerir ciclo de vida. A interface
+abaixo continua sendo desenho arquitetural, não API disponível hoje.
 
 ```ts
 interface Engine {
@@ -876,27 +938,24 @@ interface EngineOptions {
 
 **Depende de.** L4, L3, L2, L1, L0.
 
-> **Estado real: esqueleto, e isso é decisão registrada, não pendência.** O
-> `apps/editor` importa L2 e L3 direto, divergindo desta página. A pergunta ficou
-> em aberto esperando "a janela de render isolada da Fase 8", que era o que
-> forçaria `createEngine`. Em 2026-07-29 a janela oculta foi **medida e recusada**
-> — [ADR-022](adr/ADR-022-export-resolution-from-composition.md) —, então o que
-> fecha a pergunta é o registro: o caminho de export não precisa da indireção de
-> L5, e introduzi-la agora seria refatorar o único caminho do projeto que já mediu
-> byte-idêntico. `createEngine` volta à mesa com o gatilho do ADR-022: editar
-> durante um export, ou exportar duas composições em paralelo. A descrição abaixo
-> é o alvo, não o presente.
+> **Estado real:** não existe `createEngine`. O `apps/editor` ainda compõe os
+> pacotes diretamente, e a janela oculta foi recusada pelo
+> [ADR-022](adr/ADR-022-export-resolution-from-composition.md). O pacote deixou
+> de ser vazio: contém as fundações da Fase 11 para cache de preview em RAM/disco,
+> chave canônica/checksum e análise determinística de áudio de referência. Essas
+> APIs ainda não formam a casca de composição descrita acima.
 
 **Invariantes.**
 
-- Sem singleton. `createEngine` é chamado com `mode: "editor"` na janela do editor
-  e `mode: "render"` na janela oculta. Se houvesse estado global, as duas
-  instâncias se corromperiam mutuamente.
-- Ordem de inicialização é explícita e a falha é reportada por etapa. Um PMTiles
-  corrompido dá mensagem útil, não tela branca.
+- Cache e waveform são artefatos derivados: corrupção vira miss/recomputação e
+  nunca altera a verdade do documento.
+- Cache tem orçamento por bytes, cópia defensiva, LRU e checksum; a porta de
+  storage mantém I/O fora do domínio.
+- A waveform usa fronteiras absolutas de amostra por frame, sem somar erro ao
+  longo da composição.
 - Nenhuma dependência de React. `engine` roda em Node num teste de integração.
-- `mode: "render"` não instancia nada de UI: sem gizmos, sem slot `ui-overlay`,
-  sem interações.
+- Não há ainda reprodução, scrub sonoro, ganho, fades, mixagem ou áudio no
+  export.
 
 ---
 
@@ -904,7 +963,11 @@ interface EngineOptions {
 
 ## `apps/editor`
 
-React 19 + Vite. Painéis dockáveis com `dockview`.
+React 19 + Vite. Painéis dockáveis com `dockview`. O app integra hoje a vista do
+mapa persistida no documento, importação transacional de Scene Script, a
+Biblioteca com catálogo empacotado e a fila de render persistida no perfil do
+renderer. O Inspector expõe expressões por propriedade, e a barra superior
+oferece presets de workspace e edição dos atalhos locais.
 
 Estrutura de painel (todos seguem o mesmo formato):
 
@@ -919,12 +982,23 @@ panels/timeline/
 
 **Invariantes.**
 
-- Componente React nunca chama `document.mutate()`. Só `engine.commands.dispatch()`.
+- Componente React nunca chama `document.mutate()`. Mutações persistentes passam
+  pelas actions da sessão, que despacham no Command Bus.
 - Componente nunca lê o documento inteiro. Só seletores com igualdade estrutural.
 - Nada de lógica de domínio em componente. Se a regra vale fora da UI, mora num
   pacote.
 - Timeline e graph editor desenham em canvas ([ADR-005](adr/ADR-005-canvas-timeline.md)).
   O resto é DOM normal.
+- Expressão é editada/removida por `property.set-expression`; o Inspector usa o
+  mesmo avaliador do frame para mostrar parse/tipo/valor inválido e deixa claro
+  que o valor base continua ativo.
+- Aplicar câmera/estilo avaliados ao MapLibre é programático e protegido contra
+  feedback. Gestos do usuário só escrevem de volta quando consolidados.
+- A fila executa uma composição por vez na superfície viva, restaura a composição
+  anterior ao terminar e pausa jobs `running` recuperados depois de reinício.
+- Layout/preset e atalhos são preferências locais separadas do projeto. Preset
+  falho restaura o layout anterior; conflito de atalho não executa nenhum
+  comando ([ADR-032](adr/ADR-032-shortcuts-and-workspace-presets.md)).
 
 ## `apps/shell`
 
@@ -935,8 +1009,9 @@ Electron. `main` cria janelas, menus, e implementa os adapters dos ports.
 shell/src/
 ├─ index.ts                 # barrel público: somente contratos do host
 ├─ main/
-│  ├─ windows/{editor,render}.ts
-│  ├─ services/{fs,dialog,ffmpeg,pmtiles,autosave,render-manager}.ts
+│  ├─ windows/editor.ts
+│  ├─ services/{fs,dialog,ffmpeg,pmtiles,autosave,export-writer,
+│  │            export-publication,preview-cache-storage}.ts
 │  └─ menu.ts
 ├─ preload/index.ts
 └─ ipc/contracts.ts          # tipos compartilhados entre main e renderer
@@ -944,12 +1019,14 @@ shell/src/
 
 **Invariantes.**
 
-- `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true` nas duas janelas.
+- `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true` na janela
+  do editor.
 - Todo canal IPC é declarado em `contracts.ts` com tipo de request e response.
   Nada de `ipcRenderer.invoke("string-solta")`.
 - Nenhuma lógica de domínio no `main`. Ele é adapter e gerente de processo.
 - FFmpeg é sidecar empacotado com o app, invocado por caminho absoluto resolvido
-  em runtime. Nunca depende de `PATH` do sistema.
+  em runtime quando o pacote está corretamente preparado. O ciclo documental
+  atual não revalidou um instalador.
 
 ---
 

@@ -23,9 +23,10 @@ import {
   type ExportPhase,
   type OverlayProbe,
 } from "./export-service.js";
-import type { ExportProgress, ExportReport } from "./run-export.js";
+import type { ExportFormat } from "./render-queue-store.js";
+import type { ExportFrameHash, ExportProgress, ExportReport } from "./run-export.js";
 
-export type ExportFormat = "png" | "png-alpha" | "mp4" | "gif" | "prores4444";
+export type { ExportFormat } from "./render-queue-store.js";
 
 export interface ExportJobState {
   readonly status: "idle" | "running" | "done" | "failed" | "aborted";
@@ -140,6 +141,24 @@ export interface StartJobOptions {
   /** Fator box por eixo do arquivo. Ausente, 1 (ADR-024). */
   readonly supersampling?: number;
   readonly motionBlur?: MotionBlurSpec;
+  readonly resume?: {
+    readonly completedFrames: number;
+    readonly totalFrames: number;
+    readonly directory: string;
+    readonly framesDirectory?: string;
+    readonly hashes: readonly ExportFrameHash[];
+  };
+  readonly onOutputPrepared?: (location: {
+    readonly directory: string;
+    readonly framesDirectory?: string;
+  }) => void;
+  readonly onCheckpoint?: (checkpoint: {
+    readonly completedFrames: number;
+    readonly totalFrames: number;
+    readonly lastFilename: string | null;
+    readonly complete: boolean;
+    readonly hashes: readonly ExportFrameHash[];
+  }) => void | Promise<void>;
 }
 
 /**
@@ -159,6 +178,7 @@ export async function startExportJob(options: StartJobOptions = {}): Promise<voi
 
   const format = options.format ?? "png";
   abortRequested = false;
+  let abortReason: string | null = null;
   emit({ ...IDLE, status: "running", phase: "rendering", format });
   const executar =
     format === "mp4"
@@ -170,30 +190,47 @@ export async function startExportJob(options: StartJobOptions = {}): Promise<voi
           : format === "png-alpha"
             ? startAlphaPngSequenceExport
             : startPngSequenceExport;
-  const result = await executar({
-    probe: current.probe,
-    ...(current.map === undefined ? {} : { map: current.map }),
-    ...options,
-    onProgress: (progress) => {
-      const msPerFrame = nextAverageMsPerFrame(state, progress);
-      emit({
-        done: progress.done,
-        total: progress.total,
-        currentSample: progress.currentSample,
-        samplesPerFrame: progress.samplesPerFrame,
-        samplesDone: progress.samplesDone,
-        totalSamples: progress.totalSamples,
-        settleMs: progress.settleMs,
-        msPerFrame,
-      });
-    },
-    onPhase: (phase) => emit({ phase }),
-    // Trocar de aba desmonta a fonte capturada. Continuar usaria uma sonda
-    // congelada por até N×4 s e poderia compor uma pilha diferente.
-    shouldAbort: () => abortRequested || binding?.token !== current.token,
-  });
+  let result;
+  try {
+    result = await executar({
+      probe: current.probe,
+      ...(current.map === undefined ? {} : { map: current.map }),
+      ...options,
+      onProgress: (progress) => {
+        const msPerFrame = nextAverageMsPerFrame(state, progress);
+        emit({
+          done: progress.done,
+          total: progress.total,
+          currentSample: progress.currentSample,
+          samplesPerFrame: progress.samplesPerFrame,
+          samplesDone: progress.samplesDone,
+          totalSamples: progress.totalSamples,
+          settleMs: progress.settleMs,
+          msPerFrame,
+        });
+      },
+      onPhase: (phase) => emit({ phase }),
+      // Trocar de aba desmonta a fonte capturada. Continuar usaria uma sonda
+      // congelada por até N×4 s e poderia compor uma pilha diferente.
+      shouldAbort: () => abortRequested || binding?.token !== current.token,
+    });
+  } catch (error: unknown) {
+    emit({
+      status: "failed",
+      phase: "idle",
+      message: `falha inesperada no serviço de export: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    });
+    return;
+  }
 
   const report = result.report ?? null;
+  if (abortRequested) {
+    abortReason = "cancelamento solicitado";
+  } else if (binding?.token !== current.token) {
+    abortReason = "o viewport ativo foi remontado durante o export";
+  }
   emit({
     status: report?.aborted === true ? "aborted" : result.ok ? "done" : "failed",
     phase: "idle",
@@ -204,7 +241,10 @@ export async function startExportJob(options: StartJobOptions = {}): Promise<voi
     fileSha256: result.fileSha256 ?? null,
     // A primeira falha, quando há: uma lista de mil erros iguais não diz mais
     // que um, e o relatório completo fica acessível ao lado.
-    message: result.message ?? report?.errors[0] ?? null,
+    message:
+      abortReason === null
+        ? (result.message ?? report?.errors[0] ?? null)
+        : `${result.message ?? "export interrompido"} (${abortReason})`,
   });
 }
 
@@ -239,4 +279,34 @@ export function estimatedSecondsLeft(job: ExportJobState): number | null {
     return null;
   }
   return ((job.total - job.done) * job.msPerFrame) / 1000;
+}
+
+/**
+ * Superfície local de operação do export pelo Maestro ChatGPT/Codex.
+ *
+ * Ela apenas encaminha para o mesmo controller usado pelo painel. O início é
+ * deliberadamente assíncrono: o chamador recebe o snapshot imediatamente e
+ * acompanha o job por `status()`, sem manter uma chamada CDP aberta por minutos.
+ */
+const maestroExportControl = Object.freeze({
+  start(options: StartJobOptions = {}): ExportJobState {
+    void startExportJob(options);
+    return getExportJobSnapshot();
+  },
+  status: getExportJobSnapshot,
+  abort(): ExportJobState {
+    requestExportAbort();
+    return getExportJobSnapshot();
+  },
+});
+
+Object.defineProperty(window, "__theatrumExport", {
+  value: maestroExportControl,
+  configurable: true,
+});
+
+declare global {
+  interface Window {
+    __theatrumExport?: typeof maestroExportControl;
+  }
 }

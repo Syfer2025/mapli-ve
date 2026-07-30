@@ -29,6 +29,13 @@ export const NATIVE_COMMAND_DEFINITIONS: readonly ErasedDefinition[] = [
   defineNative("project.update-settings", "Alterar configurações do projeto", (draft, command) => {
     Object.assign(draft.settings, command.payload.settings);
   }),
+  defineNative("project.replace-document", "Importar Scene Script", (draft, command) => {
+    const next = command.payload.document;
+    for (const key of Object.keys(draft)) {
+      if (!Object.hasOwn(next, key)) Reflect.deleteProperty(draft, key);
+    }
+    Object.assign(draft, next);
+  }),
   defineNative("composition.create", "Criar composição", (draft, command) => {
     insertComposition(draft, command.payload.composition);
   }),
@@ -82,6 +89,14 @@ export const NATIVE_COMMAND_DEFINITIONS: readonly ErasedDefinition[] = [
   defineNative("composition.set-map", "Alterar mapa", (draft, command) => {
     getComposition(draft, command.payload.compositionId).map = command.payload.map;
   }),
+  defineNative(
+    "composition.set-reference-audio",
+    "Alterar áudio de referência",
+    (draft, command) => {
+      getComposition(draft, command.payload.compositionId)["referenceAudio"] =
+        command.payload["referenceAudio"];
+    },
+  ),
   defineNative("node.create", "Criar nó", (draft, command) => {
     const composition = getComposition(draft, command.payload.compositionId);
     const parent = getNode(composition, command.payload.parentId);
@@ -378,6 +393,14 @@ export const NATIVE_COMMAND_DEFINITIONS: readonly ErasedDefinition[] = [
   }),
   defineNative("asset.set-tags", "Alterar tags do asset", (draft, command) => {
     getAsset(draft, command.payload.assetId).meta["tags"] = [...command.payload.tags];
+  }),
+
+  defineNative("palette.add", "Adicionar paleta", (draft, command) => {
+    const palette = command.payload.palette;
+    if (draft.palettes.some((entry) => entry.id === palette.id)) {
+      rejectCommand(`Paleta já existe: ${palette.id}.`);
+    }
+    draft.palettes.push(palette);
   }),
 
   defineNative("camera.set-follow", "Alterar seguimento da câmera", (draft, command) => {

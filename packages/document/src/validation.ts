@@ -294,6 +294,20 @@ function validateReferences(
   pathIds: ReadonlySet<string>,
   issues: DocumentValidationIssue[],
 ): void {
+  const referenceAudio = composition.referenceAudio;
+  if (
+    referenceAudio !== undefined &&
+    referenceAudio !== null &&
+    !assetSrcs.has(referenceAudio.assetSrc)
+  ) {
+    addIssue(
+      issues,
+      "missing-asset",
+      `${pointer}/referenceAudio/assetSrc`,
+      `O asset ${referenceAudio.assetSrc} não existe.`,
+    );
+  }
+
   walkUnknown(
     composition,
     pointer,

@@ -7,19 +7,27 @@
  */
 
 import { planFfmpegExport } from "@theatrum/export";
-import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
-import { rm, stat } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { rm } from "node:fs/promises";
 import { basename, dirname, extname, isAbsolute, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { app } from "electron";
 import type { ExportEncodeRequest, ExportEncodeResult } from "../../ipc/contracts.js";
+import { finalizeExportFile } from "./export-publication.js";
 
 const STAGING_PREFIX = ".theatrum-frames-";
 const MAX_STDERR = 128 * 1024;
 
+export interface EncodeExportDependencies {
+  readonly runFfmpeg?: (args: readonly string[]) => Promise<void>;
+  readonly temporaryId?: () => string;
+  readonly finalize?: typeof finalizeExportFile;
+}
+
+/** Codifica e só publica o nome final depois de todos os passes concluírem. */
 export async function encodeExportFrames(
   request: ExportEncodeRequest,
+  dependencies: EncodeExportDependencies = {},
 ): Promise<ExportEncodeResult> {
   const checked = validateRequest(request);
   if (!checked.ok) {
@@ -32,28 +40,69 @@ export async function encodeExportFrames(
     };
   }
   const palettePath = join(checked.framesDirectory, "palette.png");
+  // Preserva a extensão para o muxer do FFmpeg reconhecer o contêiner, mas não
+  // entrega o nome final: uma falha nunca pode deixar um GIF/MOV parcial com o
+  // nome que a UI apresentará como concluído.
+  const temporaryFilename = `.theatrum-${dependencies.temporaryId?.() ?? randomUUID()}-${request.outputFilename}`;
+  const temporaryOutputPath = join(checked.directory, temporaryFilename);
+  const executeFfmpeg = dependencies.runFfmpeg ?? runFfmpeg;
+  const finalize = dependencies.finalize ?? finalizeExportFile;
   const plan = planFfmpegExport({
     format: request.format,
     fps: request.fps,
     framePattern: join(checked.framesDirectory, `${request.framePrefix}_%0${request.digits}d.png`),
-    outputPath: checked.outputPath,
+    outputPath: temporaryOutputPath,
     ...(request.format === "gif" ? { palettePath } : {}),
   });
 
   try {
-    for (const args of plan.passes) await runFfmpeg(args);
-    const info = await stat(checked.outputPath);
-    const sha256 = await hashFile(checked.outputPath);
+    for (const args of plan.passes) await executeFfmpeg(args);
+    const published = await finalize({
+      action: "publish",
+      directory: checked.directory,
+      temporaryFilename,
+      finalFilename: request.outputFilename,
+    });
+    if (!published.ok) {
+      return {
+        ok: false,
+        filename: basename(checked.outputPath),
+        bytes: 0,
+        sha256: "",
+        message: `${published.message ?? "não foi possível publicar o arquivo final"}. Os PNGs temporários foram preservados em ${checked.framesDirectory}.`,
+      };
+    }
     // Só apagamos uma pasta que passou por `validateRequest`: filha direta do
     // job e com prefixo reservado. Nunca há glob nem caminho vindo do FFmpeg.
-    await rm(checked.framesDirectory, { recursive: true, force: true });
+    let stagingMessage: string | undefined;
+    try {
+      await rm(checked.framesDirectory, { recursive: true, force: true });
+    } catch (cleanupError: unknown) {
+      // O arquivo já foi publicado por rename. Falhar ao limpar material de
+      // diagnóstico não transforma um vídeo completo em falha nem tenta
+      // desfazer a publicação.
+      stagingMessage = `Arquivo final publicado, mas os PNGs temporários foram preservados em ${checked.framesDirectory}: ${
+        cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
+      }`;
+    }
     return {
       ok: true,
-      filename: basename(checked.outputPath),
-      bytes: info.size,
-      sha256,
+      filename: published.filename,
+      bytes: published.bytes,
+      sha256: published.sha256,
+      ...(stagingMessage === undefined ? {} : { message: stagingMessage }),
     };
   } catch (error: unknown) {
+    const cleanup = await finalize({
+      action: "discard",
+      directory: checked.directory,
+      temporaryFilename,
+    });
+    const cleanupMessage =
+      cleanup.message ??
+      (cleanup.temporaryDisposition === "preserved"
+        ? "O arquivo temporário de vídeo foi preservado."
+        : "O arquivo temporário de vídeo foi removido.");
     return {
       ok: false,
       filename: basename(checked.outputPath),
@@ -61,8 +110,8 @@ export async function encodeExportFrames(
       sha256: "",
       message:
         error instanceof Error
-          ? `${error.message} Os PNGs temporários foram preservados em ${checked.framesDirectory}.`
-          : String(error),
+          ? `${error.message} ${cleanupMessage} Os PNGs temporários foram preservados em ${checked.framesDirectory}.`
+          : `${String(error)} ${cleanupMessage}`,
     };
   }
 }
@@ -146,12 +195,6 @@ function ffmpegExecutable(): string {
     return join(process.resourcesPath, "ffmpeg", "ffmpeg.exe");
   }
   return "ffmpeg";
-}
-
-async function hashFile(path: string): Promise<string> {
-  const hash = createHash("sha256");
-  for await (const chunk of createReadStream(path)) hash.update(chunk as Buffer);
-  return hash.digest("hex");
 }
 
 function safeSegment(value: string): string {

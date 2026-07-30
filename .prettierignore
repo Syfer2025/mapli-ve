@@ -8,6 +8,9 @@ data/**/*.geojson
 data/**/*.pbf
 data/**/*.pmtiles
 
+# Conteúdo derivado deterministicamente de tools/generate-bundled-content.ts.
+data/plugin-content/
+
 # Artefatos gerados deterministicamente por `pnpm schema:gen`.
 schemas/
 

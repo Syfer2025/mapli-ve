@@ -1,0 +1,4512 @@
+[
+  {
+    "id": "wwi.britain.armor-light",
+    "name": "Carro de combate leve — Reino Unido",
+    "aliases": [
+      "light tank",
+      "tanque leve",
+      "Carro de combate leve Reino Unido"
+    ],
+    "era": "wwi",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "armor",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.britain.armor-light",
+    "app6": "SFGPUCAL--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "light",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "britain"
+    ]
+  },
+  {
+    "id": "wwi.britain.armor-medium",
+    "name": "Carro de combate médio — Reino Unido",
+    "aliases": [
+      "medium tank",
+      "tanque médio",
+      "Carro de combate médio Reino Unido"
+    ],
+    "era": "wwi",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "armor",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.britain.armor-medium",
+    "app6": "SFGPUCAM--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "medium",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "britain"
+    ]
+  },
+  {
+    "id": "wwi.britain.armor-heavy",
+    "name": "Mark IV",
+    "aliases": [
+      "heavy tank",
+      "tanque pesado",
+      "British heavy tank",
+      "tanque britânico Mark IV",
+      "Carro de combate pesado Reino Unido"
+    ],
+    "era": "wwi",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "armor",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.britain.armor-heavy",
+    "app6": "SFGPUCAH--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "heavy",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "britain"
+    ]
+  },
+  {
+    "id": "wwi.britain.infantry",
+    "name": "Infantaria — Reino Unido",
+    "aliases": [
+      "infantry",
+      "fuzileiros",
+      "Infantaria Reino Unido"
+    ],
+    "era": "wwi",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "infantry",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.britain.infantry",
+    "app6": "SFGPUCI---",
+    "tags": [
+      "infantry",
+      "soldiers",
+      "ground",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "britain"
+    ]
+  },
+  {
+    "id": "wwi.britain.artillery",
+    "name": "Artilharia de campanha — Reino Unido",
+    "aliases": [
+      "field artillery",
+      "canhão",
+      "Artilharia de campanha Reino Unido"
+    ],
+    "era": "wwi",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "artillery",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.britain.artillery",
+    "app6": "SFGPUCF---",
+    "tags": [
+      "artillery",
+      "gun",
+      "indirect-fire",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "britain"
+    ]
+  },
+  {
+    "id": "wwi.britain.fighter",
+    "name": "Aeronave de caça — Reino Unido",
+    "aliases": [
+      "fighter aircraft",
+      "avião de caça",
+      "Aeronave de caça Reino Unido"
+    ],
+    "era": "wwi",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "air",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.britain.fighter",
+    "app6": "SFAPMF----",
+    "tags": [
+      "air",
+      "aircraft",
+      "fighter",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "britain"
+    ]
+  },
+  {
+    "id": "wwi.britain.bomber",
+    "name": "Bombardeiro — Reino Unido",
+    "aliases": [
+      "bomber aircraft",
+      "avião bombardeiro",
+      "Bombardeiro Reino Unido"
+    ],
+    "era": "wwi",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "air",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.britain.bomber",
+    "app6": "SFAPMB----",
+    "tags": [
+      "air",
+      "aircraft",
+      "bomber",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "britain"
+    ]
+  },
+  {
+    "id": "wwi.britain.destroyer",
+    "name": "Escolta de superfície — Reino Unido",
+    "aliases": [
+      "destroyer",
+      "navio de guerra",
+      "Escolta de superfície Reino Unido"
+    ],
+    "era": "wwi",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "naval",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.britain.destroyer",
+    "app6": "SFSPCLDD--",
+    "tags": [
+      "naval",
+      "ship",
+      "destroyer",
+      "escort",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "britain"
+    ]
+  },
+  {
+    "id": "wwi.britain.logistics",
+    "name": "Logística — Reino Unido",
+    "aliases": [
+      "logistics",
+      "suprimento",
+      "Logística Reino Unido"
+    ],
+    "era": "wwi",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "support",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.britain.logistics",
+    "app6": "SFGPUSS---",
+    "tags": [
+      "support",
+      "supply",
+      "logistics",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "britain"
+    ]
+  },
+  {
+    "id": "wwi.britain.medical",
+    "name": "Apoio médico — Reino Unido",
+    "aliases": [
+      "medical support",
+      "hospital de campanha",
+      "Apoio médico Reino Unido"
+    ],
+    "era": "wwi",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "support",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.britain.medical",
+    "app6": "SFGPUSM---",
+    "tags": [
+      "support",
+      "medical",
+      "hospital",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "britain"
+    ]
+  },
+  {
+    "id": "wwi.france.armor-light",
+    "name": "Renault FT",
+    "aliases": [
+      "light tank",
+      "tanque leve",
+      "FT-17",
+      "char léger Renault",
+      "Carro de combate leve França"
+    ],
+    "era": "wwi",
+    "nation": "França",
+    "nationAliases": [
+      "France",
+      "French",
+      "Francesa"
+    ],
+    "category": "armor",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.france.armor-light",
+    "app6": "SFGPUCAL--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "light",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "france"
+    ]
+  },
+  {
+    "id": "wwi.france.armor-medium",
+    "name": "Carro de combate médio — França",
+    "aliases": [
+      "medium tank",
+      "tanque médio",
+      "Carro de combate médio França"
+    ],
+    "era": "wwi",
+    "nation": "França",
+    "nationAliases": [
+      "France",
+      "French",
+      "Francesa"
+    ],
+    "category": "armor",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.france.armor-medium",
+    "app6": "SFGPUCAM--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "medium",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "france"
+    ]
+  },
+  {
+    "id": "wwi.france.armor-heavy",
+    "name": "Carro de combate pesado — França",
+    "aliases": [
+      "heavy tank",
+      "tanque pesado",
+      "Carro de combate pesado França"
+    ],
+    "era": "wwi",
+    "nation": "França",
+    "nationAliases": [
+      "France",
+      "French",
+      "Francesa"
+    ],
+    "category": "armor",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.france.armor-heavy",
+    "app6": "SFGPUCAH--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "heavy",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "france"
+    ]
+  },
+  {
+    "id": "wwi.france.infantry",
+    "name": "Infantaria — França",
+    "aliases": [
+      "infantry",
+      "fuzileiros",
+      "Infantaria França"
+    ],
+    "era": "wwi",
+    "nation": "França",
+    "nationAliases": [
+      "France",
+      "French",
+      "Francesa"
+    ],
+    "category": "infantry",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.france.infantry",
+    "app6": "SFGPUCI---",
+    "tags": [
+      "infantry",
+      "soldiers",
+      "ground",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "france"
+    ]
+  },
+  {
+    "id": "wwi.france.artillery",
+    "name": "Artilharia de campanha — França",
+    "aliases": [
+      "field artillery",
+      "canhão",
+      "Artilharia de campanha França"
+    ],
+    "era": "wwi",
+    "nation": "França",
+    "nationAliases": [
+      "France",
+      "French",
+      "Francesa"
+    ],
+    "category": "artillery",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.france.artillery",
+    "app6": "SFGPUCF---",
+    "tags": [
+      "artillery",
+      "gun",
+      "indirect-fire",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "france"
+    ]
+  },
+  {
+    "id": "wwi.france.fighter",
+    "name": "Aeronave de caça — França",
+    "aliases": [
+      "fighter aircraft",
+      "avião de caça",
+      "Aeronave de caça França"
+    ],
+    "era": "wwi",
+    "nation": "França",
+    "nationAliases": [
+      "France",
+      "French",
+      "Francesa"
+    ],
+    "category": "air",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.france.fighter",
+    "app6": "SFAPMF----",
+    "tags": [
+      "air",
+      "aircraft",
+      "fighter",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "france"
+    ]
+  },
+  {
+    "id": "wwi.france.bomber",
+    "name": "Bombardeiro — França",
+    "aliases": [
+      "bomber aircraft",
+      "avião bombardeiro",
+      "Bombardeiro França"
+    ],
+    "era": "wwi",
+    "nation": "França",
+    "nationAliases": [
+      "France",
+      "French",
+      "Francesa"
+    ],
+    "category": "air",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.france.bomber",
+    "app6": "SFAPMB----",
+    "tags": [
+      "air",
+      "aircraft",
+      "bomber",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "france"
+    ]
+  },
+  {
+    "id": "wwi.france.destroyer",
+    "name": "Escolta de superfície — França",
+    "aliases": [
+      "destroyer",
+      "navio de guerra",
+      "Escolta de superfície França"
+    ],
+    "era": "wwi",
+    "nation": "França",
+    "nationAliases": [
+      "France",
+      "French",
+      "Francesa"
+    ],
+    "category": "naval",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.france.destroyer",
+    "app6": "SFSPCLDD--",
+    "tags": [
+      "naval",
+      "ship",
+      "destroyer",
+      "escort",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "france"
+    ]
+  },
+  {
+    "id": "wwi.france.logistics",
+    "name": "Logística — França",
+    "aliases": [
+      "logistics",
+      "suprimento",
+      "Logística França"
+    ],
+    "era": "wwi",
+    "nation": "França",
+    "nationAliases": [
+      "France",
+      "French",
+      "Francesa"
+    ],
+    "category": "support",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.france.logistics",
+    "app6": "SFGPUSS---",
+    "tags": [
+      "support",
+      "supply",
+      "logistics",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "france"
+    ]
+  },
+  {
+    "id": "wwi.france.medical",
+    "name": "Apoio médico — França",
+    "aliases": [
+      "medical support",
+      "hospital de campanha",
+      "Apoio médico França"
+    ],
+    "era": "wwi",
+    "nation": "França",
+    "nationAliases": [
+      "France",
+      "French",
+      "Francesa"
+    ],
+    "category": "support",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.france.medical",
+    "app6": "SFGPUSM---",
+    "tags": [
+      "support",
+      "medical",
+      "hospital",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "france"
+    ]
+  },
+  {
+    "id": "wwi.germany.armor-light",
+    "name": "Carro de combate leve — Império Alemão",
+    "aliases": [
+      "light tank",
+      "tanque leve",
+      "Carro de combate leve Império Alemão"
+    ],
+    "era": "wwi",
+    "nation": "Império Alemão",
+    "nationAliases": [
+      "Germany",
+      "German",
+      "Alemanha",
+      "Alemão"
+    ],
+    "category": "armor",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.germany.armor-light",
+    "app6": "SFGPUCAL--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "light",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "germany"
+    ]
+  },
+  {
+    "id": "wwi.germany.armor-medium",
+    "name": "Carro de combate médio — Império Alemão",
+    "aliases": [
+      "medium tank",
+      "tanque médio",
+      "Carro de combate médio Império Alemão"
+    ],
+    "era": "wwi",
+    "nation": "Império Alemão",
+    "nationAliases": [
+      "Germany",
+      "German",
+      "Alemanha",
+      "Alemão"
+    ],
+    "category": "armor",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.germany.armor-medium",
+    "app6": "SFGPUCAM--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "medium",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "germany"
+    ]
+  },
+  {
+    "id": "wwi.germany.armor-heavy",
+    "name": "Carro de combate pesado — Império Alemão",
+    "aliases": [
+      "heavy tank",
+      "tanque pesado",
+      "Carro de combate pesado Império Alemão"
+    ],
+    "era": "wwi",
+    "nation": "Império Alemão",
+    "nationAliases": [
+      "Germany",
+      "German",
+      "Alemanha",
+      "Alemão"
+    ],
+    "category": "armor",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.germany.armor-heavy",
+    "app6": "SFGPUCAH--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "heavy",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "germany"
+    ]
+  },
+  {
+    "id": "wwi.germany.infantry",
+    "name": "Infantaria — Império Alemão",
+    "aliases": [
+      "infantry",
+      "fuzileiros",
+      "Infantaria Império Alemão"
+    ],
+    "era": "wwi",
+    "nation": "Império Alemão",
+    "nationAliases": [
+      "Germany",
+      "German",
+      "Alemanha",
+      "Alemão"
+    ],
+    "category": "infantry",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.germany.infantry",
+    "app6": "SFGPUCI---",
+    "tags": [
+      "infantry",
+      "soldiers",
+      "ground",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "germany"
+    ]
+  },
+  {
+    "id": "wwi.germany.artillery",
+    "name": "Artilharia de campanha — Império Alemão",
+    "aliases": [
+      "field artillery",
+      "canhão",
+      "Artilharia de campanha Império Alemão"
+    ],
+    "era": "wwi",
+    "nation": "Império Alemão",
+    "nationAliases": [
+      "Germany",
+      "German",
+      "Alemanha",
+      "Alemão"
+    ],
+    "category": "artillery",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.germany.artillery",
+    "app6": "SFGPUCF---",
+    "tags": [
+      "artillery",
+      "gun",
+      "indirect-fire",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "germany"
+    ]
+  },
+  {
+    "id": "wwi.germany.fighter",
+    "name": "Fokker D.VII",
+    "aliases": [
+      "fighter aircraft",
+      "avião de caça",
+      "Fokker fighter",
+      "Aeronave de caça Império Alemão"
+    ],
+    "era": "wwi",
+    "nation": "Império Alemão",
+    "nationAliases": [
+      "Germany",
+      "German",
+      "Alemanha",
+      "Alemão"
+    ],
+    "category": "air",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.germany.fighter",
+    "app6": "SFAPMF----",
+    "tags": [
+      "air",
+      "aircraft",
+      "fighter",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "germany"
+    ]
+  },
+  {
+    "id": "wwi.germany.bomber",
+    "name": "Bombardeiro — Império Alemão",
+    "aliases": [
+      "bomber aircraft",
+      "avião bombardeiro",
+      "Bombardeiro Império Alemão"
+    ],
+    "era": "wwi",
+    "nation": "Império Alemão",
+    "nationAliases": [
+      "Germany",
+      "German",
+      "Alemanha",
+      "Alemão"
+    ],
+    "category": "air",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.germany.bomber",
+    "app6": "SFAPMB----",
+    "tags": [
+      "air",
+      "aircraft",
+      "bomber",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "germany"
+    ]
+  },
+  {
+    "id": "wwi.germany.destroyer",
+    "name": "Escolta de superfície — Império Alemão",
+    "aliases": [
+      "destroyer",
+      "navio de guerra",
+      "Escolta de superfície Império Alemão"
+    ],
+    "era": "wwi",
+    "nation": "Império Alemão",
+    "nationAliases": [
+      "Germany",
+      "German",
+      "Alemanha",
+      "Alemão"
+    ],
+    "category": "naval",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.germany.destroyer",
+    "app6": "SFSPCLDD--",
+    "tags": [
+      "naval",
+      "ship",
+      "destroyer",
+      "escort",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "germany"
+    ]
+  },
+  {
+    "id": "wwi.germany.logistics",
+    "name": "Logística — Império Alemão",
+    "aliases": [
+      "logistics",
+      "suprimento",
+      "Logística Império Alemão"
+    ],
+    "era": "wwi",
+    "nation": "Império Alemão",
+    "nationAliases": [
+      "Germany",
+      "German",
+      "Alemanha",
+      "Alemão"
+    ],
+    "category": "support",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.germany.logistics",
+    "app6": "SFGPUSS---",
+    "tags": [
+      "support",
+      "supply",
+      "logistics",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "germany"
+    ]
+  },
+  {
+    "id": "wwi.germany.medical",
+    "name": "Apoio médico — Império Alemão",
+    "aliases": [
+      "medical support",
+      "hospital de campanha",
+      "Apoio médico Império Alemão"
+    ],
+    "era": "wwi",
+    "nation": "Império Alemão",
+    "nationAliases": [
+      "Germany",
+      "German",
+      "Alemanha",
+      "Alemão"
+    ],
+    "category": "support",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.germany.medical",
+    "app6": "SFGPUSM---",
+    "tags": [
+      "support",
+      "medical",
+      "hospital",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "germany"
+    ]
+  },
+  {
+    "id": "wwi.russia.armor-light",
+    "name": "Carro de combate leve — Império Russo",
+    "aliases": [
+      "light tank",
+      "tanque leve",
+      "Carro de combate leve Império Russo"
+    ],
+    "era": "wwi",
+    "nation": "Império Russo",
+    "nationAliases": [
+      "Russia",
+      "Russian",
+      "Rússia",
+      "Russo"
+    ],
+    "category": "armor",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.russia.armor-light",
+    "app6": "SFGPUCAL--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "light",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "russia"
+    ]
+  },
+  {
+    "id": "wwi.russia.armor-medium",
+    "name": "Carro de combate médio — Império Russo",
+    "aliases": [
+      "medium tank",
+      "tanque médio",
+      "Carro de combate médio Império Russo"
+    ],
+    "era": "wwi",
+    "nation": "Império Russo",
+    "nationAliases": [
+      "Russia",
+      "Russian",
+      "Rússia",
+      "Russo"
+    ],
+    "category": "armor",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.russia.armor-medium",
+    "app6": "SFGPUCAM--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "medium",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "russia"
+    ]
+  },
+  {
+    "id": "wwi.russia.armor-heavy",
+    "name": "Carro de combate pesado — Império Russo",
+    "aliases": [
+      "heavy tank",
+      "tanque pesado",
+      "Carro de combate pesado Império Russo"
+    ],
+    "era": "wwi",
+    "nation": "Império Russo",
+    "nationAliases": [
+      "Russia",
+      "Russian",
+      "Rússia",
+      "Russo"
+    ],
+    "category": "armor",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.russia.armor-heavy",
+    "app6": "SFGPUCAH--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "heavy",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "russia"
+    ]
+  },
+  {
+    "id": "wwi.russia.infantry",
+    "name": "Infantaria — Império Russo",
+    "aliases": [
+      "infantry",
+      "fuzileiros",
+      "Infantaria Império Russo"
+    ],
+    "era": "wwi",
+    "nation": "Império Russo",
+    "nationAliases": [
+      "Russia",
+      "Russian",
+      "Rússia",
+      "Russo"
+    ],
+    "category": "infantry",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.russia.infantry",
+    "app6": "SFGPUCI---",
+    "tags": [
+      "infantry",
+      "soldiers",
+      "ground",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "russia"
+    ]
+  },
+  {
+    "id": "wwi.russia.artillery",
+    "name": "Artilharia de campanha — Império Russo",
+    "aliases": [
+      "field artillery",
+      "canhão",
+      "Artilharia de campanha Império Russo"
+    ],
+    "era": "wwi",
+    "nation": "Império Russo",
+    "nationAliases": [
+      "Russia",
+      "Russian",
+      "Rússia",
+      "Russo"
+    ],
+    "category": "artillery",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.russia.artillery",
+    "app6": "SFGPUCF---",
+    "tags": [
+      "artillery",
+      "gun",
+      "indirect-fire",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "russia"
+    ]
+  },
+  {
+    "id": "wwi.russia.fighter",
+    "name": "Aeronave de caça — Império Russo",
+    "aliases": [
+      "fighter aircraft",
+      "avião de caça",
+      "Aeronave de caça Império Russo"
+    ],
+    "era": "wwi",
+    "nation": "Império Russo",
+    "nationAliases": [
+      "Russia",
+      "Russian",
+      "Rússia",
+      "Russo"
+    ],
+    "category": "air",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.russia.fighter",
+    "app6": "SFAPMF----",
+    "tags": [
+      "air",
+      "aircraft",
+      "fighter",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "russia"
+    ]
+  },
+  {
+    "id": "wwi.russia.bomber",
+    "name": "Bombardeiro — Império Russo",
+    "aliases": [
+      "bomber aircraft",
+      "avião bombardeiro",
+      "Bombardeiro Império Russo"
+    ],
+    "era": "wwi",
+    "nation": "Império Russo",
+    "nationAliases": [
+      "Russia",
+      "Russian",
+      "Rússia",
+      "Russo"
+    ],
+    "category": "air",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.russia.bomber",
+    "app6": "SFAPMB----",
+    "tags": [
+      "air",
+      "aircraft",
+      "bomber",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "russia"
+    ]
+  },
+  {
+    "id": "wwi.russia.destroyer",
+    "name": "Escolta de superfície — Império Russo",
+    "aliases": [
+      "destroyer",
+      "navio de guerra",
+      "Escolta de superfície Império Russo"
+    ],
+    "era": "wwi",
+    "nation": "Império Russo",
+    "nationAliases": [
+      "Russia",
+      "Russian",
+      "Rússia",
+      "Russo"
+    ],
+    "category": "naval",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.russia.destroyer",
+    "app6": "SFSPCLDD--",
+    "tags": [
+      "naval",
+      "ship",
+      "destroyer",
+      "escort",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "russia"
+    ]
+  },
+  {
+    "id": "wwi.russia.logistics",
+    "name": "Logística — Império Russo",
+    "aliases": [
+      "logistics",
+      "suprimento",
+      "Logística Império Russo"
+    ],
+    "era": "wwi",
+    "nation": "Império Russo",
+    "nationAliases": [
+      "Russia",
+      "Russian",
+      "Rússia",
+      "Russo"
+    ],
+    "category": "support",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.russia.logistics",
+    "app6": "SFGPUSS---",
+    "tags": [
+      "support",
+      "supply",
+      "logistics",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "russia"
+    ]
+  },
+  {
+    "id": "wwi.russia.medical",
+    "name": "Apoio médico — Império Russo",
+    "aliases": [
+      "medical support",
+      "hospital de campanha",
+      "Apoio médico Império Russo"
+    ],
+    "era": "wwi",
+    "nation": "Império Russo",
+    "nationAliases": [
+      "Russia",
+      "Russian",
+      "Rússia",
+      "Russo"
+    ],
+    "category": "support",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.russia.medical",
+    "app6": "SFGPUSM---",
+    "tags": [
+      "support",
+      "medical",
+      "hospital",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "russia"
+    ]
+  },
+  {
+    "id": "wwi.ottoman.armor-light",
+    "name": "Carro de combate leve — Império Otomano",
+    "aliases": [
+      "light tank",
+      "tanque leve",
+      "Carro de combate leve Império Otomano"
+    ],
+    "era": "wwi",
+    "nation": "Império Otomano",
+    "nationAliases": [
+      "Ottoman",
+      "Turquia",
+      "Turkish"
+    ],
+    "category": "armor",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.ottoman.armor-light",
+    "app6": "SFGPUCAL--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "light",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "ottoman"
+    ]
+  },
+  {
+    "id": "wwi.ottoman.armor-medium",
+    "name": "Carro de combate médio — Império Otomano",
+    "aliases": [
+      "medium tank",
+      "tanque médio",
+      "Carro de combate médio Império Otomano"
+    ],
+    "era": "wwi",
+    "nation": "Império Otomano",
+    "nationAliases": [
+      "Ottoman",
+      "Turquia",
+      "Turkish"
+    ],
+    "category": "armor",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.ottoman.armor-medium",
+    "app6": "SFGPUCAM--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "medium",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "ottoman"
+    ]
+  },
+  {
+    "id": "wwi.ottoman.armor-heavy",
+    "name": "Carro de combate pesado — Império Otomano",
+    "aliases": [
+      "heavy tank",
+      "tanque pesado",
+      "Carro de combate pesado Império Otomano"
+    ],
+    "era": "wwi",
+    "nation": "Império Otomano",
+    "nationAliases": [
+      "Ottoman",
+      "Turquia",
+      "Turkish"
+    ],
+    "category": "armor",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.ottoman.armor-heavy",
+    "app6": "SFGPUCAH--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "heavy",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "ottoman"
+    ]
+  },
+  {
+    "id": "wwi.ottoman.infantry",
+    "name": "Infantaria — Império Otomano",
+    "aliases": [
+      "infantry",
+      "fuzileiros",
+      "Infantaria Império Otomano"
+    ],
+    "era": "wwi",
+    "nation": "Império Otomano",
+    "nationAliases": [
+      "Ottoman",
+      "Turquia",
+      "Turkish"
+    ],
+    "category": "infantry",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.ottoman.infantry",
+    "app6": "SFGPUCI---",
+    "tags": [
+      "infantry",
+      "soldiers",
+      "ground",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "ottoman"
+    ]
+  },
+  {
+    "id": "wwi.ottoman.artillery",
+    "name": "Artilharia de campanha — Império Otomano",
+    "aliases": [
+      "field artillery",
+      "canhão",
+      "Artilharia de campanha Império Otomano"
+    ],
+    "era": "wwi",
+    "nation": "Império Otomano",
+    "nationAliases": [
+      "Ottoman",
+      "Turquia",
+      "Turkish"
+    ],
+    "category": "artillery",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.ottoman.artillery",
+    "app6": "SFGPUCF---",
+    "tags": [
+      "artillery",
+      "gun",
+      "indirect-fire",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "ottoman"
+    ]
+  },
+  {
+    "id": "wwi.ottoman.fighter",
+    "name": "Aeronave de caça — Império Otomano",
+    "aliases": [
+      "fighter aircraft",
+      "avião de caça",
+      "Aeronave de caça Império Otomano"
+    ],
+    "era": "wwi",
+    "nation": "Império Otomano",
+    "nationAliases": [
+      "Ottoman",
+      "Turquia",
+      "Turkish"
+    ],
+    "category": "air",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.ottoman.fighter",
+    "app6": "SFAPMF----",
+    "tags": [
+      "air",
+      "aircraft",
+      "fighter",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "ottoman"
+    ]
+  },
+  {
+    "id": "wwi.ottoman.bomber",
+    "name": "Bombardeiro — Império Otomano",
+    "aliases": [
+      "bomber aircraft",
+      "avião bombardeiro",
+      "Bombardeiro Império Otomano"
+    ],
+    "era": "wwi",
+    "nation": "Império Otomano",
+    "nationAliases": [
+      "Ottoman",
+      "Turquia",
+      "Turkish"
+    ],
+    "category": "air",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.ottoman.bomber",
+    "app6": "SFAPMB----",
+    "tags": [
+      "air",
+      "aircraft",
+      "bomber",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "ottoman"
+    ]
+  },
+  {
+    "id": "wwi.ottoman.destroyer",
+    "name": "Escolta de superfície — Império Otomano",
+    "aliases": [
+      "destroyer",
+      "navio de guerra",
+      "Escolta de superfície Império Otomano"
+    ],
+    "era": "wwi",
+    "nation": "Império Otomano",
+    "nationAliases": [
+      "Ottoman",
+      "Turquia",
+      "Turkish"
+    ],
+    "category": "naval",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.ottoman.destroyer",
+    "app6": "SFSPCLDD--",
+    "tags": [
+      "naval",
+      "ship",
+      "destroyer",
+      "escort",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "ottoman"
+    ]
+  },
+  {
+    "id": "wwi.ottoman.logistics",
+    "name": "Logística — Império Otomano",
+    "aliases": [
+      "logistics",
+      "suprimento",
+      "Logística Império Otomano"
+    ],
+    "era": "wwi",
+    "nation": "Império Otomano",
+    "nationAliases": [
+      "Ottoman",
+      "Turquia",
+      "Turkish"
+    ],
+    "category": "support",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.ottoman.logistics",
+    "app6": "SFGPUSS---",
+    "tags": [
+      "support",
+      "supply",
+      "logistics",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "ottoman"
+    ]
+  },
+  {
+    "id": "wwi.ottoman.medical",
+    "name": "Apoio médico — Império Otomano",
+    "aliases": [
+      "medical support",
+      "hospital de campanha",
+      "Apoio médico Império Otomano"
+    ],
+    "era": "wwi",
+    "nation": "Império Otomano",
+    "nationAliases": [
+      "Ottoman",
+      "Turquia",
+      "Turkish"
+    ],
+    "category": "support",
+    "serviceFrom": 1914,
+    "serviceTo": 1918,
+    "svg": "plugin-content/unit-sprites.svg#wwi.ottoman.medical",
+    "app6": "SFGPUSM---",
+    "tags": [
+      "support",
+      "medical",
+      "hospital",
+      "wwi",
+      "Primeira Guerra Mundial",
+      "ottoman"
+    ]
+  },
+  {
+    "id": "wwii.usa.armor-light",
+    "name": "Carro de combate leve — Estados Unidos",
+    "aliases": [
+      "light tank",
+      "tanque leve",
+      "Carro de combate leve Estados Unidos"
+    ],
+    "era": "wwii",
+    "nation": "Estados Unidos",
+    "nationAliases": [
+      "USA",
+      "United States",
+      "American",
+      "Americano"
+    ],
+    "category": "armor",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.usa.armor-light",
+    "app6": "SFGPUCAL--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "light",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "usa"
+    ]
+  },
+  {
+    "id": "wwii.usa.armor-medium",
+    "name": "M4 Sherman",
+    "aliases": [
+      "medium tank",
+      "tanque médio",
+      "Sherman tank",
+      "tanque americano Sherman",
+      "Carro de combate médio Estados Unidos"
+    ],
+    "era": "wwii",
+    "nation": "Estados Unidos",
+    "nationAliases": [
+      "USA",
+      "United States",
+      "American",
+      "Americano"
+    ],
+    "category": "armor",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.usa.armor-medium",
+    "app6": "SFGPUCAM--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "medium",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "usa"
+    ]
+  },
+  {
+    "id": "wwii.usa.armor-heavy",
+    "name": "Carro de combate pesado — Estados Unidos",
+    "aliases": [
+      "heavy tank",
+      "tanque pesado",
+      "Carro de combate pesado Estados Unidos"
+    ],
+    "era": "wwii",
+    "nation": "Estados Unidos",
+    "nationAliases": [
+      "USA",
+      "United States",
+      "American",
+      "Americano"
+    ],
+    "category": "armor",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.usa.armor-heavy",
+    "app6": "SFGPUCAH--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "heavy",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "usa"
+    ]
+  },
+  {
+    "id": "wwii.usa.infantry",
+    "name": "Infantaria — Estados Unidos",
+    "aliases": [
+      "infantry",
+      "fuzileiros",
+      "Infantaria Estados Unidos"
+    ],
+    "era": "wwii",
+    "nation": "Estados Unidos",
+    "nationAliases": [
+      "USA",
+      "United States",
+      "American",
+      "Americano"
+    ],
+    "category": "infantry",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.usa.infantry",
+    "app6": "SFGPUCI---",
+    "tags": [
+      "infantry",
+      "soldiers",
+      "ground",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "usa"
+    ]
+  },
+  {
+    "id": "wwii.usa.artillery",
+    "name": "Artilharia de campanha — Estados Unidos",
+    "aliases": [
+      "field artillery",
+      "canhão",
+      "Artilharia de campanha Estados Unidos"
+    ],
+    "era": "wwii",
+    "nation": "Estados Unidos",
+    "nationAliases": [
+      "USA",
+      "United States",
+      "American",
+      "Americano"
+    ],
+    "category": "artillery",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.usa.artillery",
+    "app6": "SFGPUCF---",
+    "tags": [
+      "artillery",
+      "gun",
+      "indirect-fire",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "usa"
+    ]
+  },
+  {
+    "id": "wwii.usa.fighter",
+    "name": "Aeronave de caça — Estados Unidos",
+    "aliases": [
+      "fighter aircraft",
+      "avião de caça",
+      "Aeronave de caça Estados Unidos"
+    ],
+    "era": "wwii",
+    "nation": "Estados Unidos",
+    "nationAliases": [
+      "USA",
+      "United States",
+      "American",
+      "Americano"
+    ],
+    "category": "air",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.usa.fighter",
+    "app6": "SFAPMF----",
+    "tags": [
+      "air",
+      "aircraft",
+      "fighter",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "usa"
+    ]
+  },
+  {
+    "id": "wwii.usa.bomber",
+    "name": "Bombardeiro — Estados Unidos",
+    "aliases": [
+      "bomber aircraft",
+      "avião bombardeiro",
+      "Bombardeiro Estados Unidos"
+    ],
+    "era": "wwii",
+    "nation": "Estados Unidos",
+    "nationAliases": [
+      "USA",
+      "United States",
+      "American",
+      "Americano"
+    ],
+    "category": "air",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.usa.bomber",
+    "app6": "SFAPMB----",
+    "tags": [
+      "air",
+      "aircraft",
+      "bomber",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "usa"
+    ]
+  },
+  {
+    "id": "wwii.usa.destroyer",
+    "name": "Escolta de superfície — Estados Unidos",
+    "aliases": [
+      "destroyer",
+      "navio de guerra",
+      "Escolta de superfície Estados Unidos"
+    ],
+    "era": "wwii",
+    "nation": "Estados Unidos",
+    "nationAliases": [
+      "USA",
+      "United States",
+      "American",
+      "Americano"
+    ],
+    "category": "naval",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.usa.destroyer",
+    "app6": "SFSPCLDD--",
+    "tags": [
+      "naval",
+      "ship",
+      "destroyer",
+      "escort",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "usa"
+    ]
+  },
+  {
+    "id": "wwii.usa.logistics",
+    "name": "Logística — Estados Unidos",
+    "aliases": [
+      "logistics",
+      "suprimento",
+      "Logística Estados Unidos"
+    ],
+    "era": "wwii",
+    "nation": "Estados Unidos",
+    "nationAliases": [
+      "USA",
+      "United States",
+      "American",
+      "Americano"
+    ],
+    "category": "support",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.usa.logistics",
+    "app6": "SFGPUSS---",
+    "tags": [
+      "support",
+      "supply",
+      "logistics",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "usa"
+    ]
+  },
+  {
+    "id": "wwii.usa.medical",
+    "name": "Apoio médico — Estados Unidos",
+    "aliases": [
+      "medical support",
+      "hospital de campanha",
+      "Apoio médico Estados Unidos"
+    ],
+    "era": "wwii",
+    "nation": "Estados Unidos",
+    "nationAliases": [
+      "USA",
+      "United States",
+      "American",
+      "Americano"
+    ],
+    "category": "support",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.usa.medical",
+    "app6": "SFGPUSM---",
+    "tags": [
+      "support",
+      "medical",
+      "hospital",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "usa"
+    ]
+  },
+  {
+    "id": "wwii.britain.armor-light",
+    "name": "Carro de combate leve — Reino Unido",
+    "aliases": [
+      "light tank",
+      "tanque leve",
+      "Carro de combate leve Reino Unido"
+    ],
+    "era": "wwii",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "armor",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.britain.armor-light",
+    "app6": "SFGPUCAL--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "light",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "britain"
+    ]
+  },
+  {
+    "id": "wwii.britain.armor-medium",
+    "name": "Carro de combate médio — Reino Unido",
+    "aliases": [
+      "medium tank",
+      "tanque médio",
+      "Carro de combate médio Reino Unido"
+    ],
+    "era": "wwii",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "armor",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.britain.armor-medium",
+    "app6": "SFGPUCAM--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "medium",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "britain"
+    ]
+  },
+  {
+    "id": "wwii.britain.armor-heavy",
+    "name": "Churchill Mk VII",
+    "aliases": [
+      "heavy tank",
+      "tanque pesado",
+      "Churchill infantry tank",
+      "Carro de combate pesado Reino Unido"
+    ],
+    "era": "wwii",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "armor",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.britain.armor-heavy",
+    "app6": "SFGPUCAH--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "heavy",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "britain"
+    ]
+  },
+  {
+    "id": "wwii.britain.infantry",
+    "name": "Infantaria — Reino Unido",
+    "aliases": [
+      "infantry",
+      "fuzileiros",
+      "Infantaria Reino Unido"
+    ],
+    "era": "wwii",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "infantry",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.britain.infantry",
+    "app6": "SFGPUCI---",
+    "tags": [
+      "infantry",
+      "soldiers",
+      "ground",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "britain"
+    ]
+  },
+  {
+    "id": "wwii.britain.artillery",
+    "name": "Artilharia de campanha — Reino Unido",
+    "aliases": [
+      "field artillery",
+      "canhão",
+      "Artilharia de campanha Reino Unido"
+    ],
+    "era": "wwii",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "artillery",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.britain.artillery",
+    "app6": "SFGPUCF---",
+    "tags": [
+      "artillery",
+      "gun",
+      "indirect-fire",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "britain"
+    ]
+  },
+  {
+    "id": "wwii.britain.fighter",
+    "name": "Aeronave de caça — Reino Unido",
+    "aliases": [
+      "fighter aircraft",
+      "avião de caça",
+      "Aeronave de caça Reino Unido"
+    ],
+    "era": "wwii",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "air",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.britain.fighter",
+    "app6": "SFAPMF----",
+    "tags": [
+      "air",
+      "aircraft",
+      "fighter",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "britain"
+    ]
+  },
+  {
+    "id": "wwii.britain.bomber",
+    "name": "Bombardeiro — Reino Unido",
+    "aliases": [
+      "bomber aircraft",
+      "avião bombardeiro",
+      "Bombardeiro Reino Unido"
+    ],
+    "era": "wwii",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "air",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.britain.bomber",
+    "app6": "SFAPMB----",
+    "tags": [
+      "air",
+      "aircraft",
+      "bomber",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "britain"
+    ]
+  },
+  {
+    "id": "wwii.britain.destroyer",
+    "name": "Escolta de superfície — Reino Unido",
+    "aliases": [
+      "destroyer",
+      "navio de guerra",
+      "Escolta de superfície Reino Unido"
+    ],
+    "era": "wwii",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "naval",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.britain.destroyer",
+    "app6": "SFSPCLDD--",
+    "tags": [
+      "naval",
+      "ship",
+      "destroyer",
+      "escort",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "britain"
+    ]
+  },
+  {
+    "id": "wwii.britain.logistics",
+    "name": "Logística — Reino Unido",
+    "aliases": [
+      "logistics",
+      "suprimento",
+      "Logística Reino Unido"
+    ],
+    "era": "wwii",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "support",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.britain.logistics",
+    "app6": "SFGPUSS---",
+    "tags": [
+      "support",
+      "supply",
+      "logistics",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "britain"
+    ]
+  },
+  {
+    "id": "wwii.britain.medical",
+    "name": "Apoio médico — Reino Unido",
+    "aliases": [
+      "medical support",
+      "hospital de campanha",
+      "Apoio médico Reino Unido"
+    ],
+    "era": "wwii",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "support",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.britain.medical",
+    "app6": "SFGPUSM---",
+    "tags": [
+      "support",
+      "medical",
+      "hospital",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "britain"
+    ]
+  },
+  {
+    "id": "wwii.germany.armor-light",
+    "name": "Carro de combate leve — Alemanha",
+    "aliases": [
+      "light tank",
+      "tanque leve",
+      "Carro de combate leve Alemanha"
+    ],
+    "era": "wwii",
+    "nation": "Alemanha",
+    "nationAliases": [
+      "Germany",
+      "German",
+      "Alemão",
+      "Alemã"
+    ],
+    "category": "armor",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.germany.armor-light",
+    "app6": "SFGPUCAL--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "light",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "germany"
+    ]
+  },
+  {
+    "id": "wwii.germany.armor-medium",
+    "name": "Panther Ausf. G",
+    "aliases": [
+      "medium tank",
+      "tanque médio",
+      "Panzer V",
+      "Panther tank",
+      "Carro de combate médio Alemanha"
+    ],
+    "era": "wwii",
+    "nation": "Alemanha",
+    "nationAliases": [
+      "Germany",
+      "German",
+      "Alemão",
+      "Alemã"
+    ],
+    "category": "armor",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.germany.armor-medium",
+    "app6": "SFGPUCAM--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "medium",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "germany"
+    ]
+  },
+  {
+    "id": "wwii.germany.armor-heavy",
+    "name": "Tiger I",
+    "aliases": [
+      "heavy tank",
+      "tanque pesado",
+      "Panzer VI",
+      "tanque alemão Tiger",
+      "Carro de combate pesado Alemanha"
+    ],
+    "era": "wwii",
+    "nation": "Alemanha",
+    "nationAliases": [
+      "Germany",
+      "German",
+      "Alemão",
+      "Alemã"
+    ],
+    "category": "armor",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.germany.armor-heavy",
+    "app6": "SFGPUCAH--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "heavy",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "germany"
+    ]
+  },
+  {
+    "id": "wwii.germany.infantry",
+    "name": "Infantaria — Alemanha",
+    "aliases": [
+      "infantry",
+      "fuzileiros",
+      "Infantaria Alemanha"
+    ],
+    "era": "wwii",
+    "nation": "Alemanha",
+    "nationAliases": [
+      "Germany",
+      "German",
+      "Alemão",
+      "Alemã"
+    ],
+    "category": "infantry",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.germany.infantry",
+    "app6": "SFGPUCI---",
+    "tags": [
+      "infantry",
+      "soldiers",
+      "ground",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "germany"
+    ]
+  },
+  {
+    "id": "wwii.germany.artillery",
+    "name": "Artilharia de campanha — Alemanha",
+    "aliases": [
+      "field artillery",
+      "canhão",
+      "Artilharia de campanha Alemanha"
+    ],
+    "era": "wwii",
+    "nation": "Alemanha",
+    "nationAliases": [
+      "Germany",
+      "German",
+      "Alemão",
+      "Alemã"
+    ],
+    "category": "artillery",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.germany.artillery",
+    "app6": "SFGPUCF---",
+    "tags": [
+      "artillery",
+      "gun",
+      "indirect-fire",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "germany"
+    ]
+  },
+  {
+    "id": "wwii.germany.fighter",
+    "name": "Aeronave de caça — Alemanha",
+    "aliases": [
+      "fighter aircraft",
+      "avião de caça",
+      "Aeronave de caça Alemanha"
+    ],
+    "era": "wwii",
+    "nation": "Alemanha",
+    "nationAliases": [
+      "Germany",
+      "German",
+      "Alemão",
+      "Alemã"
+    ],
+    "category": "air",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.germany.fighter",
+    "app6": "SFAPMF----",
+    "tags": [
+      "air",
+      "aircraft",
+      "fighter",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "germany"
+    ]
+  },
+  {
+    "id": "wwii.germany.bomber",
+    "name": "Bombardeiro — Alemanha",
+    "aliases": [
+      "bomber aircraft",
+      "avião bombardeiro",
+      "Bombardeiro Alemanha"
+    ],
+    "era": "wwii",
+    "nation": "Alemanha",
+    "nationAliases": [
+      "Germany",
+      "German",
+      "Alemão",
+      "Alemã"
+    ],
+    "category": "air",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.germany.bomber",
+    "app6": "SFAPMB----",
+    "tags": [
+      "air",
+      "aircraft",
+      "bomber",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "germany"
+    ]
+  },
+  {
+    "id": "wwii.germany.destroyer",
+    "name": "Escolta de superfície — Alemanha",
+    "aliases": [
+      "destroyer",
+      "navio de guerra",
+      "Escolta de superfície Alemanha"
+    ],
+    "era": "wwii",
+    "nation": "Alemanha",
+    "nationAliases": [
+      "Germany",
+      "German",
+      "Alemão",
+      "Alemã"
+    ],
+    "category": "naval",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.germany.destroyer",
+    "app6": "SFSPCLDD--",
+    "tags": [
+      "naval",
+      "ship",
+      "destroyer",
+      "escort",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "germany"
+    ]
+  },
+  {
+    "id": "wwii.germany.logistics",
+    "name": "Logística — Alemanha",
+    "aliases": [
+      "logistics",
+      "suprimento",
+      "Logística Alemanha"
+    ],
+    "era": "wwii",
+    "nation": "Alemanha",
+    "nationAliases": [
+      "Germany",
+      "German",
+      "Alemão",
+      "Alemã"
+    ],
+    "category": "support",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.germany.logistics",
+    "app6": "SFGPUSS---",
+    "tags": [
+      "support",
+      "supply",
+      "logistics",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "germany"
+    ]
+  },
+  {
+    "id": "wwii.germany.medical",
+    "name": "Apoio médico — Alemanha",
+    "aliases": [
+      "medical support",
+      "hospital de campanha",
+      "Apoio médico Alemanha"
+    ],
+    "era": "wwii",
+    "nation": "Alemanha",
+    "nationAliases": [
+      "Germany",
+      "German",
+      "Alemão",
+      "Alemã"
+    ],
+    "category": "support",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.germany.medical",
+    "app6": "SFGPUSM---",
+    "tags": [
+      "support",
+      "medical",
+      "hospital",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "germany"
+    ]
+  },
+  {
+    "id": "wwii.ussr.armor-light",
+    "name": "Carro de combate leve — União Soviética",
+    "aliases": [
+      "light tank",
+      "tanque leve",
+      "Carro de combate leve União Soviética"
+    ],
+    "era": "wwii",
+    "nation": "União Soviética",
+    "nationAliases": [
+      "USSR",
+      "URSS",
+      "Soviet",
+      "Soviético",
+      "Soviética"
+    ],
+    "category": "armor",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.ussr.armor-light",
+    "app6": "SFGPUCAL--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "light",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "ussr"
+    ]
+  },
+  {
+    "id": "wwii.ussr.armor-medium",
+    "name": "T-34/76",
+    "aliases": [
+      "medium tank",
+      "tanque médio",
+      "T34",
+      "tanque soviético 1943",
+      "Soviet medium tank",
+      "Carro de combate médio União Soviética"
+    ],
+    "era": "wwii",
+    "nation": "União Soviética",
+    "nationAliases": [
+      "USSR",
+      "URSS",
+      "Soviet",
+      "Soviético",
+      "Soviética"
+    ],
+    "category": "armor",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.ussr.armor-medium",
+    "app6": "SFGPUCAM--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "medium",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "ussr"
+    ]
+  },
+  {
+    "id": "wwii.ussr.armor-heavy",
+    "name": "IS-2",
+    "aliases": [
+      "heavy tank",
+      "tanque pesado",
+      "Iosif Stalin tank",
+      "tanque pesado soviético",
+      "Carro de combate pesado União Soviética"
+    ],
+    "era": "wwii",
+    "nation": "União Soviética",
+    "nationAliases": [
+      "USSR",
+      "URSS",
+      "Soviet",
+      "Soviético",
+      "Soviética"
+    ],
+    "category": "armor",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.ussr.armor-heavy",
+    "app6": "SFGPUCAH--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "heavy",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "ussr"
+    ]
+  },
+  {
+    "id": "wwii.ussr.infantry",
+    "name": "Infantaria — União Soviética",
+    "aliases": [
+      "infantry",
+      "fuzileiros",
+      "Infantaria União Soviética"
+    ],
+    "era": "wwii",
+    "nation": "União Soviética",
+    "nationAliases": [
+      "USSR",
+      "URSS",
+      "Soviet",
+      "Soviético",
+      "Soviética"
+    ],
+    "category": "infantry",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.ussr.infantry",
+    "app6": "SFGPUCI---",
+    "tags": [
+      "infantry",
+      "soldiers",
+      "ground",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "ussr"
+    ]
+  },
+  {
+    "id": "wwii.ussr.artillery",
+    "name": "Artilharia de campanha — União Soviética",
+    "aliases": [
+      "field artillery",
+      "canhão",
+      "Artilharia de campanha União Soviética"
+    ],
+    "era": "wwii",
+    "nation": "União Soviética",
+    "nationAliases": [
+      "USSR",
+      "URSS",
+      "Soviet",
+      "Soviético",
+      "Soviética"
+    ],
+    "category": "artillery",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.ussr.artillery",
+    "app6": "SFGPUCF---",
+    "tags": [
+      "artillery",
+      "gun",
+      "indirect-fire",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "ussr"
+    ]
+  },
+  {
+    "id": "wwii.ussr.fighter",
+    "name": "Aeronave de caça — União Soviética",
+    "aliases": [
+      "fighter aircraft",
+      "avião de caça",
+      "Aeronave de caça União Soviética"
+    ],
+    "era": "wwii",
+    "nation": "União Soviética",
+    "nationAliases": [
+      "USSR",
+      "URSS",
+      "Soviet",
+      "Soviético",
+      "Soviética"
+    ],
+    "category": "air",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.ussr.fighter",
+    "app6": "SFAPMF----",
+    "tags": [
+      "air",
+      "aircraft",
+      "fighter",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "ussr"
+    ]
+  },
+  {
+    "id": "wwii.ussr.bomber",
+    "name": "Bombardeiro — União Soviética",
+    "aliases": [
+      "bomber aircraft",
+      "avião bombardeiro",
+      "Bombardeiro União Soviética"
+    ],
+    "era": "wwii",
+    "nation": "União Soviética",
+    "nationAliases": [
+      "USSR",
+      "URSS",
+      "Soviet",
+      "Soviético",
+      "Soviética"
+    ],
+    "category": "air",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.ussr.bomber",
+    "app6": "SFAPMB----",
+    "tags": [
+      "air",
+      "aircraft",
+      "bomber",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "ussr"
+    ]
+  },
+  {
+    "id": "wwii.ussr.destroyer",
+    "name": "Escolta de superfície — União Soviética",
+    "aliases": [
+      "destroyer",
+      "navio de guerra",
+      "Escolta de superfície União Soviética"
+    ],
+    "era": "wwii",
+    "nation": "União Soviética",
+    "nationAliases": [
+      "USSR",
+      "URSS",
+      "Soviet",
+      "Soviético",
+      "Soviética"
+    ],
+    "category": "naval",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.ussr.destroyer",
+    "app6": "SFSPCLDD--",
+    "tags": [
+      "naval",
+      "ship",
+      "destroyer",
+      "escort",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "ussr"
+    ]
+  },
+  {
+    "id": "wwii.ussr.logistics",
+    "name": "Logística — União Soviética",
+    "aliases": [
+      "logistics",
+      "suprimento",
+      "Logística União Soviética"
+    ],
+    "era": "wwii",
+    "nation": "União Soviética",
+    "nationAliases": [
+      "USSR",
+      "URSS",
+      "Soviet",
+      "Soviético",
+      "Soviética"
+    ],
+    "category": "support",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.ussr.logistics",
+    "app6": "SFGPUSS---",
+    "tags": [
+      "support",
+      "supply",
+      "logistics",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "ussr"
+    ]
+  },
+  {
+    "id": "wwii.ussr.medical",
+    "name": "Apoio médico — União Soviética",
+    "aliases": [
+      "medical support",
+      "hospital de campanha",
+      "Apoio médico União Soviética"
+    ],
+    "era": "wwii",
+    "nation": "União Soviética",
+    "nationAliases": [
+      "USSR",
+      "URSS",
+      "Soviet",
+      "Soviético",
+      "Soviética"
+    ],
+    "category": "support",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.ussr.medical",
+    "app6": "SFGPUSM---",
+    "tags": [
+      "support",
+      "medical",
+      "hospital",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "ussr"
+    ]
+  },
+  {
+    "id": "wwii.japan.armor-light",
+    "name": "Carro de combate leve — Japão",
+    "aliases": [
+      "light tank",
+      "tanque leve",
+      "Carro de combate leve Japão"
+    ],
+    "era": "wwii",
+    "nation": "Japão",
+    "nationAliases": [
+      "Japan",
+      "Japanese",
+      "Japonês"
+    ],
+    "category": "armor",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.japan.armor-light",
+    "app6": "SFGPUCAL--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "light",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "japan"
+    ]
+  },
+  {
+    "id": "wwii.japan.armor-medium",
+    "name": "Carro de combate médio — Japão",
+    "aliases": [
+      "medium tank",
+      "tanque médio",
+      "Carro de combate médio Japão"
+    ],
+    "era": "wwii",
+    "nation": "Japão",
+    "nationAliases": [
+      "Japan",
+      "Japanese",
+      "Japonês"
+    ],
+    "category": "armor",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.japan.armor-medium",
+    "app6": "SFGPUCAM--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "medium",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "japan"
+    ]
+  },
+  {
+    "id": "wwii.japan.armor-heavy",
+    "name": "Carro de combate pesado — Japão",
+    "aliases": [
+      "heavy tank",
+      "tanque pesado",
+      "Carro de combate pesado Japão"
+    ],
+    "era": "wwii",
+    "nation": "Japão",
+    "nationAliases": [
+      "Japan",
+      "Japanese",
+      "Japonês"
+    ],
+    "category": "armor",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.japan.armor-heavy",
+    "app6": "SFGPUCAH--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "heavy",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "japan"
+    ]
+  },
+  {
+    "id": "wwii.japan.infantry",
+    "name": "Infantaria — Japão",
+    "aliases": [
+      "infantry",
+      "fuzileiros",
+      "Infantaria Japão"
+    ],
+    "era": "wwii",
+    "nation": "Japão",
+    "nationAliases": [
+      "Japan",
+      "Japanese",
+      "Japonês"
+    ],
+    "category": "infantry",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.japan.infantry",
+    "app6": "SFGPUCI---",
+    "tags": [
+      "infantry",
+      "soldiers",
+      "ground",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "japan"
+    ]
+  },
+  {
+    "id": "wwii.japan.artillery",
+    "name": "Artilharia de campanha — Japão",
+    "aliases": [
+      "field artillery",
+      "canhão",
+      "Artilharia de campanha Japão"
+    ],
+    "era": "wwii",
+    "nation": "Japão",
+    "nationAliases": [
+      "Japan",
+      "Japanese",
+      "Japonês"
+    ],
+    "category": "artillery",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.japan.artillery",
+    "app6": "SFGPUCF---",
+    "tags": [
+      "artillery",
+      "gun",
+      "indirect-fire",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "japan"
+    ]
+  },
+  {
+    "id": "wwii.japan.fighter",
+    "name": "Mitsubishi A6M Zero",
+    "aliases": [
+      "fighter aircraft",
+      "avião de caça",
+      "Zero fighter",
+      "A6M",
+      "Aeronave de caça Japão"
+    ],
+    "era": "wwii",
+    "nation": "Japão",
+    "nationAliases": [
+      "Japan",
+      "Japanese",
+      "Japonês"
+    ],
+    "category": "air",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.japan.fighter",
+    "app6": "SFAPMF----",
+    "tags": [
+      "air",
+      "aircraft",
+      "fighter",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "japan"
+    ]
+  },
+  {
+    "id": "wwii.japan.bomber",
+    "name": "Bombardeiro — Japão",
+    "aliases": [
+      "bomber aircraft",
+      "avião bombardeiro",
+      "Bombardeiro Japão"
+    ],
+    "era": "wwii",
+    "nation": "Japão",
+    "nationAliases": [
+      "Japan",
+      "Japanese",
+      "Japonês"
+    ],
+    "category": "air",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.japan.bomber",
+    "app6": "SFAPMB----",
+    "tags": [
+      "air",
+      "aircraft",
+      "bomber",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "japan"
+    ]
+  },
+  {
+    "id": "wwii.japan.destroyer",
+    "name": "Escolta de superfície — Japão",
+    "aliases": [
+      "destroyer",
+      "navio de guerra",
+      "Escolta de superfície Japão"
+    ],
+    "era": "wwii",
+    "nation": "Japão",
+    "nationAliases": [
+      "Japan",
+      "Japanese",
+      "Japonês"
+    ],
+    "category": "naval",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.japan.destroyer",
+    "app6": "SFSPCLDD--",
+    "tags": [
+      "naval",
+      "ship",
+      "destroyer",
+      "escort",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "japan"
+    ]
+  },
+  {
+    "id": "wwii.japan.logistics",
+    "name": "Logística — Japão",
+    "aliases": [
+      "logistics",
+      "suprimento",
+      "Logística Japão"
+    ],
+    "era": "wwii",
+    "nation": "Japão",
+    "nationAliases": [
+      "Japan",
+      "Japanese",
+      "Japonês"
+    ],
+    "category": "support",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.japan.logistics",
+    "app6": "SFGPUSS---",
+    "tags": [
+      "support",
+      "supply",
+      "logistics",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "japan"
+    ]
+  },
+  {
+    "id": "wwii.japan.medical",
+    "name": "Apoio médico — Japão",
+    "aliases": [
+      "medical support",
+      "hospital de campanha",
+      "Apoio médico Japão"
+    ],
+    "era": "wwii",
+    "nation": "Japão",
+    "nationAliases": [
+      "Japan",
+      "Japanese",
+      "Japonês"
+    ],
+    "category": "support",
+    "serviceFrom": 1939,
+    "serviceTo": 1945,
+    "svg": "plugin-content/unit-sprites.svg#wwii.japan.medical",
+    "app6": "SFGPUSM---",
+    "tags": [
+      "support",
+      "medical",
+      "hospital",
+      "wwii",
+      "Segunda Guerra Mundial",
+      "japan"
+    ]
+  },
+  {
+    "id": "modern.usa.armor-light",
+    "name": "Carro de combate leve — Estados Unidos",
+    "aliases": [
+      "light tank",
+      "tanque leve",
+      "Carro de combate leve Estados Unidos"
+    ],
+    "era": "modern",
+    "nation": "Estados Unidos",
+    "nationAliases": [
+      "USA",
+      "United States",
+      "American",
+      "Americano"
+    ],
+    "category": "armor",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.usa.armor-light",
+    "app6": "SFGPUCAL--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "light",
+      "modern",
+      "Era Moderna",
+      "usa"
+    ]
+  },
+  {
+    "id": "modern.usa.armor-medium",
+    "name": "Carro de combate médio — Estados Unidos",
+    "aliases": [
+      "medium tank",
+      "tanque médio",
+      "Carro de combate médio Estados Unidos"
+    ],
+    "era": "modern",
+    "nation": "Estados Unidos",
+    "nationAliases": [
+      "USA",
+      "United States",
+      "American",
+      "Americano"
+    ],
+    "category": "armor",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.usa.armor-medium",
+    "app6": "SFGPUCAM--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "medium",
+      "modern",
+      "Era Moderna",
+      "usa"
+    ]
+  },
+  {
+    "id": "modern.usa.armor-heavy",
+    "name": "M1A2 Abrams",
+    "aliases": [
+      "heavy tank",
+      "tanque pesado",
+      "Abrams main battle tank",
+      "MBT americano",
+      "Carro de combate pesado Estados Unidos"
+    ],
+    "era": "modern",
+    "nation": "Estados Unidos",
+    "nationAliases": [
+      "USA",
+      "United States",
+      "American",
+      "Americano"
+    ],
+    "category": "armor",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.usa.armor-heavy",
+    "app6": "SFGPUCAH--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "heavy",
+      "modern",
+      "Era Moderna",
+      "usa"
+    ]
+  },
+  {
+    "id": "modern.usa.infantry",
+    "name": "Infantaria — Estados Unidos",
+    "aliases": [
+      "infantry",
+      "fuzileiros",
+      "Infantaria Estados Unidos"
+    ],
+    "era": "modern",
+    "nation": "Estados Unidos",
+    "nationAliases": [
+      "USA",
+      "United States",
+      "American",
+      "Americano"
+    ],
+    "category": "infantry",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.usa.infantry",
+    "app6": "SFGPUCI---",
+    "tags": [
+      "infantry",
+      "soldiers",
+      "ground",
+      "modern",
+      "Era Moderna",
+      "usa"
+    ]
+  },
+  {
+    "id": "modern.usa.artillery",
+    "name": "Artilharia de campanha — Estados Unidos",
+    "aliases": [
+      "field artillery",
+      "canhão",
+      "Artilharia de campanha Estados Unidos"
+    ],
+    "era": "modern",
+    "nation": "Estados Unidos",
+    "nationAliases": [
+      "USA",
+      "United States",
+      "American",
+      "Americano"
+    ],
+    "category": "artillery",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.usa.artillery",
+    "app6": "SFGPUCF---",
+    "tags": [
+      "artillery",
+      "gun",
+      "indirect-fire",
+      "modern",
+      "Era Moderna",
+      "usa"
+    ]
+  },
+  {
+    "id": "modern.usa.fighter",
+    "name": "Aeronave de caça — Estados Unidos",
+    "aliases": [
+      "fighter aircraft",
+      "avião de caça",
+      "Aeronave de caça Estados Unidos"
+    ],
+    "era": "modern",
+    "nation": "Estados Unidos",
+    "nationAliases": [
+      "USA",
+      "United States",
+      "American",
+      "Americano"
+    ],
+    "category": "air",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.usa.fighter",
+    "app6": "SFAPMF----",
+    "tags": [
+      "air",
+      "aircraft",
+      "fighter",
+      "modern",
+      "Era Moderna",
+      "usa"
+    ]
+  },
+  {
+    "id": "modern.usa.bomber",
+    "name": "Bombardeiro — Estados Unidos",
+    "aliases": [
+      "bomber aircraft",
+      "avião bombardeiro",
+      "Bombardeiro Estados Unidos"
+    ],
+    "era": "modern",
+    "nation": "Estados Unidos",
+    "nationAliases": [
+      "USA",
+      "United States",
+      "American",
+      "Americano"
+    ],
+    "category": "air",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.usa.bomber",
+    "app6": "SFAPMB----",
+    "tags": [
+      "air",
+      "aircraft",
+      "bomber",
+      "modern",
+      "Era Moderna",
+      "usa"
+    ]
+  },
+  {
+    "id": "modern.usa.destroyer",
+    "name": "Escolta de superfície — Estados Unidos",
+    "aliases": [
+      "destroyer",
+      "navio de guerra",
+      "Escolta de superfície Estados Unidos"
+    ],
+    "era": "modern",
+    "nation": "Estados Unidos",
+    "nationAliases": [
+      "USA",
+      "United States",
+      "American",
+      "Americano"
+    ],
+    "category": "naval",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.usa.destroyer",
+    "app6": "SFSPCLDD--",
+    "tags": [
+      "naval",
+      "ship",
+      "destroyer",
+      "escort",
+      "modern",
+      "Era Moderna",
+      "usa"
+    ]
+  },
+  {
+    "id": "modern.usa.logistics",
+    "name": "Logística — Estados Unidos",
+    "aliases": [
+      "logistics",
+      "suprimento",
+      "Logística Estados Unidos"
+    ],
+    "era": "modern",
+    "nation": "Estados Unidos",
+    "nationAliases": [
+      "USA",
+      "United States",
+      "American",
+      "Americano"
+    ],
+    "category": "support",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.usa.logistics",
+    "app6": "SFGPUSS---",
+    "tags": [
+      "support",
+      "supply",
+      "logistics",
+      "modern",
+      "Era Moderna",
+      "usa"
+    ]
+  },
+  {
+    "id": "modern.usa.medical",
+    "name": "Apoio médico — Estados Unidos",
+    "aliases": [
+      "medical support",
+      "hospital de campanha",
+      "Apoio médico Estados Unidos"
+    ],
+    "era": "modern",
+    "nation": "Estados Unidos",
+    "nationAliases": [
+      "USA",
+      "United States",
+      "American",
+      "Americano"
+    ],
+    "category": "support",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.usa.medical",
+    "app6": "SFGPUSM---",
+    "tags": [
+      "support",
+      "medical",
+      "hospital",
+      "modern",
+      "Era Moderna",
+      "usa"
+    ]
+  },
+  {
+    "id": "modern.britain.armor-light",
+    "name": "Carro de combate leve — Reino Unido",
+    "aliases": [
+      "light tank",
+      "tanque leve",
+      "Carro de combate leve Reino Unido"
+    ],
+    "era": "modern",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "armor",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.britain.armor-light",
+    "app6": "SFGPUCAL--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "light",
+      "modern",
+      "Era Moderna",
+      "britain"
+    ]
+  },
+  {
+    "id": "modern.britain.armor-medium",
+    "name": "Carro de combate médio — Reino Unido",
+    "aliases": [
+      "medium tank",
+      "tanque médio",
+      "Carro de combate médio Reino Unido"
+    ],
+    "era": "modern",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "armor",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.britain.armor-medium",
+    "app6": "SFGPUCAM--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "medium",
+      "modern",
+      "Era Moderna",
+      "britain"
+    ]
+  },
+  {
+    "id": "modern.britain.armor-heavy",
+    "name": "Challenger 2",
+    "aliases": [
+      "heavy tank",
+      "tanque pesado",
+      "British main battle tank",
+      "Carro de combate pesado Reino Unido"
+    ],
+    "era": "modern",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "armor",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.britain.armor-heavy",
+    "app6": "SFGPUCAH--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "heavy",
+      "modern",
+      "Era Moderna",
+      "britain"
+    ]
+  },
+  {
+    "id": "modern.britain.infantry",
+    "name": "Infantaria — Reino Unido",
+    "aliases": [
+      "infantry",
+      "fuzileiros",
+      "Infantaria Reino Unido"
+    ],
+    "era": "modern",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "infantry",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.britain.infantry",
+    "app6": "SFGPUCI---",
+    "tags": [
+      "infantry",
+      "soldiers",
+      "ground",
+      "modern",
+      "Era Moderna",
+      "britain"
+    ]
+  },
+  {
+    "id": "modern.britain.artillery",
+    "name": "Artilharia de campanha — Reino Unido",
+    "aliases": [
+      "field artillery",
+      "canhão",
+      "Artilharia de campanha Reino Unido"
+    ],
+    "era": "modern",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "artillery",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.britain.artillery",
+    "app6": "SFGPUCF---",
+    "tags": [
+      "artillery",
+      "gun",
+      "indirect-fire",
+      "modern",
+      "Era Moderna",
+      "britain"
+    ]
+  },
+  {
+    "id": "modern.britain.fighter",
+    "name": "Aeronave de caça — Reino Unido",
+    "aliases": [
+      "fighter aircraft",
+      "avião de caça",
+      "Aeronave de caça Reino Unido"
+    ],
+    "era": "modern",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "air",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.britain.fighter",
+    "app6": "SFAPMF----",
+    "tags": [
+      "air",
+      "aircraft",
+      "fighter",
+      "modern",
+      "Era Moderna",
+      "britain"
+    ]
+  },
+  {
+    "id": "modern.britain.bomber",
+    "name": "Bombardeiro — Reino Unido",
+    "aliases": [
+      "bomber aircraft",
+      "avião bombardeiro",
+      "Bombardeiro Reino Unido"
+    ],
+    "era": "modern",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "air",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.britain.bomber",
+    "app6": "SFAPMB----",
+    "tags": [
+      "air",
+      "aircraft",
+      "bomber",
+      "modern",
+      "Era Moderna",
+      "britain"
+    ]
+  },
+  {
+    "id": "modern.britain.destroyer",
+    "name": "Escolta de superfície — Reino Unido",
+    "aliases": [
+      "destroyer",
+      "navio de guerra",
+      "Escolta de superfície Reino Unido"
+    ],
+    "era": "modern",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "naval",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.britain.destroyer",
+    "app6": "SFSPCLDD--",
+    "tags": [
+      "naval",
+      "ship",
+      "destroyer",
+      "escort",
+      "modern",
+      "Era Moderna",
+      "britain"
+    ]
+  },
+  {
+    "id": "modern.britain.logistics",
+    "name": "Logística — Reino Unido",
+    "aliases": [
+      "logistics",
+      "suprimento",
+      "Logística Reino Unido"
+    ],
+    "era": "modern",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "support",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.britain.logistics",
+    "app6": "SFGPUSS---",
+    "tags": [
+      "support",
+      "supply",
+      "logistics",
+      "modern",
+      "Era Moderna",
+      "britain"
+    ]
+  },
+  {
+    "id": "modern.britain.medical",
+    "name": "Apoio médico — Reino Unido",
+    "aliases": [
+      "medical support",
+      "hospital de campanha",
+      "Apoio médico Reino Unido"
+    ],
+    "era": "modern",
+    "nation": "Reino Unido",
+    "nationAliases": [
+      "Britain",
+      "British",
+      "Inglaterra"
+    ],
+    "category": "support",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.britain.medical",
+    "app6": "SFGPUSM---",
+    "tags": [
+      "support",
+      "medical",
+      "hospital",
+      "modern",
+      "Era Moderna",
+      "britain"
+    ]
+  },
+  {
+    "id": "modern.russia.armor-light",
+    "name": "Carro de combate leve — Rússia",
+    "aliases": [
+      "light tank",
+      "tanque leve",
+      "Carro de combate leve Rússia"
+    ],
+    "era": "modern",
+    "nation": "Rússia",
+    "nationAliases": [
+      "Russia",
+      "Russian",
+      "Russo"
+    ],
+    "category": "armor",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.russia.armor-light",
+    "app6": "SFGPUCAL--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "light",
+      "modern",
+      "Era Moderna",
+      "russia"
+    ]
+  },
+  {
+    "id": "modern.russia.armor-medium",
+    "name": "Carro de combate médio — Rússia",
+    "aliases": [
+      "medium tank",
+      "tanque médio",
+      "Carro de combate médio Rússia"
+    ],
+    "era": "modern",
+    "nation": "Rússia",
+    "nationAliases": [
+      "Russia",
+      "Russian",
+      "Russo"
+    ],
+    "category": "armor",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.russia.armor-medium",
+    "app6": "SFGPUCAM--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "medium",
+      "modern",
+      "Era Moderna",
+      "russia"
+    ]
+  },
+  {
+    "id": "modern.russia.armor-heavy",
+    "name": "T-90M",
+    "aliases": [
+      "heavy tank",
+      "tanque pesado",
+      "Russian main battle tank",
+      "tanque russo",
+      "Carro de combate pesado Rússia"
+    ],
+    "era": "modern",
+    "nation": "Rússia",
+    "nationAliases": [
+      "Russia",
+      "Russian",
+      "Russo"
+    ],
+    "category": "armor",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.russia.armor-heavy",
+    "app6": "SFGPUCAH--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "heavy",
+      "modern",
+      "Era Moderna",
+      "russia"
+    ]
+  },
+  {
+    "id": "modern.russia.infantry",
+    "name": "Infantaria — Rússia",
+    "aliases": [
+      "infantry",
+      "fuzileiros",
+      "Infantaria Rússia"
+    ],
+    "era": "modern",
+    "nation": "Rússia",
+    "nationAliases": [
+      "Russia",
+      "Russian",
+      "Russo"
+    ],
+    "category": "infantry",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.russia.infantry",
+    "app6": "SFGPUCI---",
+    "tags": [
+      "infantry",
+      "soldiers",
+      "ground",
+      "modern",
+      "Era Moderna",
+      "russia"
+    ]
+  },
+  {
+    "id": "modern.russia.artillery",
+    "name": "Artilharia de campanha — Rússia",
+    "aliases": [
+      "field artillery",
+      "canhão",
+      "Artilharia de campanha Rússia"
+    ],
+    "era": "modern",
+    "nation": "Rússia",
+    "nationAliases": [
+      "Russia",
+      "Russian",
+      "Russo"
+    ],
+    "category": "artillery",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.russia.artillery",
+    "app6": "SFGPUCF---",
+    "tags": [
+      "artillery",
+      "gun",
+      "indirect-fire",
+      "modern",
+      "Era Moderna",
+      "russia"
+    ]
+  },
+  {
+    "id": "modern.russia.fighter",
+    "name": "Aeronave de caça — Rússia",
+    "aliases": [
+      "fighter aircraft",
+      "avião de caça",
+      "Aeronave de caça Rússia"
+    ],
+    "era": "modern",
+    "nation": "Rússia",
+    "nationAliases": [
+      "Russia",
+      "Russian",
+      "Russo"
+    ],
+    "category": "air",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.russia.fighter",
+    "app6": "SFAPMF----",
+    "tags": [
+      "air",
+      "aircraft",
+      "fighter",
+      "modern",
+      "Era Moderna",
+      "russia"
+    ]
+  },
+  {
+    "id": "modern.russia.bomber",
+    "name": "Bombardeiro — Rússia",
+    "aliases": [
+      "bomber aircraft",
+      "avião bombardeiro",
+      "Bombardeiro Rússia"
+    ],
+    "era": "modern",
+    "nation": "Rússia",
+    "nationAliases": [
+      "Russia",
+      "Russian",
+      "Russo"
+    ],
+    "category": "air",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.russia.bomber",
+    "app6": "SFAPMB----",
+    "tags": [
+      "air",
+      "aircraft",
+      "bomber",
+      "modern",
+      "Era Moderna",
+      "russia"
+    ]
+  },
+  {
+    "id": "modern.russia.destroyer",
+    "name": "Escolta de superfície — Rússia",
+    "aliases": [
+      "destroyer",
+      "navio de guerra",
+      "Escolta de superfície Rússia"
+    ],
+    "era": "modern",
+    "nation": "Rússia",
+    "nationAliases": [
+      "Russia",
+      "Russian",
+      "Russo"
+    ],
+    "category": "naval",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.russia.destroyer",
+    "app6": "SFSPCLDD--",
+    "tags": [
+      "naval",
+      "ship",
+      "destroyer",
+      "escort",
+      "modern",
+      "Era Moderna",
+      "russia"
+    ]
+  },
+  {
+    "id": "modern.russia.logistics",
+    "name": "Logística — Rússia",
+    "aliases": [
+      "logistics",
+      "suprimento",
+      "Logística Rússia"
+    ],
+    "era": "modern",
+    "nation": "Rússia",
+    "nationAliases": [
+      "Russia",
+      "Russian",
+      "Russo"
+    ],
+    "category": "support",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.russia.logistics",
+    "app6": "SFGPUSS---",
+    "tags": [
+      "support",
+      "supply",
+      "logistics",
+      "modern",
+      "Era Moderna",
+      "russia"
+    ]
+  },
+  {
+    "id": "modern.russia.medical",
+    "name": "Apoio médico — Rússia",
+    "aliases": [
+      "medical support",
+      "hospital de campanha",
+      "Apoio médico Rússia"
+    ],
+    "era": "modern",
+    "nation": "Rússia",
+    "nationAliases": [
+      "Russia",
+      "Russian",
+      "Russo"
+    ],
+    "category": "support",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.russia.medical",
+    "app6": "SFGPUSM---",
+    "tags": [
+      "support",
+      "medical",
+      "hospital",
+      "modern",
+      "Era Moderna",
+      "russia"
+    ]
+  },
+  {
+    "id": "modern.china.armor-light",
+    "name": "Carro de combate leve — China",
+    "aliases": [
+      "light tank",
+      "tanque leve",
+      "Carro de combate leve China"
+    ],
+    "era": "modern",
+    "nation": "China",
+    "nationAliases": [
+      "Chinese",
+      "Chinês",
+      "PLA"
+    ],
+    "category": "armor",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.china.armor-light",
+    "app6": "SFGPUCAL--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "light",
+      "modern",
+      "Era Moderna",
+      "china"
+    ]
+  },
+  {
+    "id": "modern.china.armor-medium",
+    "name": "Carro de combate médio — China",
+    "aliases": [
+      "medium tank",
+      "tanque médio",
+      "Carro de combate médio China"
+    ],
+    "era": "modern",
+    "nation": "China",
+    "nationAliases": [
+      "Chinese",
+      "Chinês",
+      "PLA"
+    ],
+    "category": "armor",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.china.armor-medium",
+    "app6": "SFGPUCAM--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "medium",
+      "modern",
+      "Era Moderna",
+      "china"
+    ]
+  },
+  {
+    "id": "modern.china.armor-heavy",
+    "name": "Type 99A",
+    "aliases": [
+      "heavy tank",
+      "tanque pesado",
+      "ZTZ-99A",
+      "Chinese main battle tank",
+      "Carro de combate pesado China"
+    ],
+    "era": "modern",
+    "nation": "China",
+    "nationAliases": [
+      "Chinese",
+      "Chinês",
+      "PLA"
+    ],
+    "category": "armor",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.china.armor-heavy",
+    "app6": "SFGPUCAH--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "heavy",
+      "modern",
+      "Era Moderna",
+      "china"
+    ]
+  },
+  {
+    "id": "modern.china.infantry",
+    "name": "Infantaria — China",
+    "aliases": [
+      "infantry",
+      "fuzileiros",
+      "Infantaria China"
+    ],
+    "era": "modern",
+    "nation": "China",
+    "nationAliases": [
+      "Chinese",
+      "Chinês",
+      "PLA"
+    ],
+    "category": "infantry",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.china.infantry",
+    "app6": "SFGPUCI---",
+    "tags": [
+      "infantry",
+      "soldiers",
+      "ground",
+      "modern",
+      "Era Moderna",
+      "china"
+    ]
+  },
+  {
+    "id": "modern.china.artillery",
+    "name": "Artilharia de campanha — China",
+    "aliases": [
+      "field artillery",
+      "canhão",
+      "Artilharia de campanha China"
+    ],
+    "era": "modern",
+    "nation": "China",
+    "nationAliases": [
+      "Chinese",
+      "Chinês",
+      "PLA"
+    ],
+    "category": "artillery",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.china.artillery",
+    "app6": "SFGPUCF---",
+    "tags": [
+      "artillery",
+      "gun",
+      "indirect-fire",
+      "modern",
+      "Era Moderna",
+      "china"
+    ]
+  },
+  {
+    "id": "modern.china.fighter",
+    "name": "Aeronave de caça — China",
+    "aliases": [
+      "fighter aircraft",
+      "avião de caça",
+      "Aeronave de caça China"
+    ],
+    "era": "modern",
+    "nation": "China",
+    "nationAliases": [
+      "Chinese",
+      "Chinês",
+      "PLA"
+    ],
+    "category": "air",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.china.fighter",
+    "app6": "SFAPMF----",
+    "tags": [
+      "air",
+      "aircraft",
+      "fighter",
+      "modern",
+      "Era Moderna",
+      "china"
+    ]
+  },
+  {
+    "id": "modern.china.bomber",
+    "name": "Bombardeiro — China",
+    "aliases": [
+      "bomber aircraft",
+      "avião bombardeiro",
+      "Bombardeiro China"
+    ],
+    "era": "modern",
+    "nation": "China",
+    "nationAliases": [
+      "Chinese",
+      "Chinês",
+      "PLA"
+    ],
+    "category": "air",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.china.bomber",
+    "app6": "SFAPMB----",
+    "tags": [
+      "air",
+      "aircraft",
+      "bomber",
+      "modern",
+      "Era Moderna",
+      "china"
+    ]
+  },
+  {
+    "id": "modern.china.destroyer",
+    "name": "Escolta de superfície — China",
+    "aliases": [
+      "destroyer",
+      "navio de guerra",
+      "Escolta de superfície China"
+    ],
+    "era": "modern",
+    "nation": "China",
+    "nationAliases": [
+      "Chinese",
+      "Chinês",
+      "PLA"
+    ],
+    "category": "naval",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.china.destroyer",
+    "app6": "SFSPCLDD--",
+    "tags": [
+      "naval",
+      "ship",
+      "destroyer",
+      "escort",
+      "modern",
+      "Era Moderna",
+      "china"
+    ]
+  },
+  {
+    "id": "modern.china.logistics",
+    "name": "Logística — China",
+    "aliases": [
+      "logistics",
+      "suprimento",
+      "Logística China"
+    ],
+    "era": "modern",
+    "nation": "China",
+    "nationAliases": [
+      "Chinese",
+      "Chinês",
+      "PLA"
+    ],
+    "category": "support",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.china.logistics",
+    "app6": "SFGPUSS---",
+    "tags": [
+      "support",
+      "supply",
+      "logistics",
+      "modern",
+      "Era Moderna",
+      "china"
+    ]
+  },
+  {
+    "id": "modern.china.medical",
+    "name": "Apoio médico — China",
+    "aliases": [
+      "medical support",
+      "hospital de campanha",
+      "Apoio médico China"
+    ],
+    "era": "modern",
+    "nation": "China",
+    "nationAliases": [
+      "Chinese",
+      "Chinês",
+      "PLA"
+    ],
+    "category": "support",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.china.medical",
+    "app6": "SFGPUSM---",
+    "tags": [
+      "support",
+      "medical",
+      "hospital",
+      "modern",
+      "Era Moderna",
+      "china"
+    ]
+  },
+  {
+    "id": "modern.iran.armor-light",
+    "name": "Carro de combate leve — Irã",
+    "aliases": [
+      "light tank",
+      "tanque leve",
+      "Carro de combate leve Irã"
+    ],
+    "era": "modern",
+    "nation": "Irã",
+    "nationAliases": [
+      "Iran",
+      "Iranian",
+      "Iraniano"
+    ],
+    "category": "armor",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.iran.armor-light",
+    "app6": "SFGPUCAL--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "light",
+      "modern",
+      "Era Moderna",
+      "iran"
+    ]
+  },
+  {
+    "id": "modern.iran.armor-medium",
+    "name": "Carro de combate médio — Irã",
+    "aliases": [
+      "medium tank",
+      "tanque médio",
+      "Carro de combate médio Irã"
+    ],
+    "era": "modern",
+    "nation": "Irã",
+    "nationAliases": [
+      "Iran",
+      "Iranian",
+      "Iraniano"
+    ],
+    "category": "armor",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.iran.armor-medium",
+    "app6": "SFGPUCAM--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "medium",
+      "modern",
+      "Era Moderna",
+      "iran"
+    ]
+  },
+  {
+    "id": "modern.iran.armor-heavy",
+    "name": "Karrar",
+    "aliases": [
+      "heavy tank",
+      "tanque pesado",
+      "Iranian main battle tank",
+      "tanque iraniano",
+      "Carro de combate pesado Irã"
+    ],
+    "era": "modern",
+    "nation": "Irã",
+    "nationAliases": [
+      "Iran",
+      "Iranian",
+      "Iraniano"
+    ],
+    "category": "armor",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.iran.armor-heavy",
+    "app6": "SFGPUCAH--",
+    "tags": [
+      "tank",
+      "armor",
+      "blindado",
+      "heavy",
+      "modern",
+      "Era Moderna",
+      "iran"
+    ]
+  },
+  {
+    "id": "modern.iran.infantry",
+    "name": "Infantaria — Irã",
+    "aliases": [
+      "infantry",
+      "fuzileiros",
+      "Infantaria Irã"
+    ],
+    "era": "modern",
+    "nation": "Irã",
+    "nationAliases": [
+      "Iran",
+      "Iranian",
+      "Iraniano"
+    ],
+    "category": "infantry",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.iran.infantry",
+    "app6": "SFGPUCI---",
+    "tags": [
+      "infantry",
+      "soldiers",
+      "ground",
+      "modern",
+      "Era Moderna",
+      "iran"
+    ]
+  },
+  {
+    "id": "modern.iran.artillery",
+    "name": "Artilharia de campanha — Irã",
+    "aliases": [
+      "field artillery",
+      "canhão",
+      "Artilharia de campanha Irã"
+    ],
+    "era": "modern",
+    "nation": "Irã",
+    "nationAliases": [
+      "Iran",
+      "Iranian",
+      "Iraniano"
+    ],
+    "category": "artillery",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.iran.artillery",
+    "app6": "SFGPUCF---",
+    "tags": [
+      "artillery",
+      "gun",
+      "indirect-fire",
+      "modern",
+      "Era Moderna",
+      "iran"
+    ]
+  },
+  {
+    "id": "modern.iran.fighter",
+    "name": "Aeronave de caça — Irã",
+    "aliases": [
+      "fighter aircraft",
+      "avião de caça",
+      "Aeronave de caça Irã"
+    ],
+    "era": "modern",
+    "nation": "Irã",
+    "nationAliases": [
+      "Iran",
+      "Iranian",
+      "Iraniano"
+    ],
+    "category": "air",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.iran.fighter",
+    "app6": "SFAPMF----",
+    "tags": [
+      "air",
+      "aircraft",
+      "fighter",
+      "modern",
+      "Era Moderna",
+      "iran"
+    ]
+  },
+  {
+    "id": "modern.iran.bomber",
+    "name": "Bombardeiro — Irã",
+    "aliases": [
+      "bomber aircraft",
+      "avião bombardeiro",
+      "Bombardeiro Irã"
+    ],
+    "era": "modern",
+    "nation": "Irã",
+    "nationAliases": [
+      "Iran",
+      "Iranian",
+      "Iraniano"
+    ],
+    "category": "air",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.iran.bomber",
+    "app6": "SFAPMB----",
+    "tags": [
+      "air",
+      "aircraft",
+      "bomber",
+      "modern",
+      "Era Moderna",
+      "iran"
+    ]
+  },
+  {
+    "id": "modern.iran.destroyer",
+    "name": "Classe Moudge",
+    "aliases": [
+      "destroyer",
+      "navio de guerra",
+      "Moudge frigate",
+      "navio iraniano",
+      "Escolta de superfície Irã"
+    ],
+    "era": "modern",
+    "nation": "Irã",
+    "nationAliases": [
+      "Iran",
+      "Iranian",
+      "Iraniano"
+    ],
+    "category": "naval",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.iran.destroyer",
+    "app6": "SFSPCLDD--",
+    "tags": [
+      "naval",
+      "ship",
+      "destroyer",
+      "escort",
+      "modern",
+      "Era Moderna",
+      "iran"
+    ]
+  },
+  {
+    "id": "modern.iran.logistics",
+    "name": "Logística — Irã",
+    "aliases": [
+      "logistics",
+      "suprimento",
+      "Logística Irã"
+    ],
+    "era": "modern",
+    "nation": "Irã",
+    "nationAliases": [
+      "Iran",
+      "Iranian",
+      "Iraniano"
+    ],
+    "category": "support",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.iran.logistics",
+    "app6": "SFGPUSS---",
+    "tags": [
+      "support",
+      "supply",
+      "logistics",
+      "modern",
+      "Era Moderna",
+      "iran"
+    ]
+  },
+  {
+    "id": "modern.iran.medical",
+    "name": "Apoio médico — Irã",
+    "aliases": [
+      "medical support",
+      "hospital de campanha",
+      "Apoio médico Irã"
+    ],
+    "era": "modern",
+    "nation": "Irã",
+    "nationAliases": [
+      "Iran",
+      "Iranian",
+      "Iraniano"
+    ],
+    "category": "support",
+    "serviceFrom": 1991,
+    "serviceTo": 2035,
+    "svg": "plugin-content/unit-sprites.svg#modern.iran.medical",
+    "app6": "SFGPUSM---",
+    "tags": [
+      "support",
+      "medical",
+      "hospital",
+      "modern",
+      "Era Moderna",
+      "iran"
+    ]
+  }
+]

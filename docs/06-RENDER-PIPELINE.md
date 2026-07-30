@@ -2,6 +2,12 @@
 
 Como um frame vira pixels, e como esses pixels viram arquivo de vídeo.
 
+> **Estado em 2026-07-30:** o export usa as superfícies vivas do editor,
+> redimensionadas temporariamente, e não uma BrowserWindow oculta. Settle
+> fail-closed, publicação atômica, fila persistente, checkpoints, resolução até
+> o teto de 8192 px e supersampling estão implementados. Os ensaios integrados de
+> 90 s em 4K/60 e do caminho 8K na máquina-alvo ainda não foram concluídos.
+
 ---
 
 ## 1. Duas execuções, um pipeline
@@ -32,7 +38,7 @@ flowchart TB
     class CORE core
 ```
 
-Diferenças — e **apenas** estas:
+Diferenças conceituais relevantes:
 
 |                     | Preview              | Export                |
 | ------------------- | -------------------- | --------------------- |
@@ -44,8 +50,9 @@ Diferenças — e **apenas** estas:
 | Qualidade de efeito | pode reduzir (proxy) | máxima                |
 | Motion blur         | desligado            | conforme configuração |
 
-Se preview e export usassem pipelines diferentes, divergiriam — e a divergência
-só apareceria depois de 40 minutos de render. Um pipeline, dois modos.
+O export reaproveita a composição e as superfícies do viewport vivo, mas controla
+explicitamente frame, tamanho, settle, captura e publicação. A fila executa um
+job por vez e restaura a composição que estava selecionada ao terminar.
 
 ---
 
@@ -61,11 +68,15 @@ Sem GPU, sem DOM, sem mapa. Roda em Node. Sequência interna:
 
 1. Filtra nós por `timeRange` e `enabled` (e por `solo`, se houver algum).
 2. Aplica `timeRemap` — o tempo interno do nó pode diferir do tempo da composição.
-3. Avalia propriedades: keyframes → valores, via interpolação temporal.
-4. Expande Actions em modo `live` → nós sintéticos com IDs derivados por hash.
-5. Aplica Behaviors — motion-path escreve em `anchor` e `rotation`.
-6. Acumula opacidade pela hierarquia, calcula matrizes locais.
-7. Achata a árvore em `drawOrder`.
+3. Avalia propriedades: keyframes → valor base interpolado.
+4. Aplica a expressão segura da propriedade, quando existe, sobre `value` e
+   `frame`.
+5. Se uma expressão falha, conserva o valor base e registra diagnóstico
+   estruturado na cena avaliada.
+6. Expande Actions em modo `live` → nós sintéticos com IDs derivados por hash.
+7. Aplica Behaviors — motion-path escreve em `anchor` e `rotation`.
+8. Acumula opacidade pela hierarquia, calcula matrizes locais.
+9. Achata a árvore em `drawOrder`.
 
 **Custo alvo:** < 2 ms para 500 nós. Cache por `(nodeId, propertyPath, frame)`
 invalidado por patch. Em scrub, a maioria dos nós não muda entre frames adjacentes.
@@ -73,11 +84,14 @@ invalidado por patch. Em scrub, a maioria dos nós não muda entre frames adjace
 ### 2.2 Camera apply
 
 ```ts
-camera.apply(scene.camera, mode === "export" ? "jump" : "ease");
+camera.apply(scene.camera, "jump");
 ```
 
-Em export, sempre `jump`. `easeTo` do MapLibre anima em tempo real por conta
-própria — usá-lo no export colocaria a câmera na posição errada.
+O estado autoritativo é `composition.camera`, avaliado no playhead. Aplicá-lo ao
+MapLibre é uma sincronização programática protegida contra feedback. Gestos de
+usuário podem usar interação/ease visual, mas só o estado consolidado volta ao
+documento pelo Command Bus. Em export, sempre `jump`: `easeTo` depende do relógio
+real e colocaria a câmera na posição errada.
 
 ### 2.3 Settle (só export)
 
@@ -209,60 +223,57 @@ tile faltando é um frame perdido no meio do vídeo.
 ```mermaid
 sequenceDiagram
     participant FP as FramePump
-    participant CAM as CameraEngine
-    participant ML as MapLibre
-    participant REN as Renderer
+    participant HOST as LiveExportHost
+    participant SURF as Superfícies
+    participant WR as Writer
 
-    FP->>CAM: apply(camera, "jump")
-    CAM->>ML: jumpTo({center, zoom, bearing, pitch})
-    FP->>CAM: settle(timeout: 10s)
-
-    loop até idle ou timeout
-        CAM->>ML: isStyleLoaded() ∧ areTilesLoaded() ∧ !isMoving()
-        ML-->>CAM: estado
-        CAM->>CAM: aguarda evento "idle"
+    FP->>HOST: seek(frame ou subframe)
+    loop até quietude ou teto
+        FP->>HOST: probe()
+        HOST-->>FP: frame observado + renders + mapa/assets ocupados
+        FP->>SURF: surfacesBusy()
+        SURF-->>FP: resize pendente?
     end
 
     alt settled
-        CAM-->>FP: { settled: true, attempts: n, ms: t }
-        FP->>REN: layout + render + capture
+        FP->>HOST: compose()
+        FP->>WR: writeFrame()
     else timeout
-        CAM-->>FP: { settled: false, reason: "tiles" }
-        FP->>FP: aplica settlePolicy
+        FP->>FP: registra causa estruturada
+        FP->>FP: fail ou continue explícito
     end
 ```
 
 ### Condições de settle
 
-Todas precisam valer:
+O host só entra em quietude quando todas valem por uma janela contínua:
 
-1. `map.isStyleLoaded()` — estilo processado
-2. `map.areTilesLoaded()` — tiles do viewport presentes
-3. `!map.isMoving()` — sem transição pendente
-4. Glyphs das fontes em uso carregados
-5. Sprite atlas carregado
-6. Terreno (se ativo) com DEM do viewport carregado
-7. Evento `idle` emitido **após** o último `jumpTo`
+1. o frame observado é exatamente o frame ou subframe pedido;
+2. o mapa não relata trabalho pendente para a vista atual;
+3. nenhum asset ainda está carregando ou sendo decodificado;
+4. as superfícies terminaram o redimensionamento;
+5. o contador de renders não mudou durante a janela de quietude.
 
-A condição 7 exige contador de geração: um `idle` que chegou de um `jumpTo`
-anterior não conta. Sem isso, o settle "passa" com a câmera do frame anterior —
-um bug sutil que produziria arrasto na imagem.
+O probe de mapa encapsula os sinais concretos do MapLibre usados pelo viewport.
+O pump não assume que `isStyleLoaded()` sozinho significa pixels prontos: estilo
+carregado, tiles/labels e repaint da vista são estados diferentes. Assets têm um
+teto maior que a quietude comum para permitir o primeiro parse legítimo de um
+GLB sem tornar todo frame lento.
 
 ### `settlePolicy`
 
 ```ts
-type SettlePolicy =
-  | { on: "timeout"; action: "fail" } // aborta o job — padrão para entrega final
-  | { on: "timeout"; action: "accept" } // aceita o frame, registra no relatório
-  | { on: "timeout"; action: "retry"; max: 3 } // tenta de novo
-  | { on: "timeout"; action: "reuse-previous" }; // repete o frame anterior
+type SettlePolicy = "fail" | "continue";
 ```
 
-Padrão: `retry: 3` e depois `fail`. Melhor abortar em 12% do que descobrir um
-frame quebrado depois de publicar.
+- `fail` é o padrão. No primeiro timeout, o pump registra a causa e encerra sem
+  compor nem escrever aquele frame.
+- `continue` precisa ser pedido explicitamente e existe para diagnóstico; compõe
+  o estado disponível e mantém a falha no relatório.
 
-O relatório final lista tempo de settle por frame. Um export com 3 frames em
-`accept` é detectável antes da publicação.
+As causas atuais são `map-busy`, `assets-busy`, `surfaces-busy`,
+`frame-mismatch` e `repaint-timeout`. Não existem políticas de retry ou de
+reutilizar o frame anterior.
 
 ### Regras de determinismo
 
@@ -323,34 +334,37 @@ interface CapturedFrame {
 
 ## 6. Alta resolução
 
-### 4K — direto
-
-Canvas de 3840×2160, `pixelRatio: 1`. MapLibre pede tiles na resolução adequada.
-
-### 8K — `pixelRatio: 2`
-
-Canvas de 3840×2160 com `pixelRatio: 2` → framebuffer efetivo de 7680×4320.
-
-Por que não canvas de 7680×4320 diretamente: limites de `MAX_RENDERBUFFER_SIZE`
-(frequentemente 8192, às vezes 4096) e de área de canvas do Chromium. Com
-`pixelRatio`, o MapLibre pede tiles de zoom maior e desenha rótulos com o dobro
-de densidade — que é exatamente o comportamento desejado.
+O plano separa três tamanhos que não podem ser confundidos:
 
 ```ts
-// A resolução de referência da composição NÃO muda.
-// Layout em espaço `comp` escala por pixelRatio.
-renderer.resize([3840, 2160], 2);
+layout = [composition.width, composition.height];
+output = even(layout * scale);
+renderPixelRatio = scale * supersampling;
+render = layout * renderPixelRatio;
 ```
 
-Consequência importante: posições em espaço `comp` são resolution-independent.
-Um título em `[200, 180]` fica no mesmo lugar relativo em 1080p, 4K e 8K.
+`scale` muda o arquivo final; `supersampling` só aumenta a superfície interna e
+depois reduz por box determinístico. Uma composição 1920×1080 com escala 4
+produz 7680×4320. Com SS 2, porém, pediria 15360×8640 e seria recusada pelo teto
+atual.
+
+O teto padrão é 8192 px por eixo, e as escalas oferecidas são 0,5×, 1×, 2× e
+4×. O preflight não reduz silenciosamente: recusa se o tamanho interno passar do
+teto ou se MapLibre/Pixi/Three na GPU concreta não confirmarem a superfície.
+Assim, “suporta 8K” significa que a conta e a preparação aceitam 7680×4320
+quando o hardware comporta; não é evidência de que toda máquina completou o
+ensaio integrado. Ver
+[ADR-034](adr/ADR-034-direct-8k-with-conformance-guard.md).
+
+Posições em espaço `comp` continuam resolution-independent. O layout lógico não
+muda quando a escala da saída muda.
 
 ### Fallback: render em tiles
 
-Se `pixelRatio` não bastar (resolução exótica), dividir o quadro em N×M tiles e
-compor. **Ressalva registrada:** o MapLibre decide colocação de rótulo por
-viewport — renderizar em tiles pode duplicar ou omitir rótulos nas costuras. Só
-usar quando o mapa base estiver invisível (modo alpha), onde o problema não existe.
+Render em tiles ainda não está implementado. Pedidos acima do teto falham com
+mensagem clara. Uma implementação futura precisa resolver a colocação de rótulos
+do MapLibre nas costuras; simplesmente dividir o viewport pode duplicá-los ou
+omiti-los.
 
 ---
 
@@ -359,16 +373,17 @@ usar quando o mapa base estiver invisível (modo alpha), onde o problema não ex
 ```mermaid
 flowchart LR
     CAP["CapturedFrame"] --> SW{"formato de saída"}
-    SW -->|"H.264 / HEVC / VP9 / AV1"| WC["WebCodecs VideoEncoder<br/><i>aceleração de hardware</i>"]
+    SW -->|"H.264"| WC["WebCodecs VideoEncoder"]
     SW -->|"ProRes 4444 · alpha"| FF["FFmpeg image2<br/>PNG RGBA temporário"]
     SW -->|"PNG sequence"| PNG["gravação direta"]
     SW -->|"GIF"| GIF["FFmpeg 2 passos<br/>palettegen + paletteuse"]
 
-    WC --> MUX["muxer MP4/WebM"]
-    MUX --> OUT["arquivo"]
-    FF --> OUT
+    WC --> MUX["muxer MP4"]
+    MUX --> TMP["arquivo temporário"]
+    FF --> TMP
+    GIF --> TMP
+    TMP -->|"rename no sucesso"| OUT["nome final"]
     PNG --> OUT
-    GIF --> OUT
 
     classDef hw fill:#064e3b,stroke:#34d399,color:#d1fae5
     classDef sw fill:#7c2d12,stroke:#fb923c,color:#fed7aa
@@ -376,25 +391,21 @@ flowchart LR
     class FF,GIF sw
 ```
 
-| Alvo         | Encoder         | Container | Alpha   | Nota                                        |
-| ------------ | --------------- | --------- | ------- | ------------------------------------------- |
-| H.264        | WebCodecs (HW)  | MP4       | não     | Entrega padrão para YouTube                 |
-| HEVC / H.265 | WebCodecs (HW)  | MP4       | não     | Depende de suporte do driver                |
-| VP9          | WebCodecs       | WebM      | parcial | Alpha em VP9 é irregular                    |
-| AV1          | WebCodecs       | MP4/WebM  | não     | Lento em software                           |
-| ProRes 4444  | FFmpeg image2   | MOV       | **sim** | Caminho de alpha confiável                  |
-| PNG sequence | direto          | —         | **sim** | Sem perda; melhor para composição posterior |
-| GIF          | FFmpeg 2 passos | GIF       | binário | Paleta gerada da sequência inteira          |
+| Alvo          | Encoder         | Container | Alpha    | Nota                                       |
+| ------------- | --------------- | --------- | -------- | ------------------------------------------ |
+| H.264         | WebCodecs       | MP4       | não      | Stream direto; retomada reinicia o arquivo |
+| ProRes 4444   | FFmpeg image2   | MOV       | **sim**  | Finaliza a sequência PNG de staging        |
+| Sequência PNG | writer próprio  | —         | opcional | Retomável por frame                        |
+| GIF           | FFmpeg 2 passos | GIF       | binário  | Finaliza a sequência inteira               |
 
-Detecção de capacidade em runtime via `VideoEncoder.isConfigSupported()`. Se o
-hardware não suportar, cai para FFmpeg em software com aviso claro — nunca falha
-sem explicar.
+HEVC, VP9, AV1 e fallback automático de H.264 por FFmpeg não fazem parte do
+conjunto de saída implementado nesta versão.
 
 FFmpeg é **sidecar empacotado**, invocado por caminho absoluto resolvido em
-runtime. Nunca depende do `PATH` do sistema em produção. GIF e ProRes recebem uma
-sequência PNG determinística numa pasta privada do job; a pasta é removida
-somente depois de o arquivo final ser codificado e hasheado. Em falha, os frames
-ficam preservados para diagnóstico e recuperação.
+runtime quando a distribuição foi preparada. GIF e ProRes recebem uma sequência
+PNG determinística numa pasta privada do job; a pasta é removida somente depois
+de o arquivo final ser codificado e publicado. Em falha, os frames ficam
+preservados para diagnóstico e retomada.
 
 ```
 ffmpeg -y
@@ -419,47 +430,72 @@ exportados.
 O objetivo é usar o vídeo com alpha sobre outra base no NLE, ou sobre um render de
 mapa separado. É modo explícito na UI, não um checkbox escondido.
 
+### Publicação atômica
+
+MP4, GIF e MOV nunca são escritos diretamente no nome final. O shell reserva um
+temporário `.theatrum-<id>-<nome>` no mesmo diretório e só o renomeia depois de
+settle, encoder/muxer e todas as escritas terminarem. Cancelamento ou falha remove
+o parcial quando possível; falha de remoção ou de publicação informa o caminho
+preservado. Ver
+[ADR-027](adr/ADR-027-fail-closed-and-atomic-export.md).
+
 ---
 
 ## 8. Fila de render
 
 ```ts
-interface RenderJobSpec {
+interface RenderQueueJob {
+  id: string;
   compositionId: string;
-  range: [Frame, Frame];
-  output: OutputSpec;
-  resolution: Vec2;
-  pixelRatio: number;
-  settlePolicy: SettlePolicy;
-  motionBlur: MotionBlurSpec | null;
-  alpha: boolean;
+  compositionName: string;
+  options: QueuedExportOptions;
+  status: "pending" | "running" | "paused" | "done" | "failed";
+  checkpoint?: {
+    completedFrames: number;
+    totalFrames: number;
+    directory: string;
+    framesDirectory?: string;
+  };
 }
 ```
 
-A fila roda na **Render Window** (BrowserWindow oculta) com sua própria instância
-de `engine` em `mode: "render"`. Motivos em
-[01-ARCHITECTURE.md § 7](01-ARCHITECTURE.md#7-processos-electron).
+A fila é persistida no `localStorage` do renderer e executa serialmente no único
+viewport vivo. Para cada job, o controlador seleciona a composição pedida,
+executa o export e depois restaura a seleção anterior. Um processo encerrado não
+deixa job eternamente `running`: ao reabrir, ele aparece `paused` e precisa ser
+retomado.
+
+Isso também declara duas limitações:
+
+- o job guarda ID e opções, não um snapshot imutável do documento; editar o
+  projeto durante o job ativo o interrompe;
+- depois de reiniciar, o projeto e a composição referenciados ainda precisam
+  estar disponíveis para a retomada.
+
+A Render Window oculta foi recusada pelo
+[ADR-022](adr/ADR-022-export-resolution-from-composition.md); não faz parte da
+implementação atual.
 
 ### Checkpointing
 
-A cada 300 frames, grava progresso em `%APPDATA%/Theatrum/jobs/<id>.json`. Um
-job interrompido retoma do último checkpoint em vez de reiniciar — relevante
-quando um export de 8K leva 3 horas.
+A execução emite checkpoint periódico (300 frames por padrão) e também ao
+abortar/falhar. A fila persiste frames concluídos, total, diretório de saída e,
+quando aplicável, a pasta da sequência.
+
+- PNG normal/alfa continua do próximo frame pendente.
+- GIF e ProRes reutilizam a sequência PNG e então refazem a etapa final de
+  codificação do arquivo único.
+- MP4 H.264 é um stream direto e não possui estado de muxer retomável; ao retomar,
+  reinicia desde o primeiro frame.
+
+O contrato durável e suas limitações estão no
+[ADR-033](adr/ADR-033-durable-render-queue-checkpoints.md).
 
 ### Relatório
 
-```json
-{
-  "jobId": "job_4a1f",
-  "status": "completed",
-  "frames": { "total": 5400, "rendered": 5400, "settleFailed": 0, "reused": 0 },
-  "timing": { "totalMs": 1284000, "avgFrameMs": 237.8, "avgSettleMs": 61.2, "p99SettleMs": 340 },
-  "output": { "path": "D:/render/barbarossa.mov", "bytes": 8412773888 },
-  "warnings": []
-}
-```
-
-`p99SettleMs` alto indica gargalo de disco nos tiles — informação acionável.
+O relatório mantém frames escritos, falhas e causas de settle, tempo total e p99
+de settle. Em política `fail`, `settleFailed > 0` torna o job malsucedido e
+impede publicação do arquivo único.
 
 ---
 
@@ -493,7 +529,9 @@ também seria mesclada e continua sendo um caso não suportado.
 
 ## 10. Orçamentos de performance
 
-Metas, verificadas por benchmark em `tests/perf/`. Ultrapassar é bug.
+Metas arquiteturais. Parte delas possui benchmark automatizado, mas esta tabela
+não equivale a uma validação final executada nesta árvore. O aceite da Fase 11
+exige medir cada cenário aplicável e registrar ambiente e resultado.
 
 | Operação               | Alvo           | Cenário                                 |
 | ---------------------- | -------------- | --------------------------------------- |
@@ -510,8 +548,8 @@ Metas, verificadas por benchmark em `tests/perf/`. Ultrapassar é bug.
 
 ### Modo proxy (preview)
 
-Quando o preview não sustenta 60 fps, degradação **explícita e visível na UI** —
-nunca silenciosa:
+Este é o comportamento planejado, ainda não implementado como modo completo.
+Quando entrar, a degradação deverá ser **explícita e visível na UI**:
 
 1. Metade da resolução (`pixelRatio: 0.5`)
 2. Contagem de partículas reduzida a 25%
@@ -520,3 +558,19 @@ nunca silenciosa:
 
 O export ignora tudo isso. Um indicador no viewport mostra "Proxy 1/2" — porque
 um preview degradado silenciosamente faz o usuário ajustar a animação errada.
+
+## 11. Artefatos derivados de preview
+
+A Fase 11 já fornece os núcleos definidos no
+[ADR-031](adr/ADR-031-preview-cache-and-reference-audio.md):
+
+- cache de frames em RAM com LRU por bytes, cópia defensiva e CRC32;
+- cache em disco sobre uma porta de storage, com inventário e evicção
+  determinísticos;
+- chave canônica por composição, fingerprint/revisão, frame, resolução e escala;
+- análise de PCM intercalado em buckets exatamente alinhados aos frames, com
+  mínimo, máximo, pico e RMS.
+
+Esses módulos ainda não estão ligados a uma barra verde de pré-render nem a uma
+trilha de waveform na timeline. Áudio é apenas referência derivada: não há
+reprodução, scrub sonoro, ganho, fades, mixagem ou inclusão no export.

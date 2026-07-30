@@ -66,7 +66,7 @@ describe("preferência de supersampling do preview", () => {
   });
 
   it("aplica o mesmo teto físico do MapLibre em preview HiDPI largo", () => {
-    expect(previewPixelRatioForSize(2, 2, 1665, 798)).toBeCloseTo(4096 / 1665, 12);
-    expect(previewPixelRatioForSize(2, 2, 800, 2200)).toBeCloseTo(4096 / 2200, 12);
+    expect(previewPixelRatioForSize(2, 2, 1665, 798)).toBe(4);
+    expect(previewPixelRatioForSize(2, 2, 800, 2200)).toBeCloseTo(8192 / 2200, 12);
   });
 });

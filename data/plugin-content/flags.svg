@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <metadata>Bandeiras estilizadas atuais e históricas, indexadas por era e nação.</metadata>
+  <symbol id="wwi.britain" viewBox="0 0 72 48">
+    <title>Reino Unido · Primeira Guerra Mundial</title>
+    <rect width="72" height="48" rx="2" fill="#b83b43"/>
+    <path d="M0 32h72v16H0z" fill="#f2eee2" opacity=".72"/>
+    <circle cx="36" cy="24" r="9" fill="#f2eee2" opacity=".88"/>
+  </symbol>
+  <symbol id="wwi.france" viewBox="0 0 72 48">
+    <title>França · Primeira Guerra Mundial</title>
+    <rect width="72" height="48" rx="2" fill="#3f68ad"/>
+    <path d="M0 32h72v16H0z" fill="#f2eee2" opacity=".72"/>
+    <circle cx="36" cy="24" r="9" fill="#f2eee2" opacity=".88"/>
+  </symbol>
+  <symbol id="wwi.germany" viewBox="0 0 72 48">
+    <title>Império Alemão · Primeira Guerra Mundial</title>
+    <rect width="72" height="48" rx="2" fill="#3d4149"/>
+    <path d="M0 32h72v16H0z" fill="#f2eee2" opacity=".72"/>
+    <circle cx="36" cy="24" r="9" fill="#f2eee2" opacity=".88"/>
+  </symbol>
+  <symbol id="wwi.russia" viewBox="0 0 72 48">
+    <title>Império Russo · Primeira Guerra Mundial</title>
+    <rect width="72" height="48" rx="2" fill="#4478a8"/>
+    <path d="M0 32h72v16H0z" fill="#f2eee2" opacity=".72"/>
+    <circle cx="36" cy="24" r="9" fill="#f2eee2" opacity=".88"/>
+  </symbol>
+  <symbol id="wwi.ottoman" viewBox="0 0 72 48">
+    <title>Império Otomano · Primeira Guerra Mundial</title>
+    <rect width="72" height="48" rx="2" fill="#a93636"/>
+    <path d="M0 32h72v16H0z" fill="#f2eee2" opacity=".72"/>
+    <circle cx="36" cy="24" r="9" fill="#f2eee2" opacity=".88"/>
+  </symbol>
+  <symbol id="wwii.usa" viewBox="0 0 72 48">
+    <title>Estados Unidos · Segunda Guerra Mundial</title>
+    <rect width="72" height="48" rx="2" fill="#496b91"/>
+    <path d="M0 32h72v16H0z" fill="#f2eee2" opacity=".72"/>
+    <circle cx="36" cy="24" r="9" fill="#f2eee2" opacity=".88"/>
+  </symbol>
+  <symbol id="wwii.britain" viewBox="0 0 72 48">
+    <title>Reino Unido · Segunda Guerra Mundial</title>
+    <rect width="72" height="48" rx="2" fill="#8e414a"/>
+    <path d="M0 32h72v16H0z" fill="#f2eee2" opacity=".72"/>
+    <circle cx="36" cy="24" r="9" fill="#f2eee2" opacity=".88"/>
+  </symbol>
+  <symbol id="wwii.germany" viewBox="0 0 72 48">
+    <title>Alemanha · Segunda Guerra Mundial</title>
+    <rect width="72" height="48" rx="2" fill="#4b4b48"/>
+    <path d="M0 32h72v16H0z" fill="#f2eee2" opacity=".72"/>
+    <circle cx="36" cy="24" r="9" fill="#f2eee2" opacity=".88"/>
+  </symbol>
+  <symbol id="wwii.ussr" viewBox="0 0 72 48">
+    <title>União Soviética · Segunda Guerra Mundial</title>
+    <rect width="72" height="48" rx="2" fill="#a63a31"/>
+    <path d="M0 32h72v16H0z" fill="#f2eee2" opacity=".72"/>
+    <circle cx="36" cy="24" r="9" fill="#f2eee2" opacity=".88"/>
+  </symbol>
+  <symbol id="wwii.japan" viewBox="0 0 72 48">
+    <title>Japão · Segunda Guerra Mundial</title>
+    <rect width="72" height="48" rx="2" fill="#b84b4b"/>
+    <path d="M0 32h72v16H0z" fill="#f2eee2" opacity=".72"/>
+    <circle cx="36" cy="24" r="9" fill="#f2eee2" opacity=".88"/>
+  </symbol>
+  <symbol id="modern.usa" viewBox="0 0 72 48">
+    <title>Estados Unidos · Era Moderna</title>
+    <rect width="72" height="48" rx="2" fill="#486d95"/>
+    <path d="M0 32h72v16H0z" fill="#f2eee2" opacity=".72"/>
+    <circle cx="36" cy="24" r="9" fill="#f2eee2" opacity=".88"/>
+  </symbol>
+  <symbol id="modern.britain" viewBox="0 0 72 48">
+    <title>Reino Unido · Era Moderna</title>
+    <rect width="72" height="48" rx="2" fill="#8f414c"/>
+    <path d="M0 32h72v16H0z" fill="#f2eee2" opacity=".72"/>
+    <circle cx="36" cy="24" r="9" fill="#f2eee2" opacity=".88"/>
+  </symbol>
+  <symbol id="modern.russia" viewBox="0 0 72 48">
+    <title>Rússia · Era Moderna</title>
+    <rect width="72" height="48" rx="2" fill="#456f98"/>
+    <path d="M0 32h72v16H0z" fill="#f2eee2" opacity=".72"/>
+    <circle cx="36" cy="24" r="9" fill="#f2eee2" opacity=".88"/>
+  </symbol>
+  <symbol id="modern.china" viewBox="0 0 72 48">
+    <title>China · Era Moderna</title>
+    <rect width="72" height="48" rx="2" fill="#a94138"/>
+    <path d="M0 32h72v16H0z" fill="#f2eee2" opacity=".72"/>
+    <circle cx="36" cy="24" r="9" fill="#f2eee2" opacity=".88"/>
+  </symbol>
+  <symbol id="modern.iran" viewBox="0 0 72 48">
+    <title>Irã · Era Moderna</title>
+    <rect width="72" height="48" rx="2" fill="#4c8a5e"/>
+    <path d="M0 32h72v16H0z" fill="#f2eee2" opacity=".72"/>
+    <circle cx="36" cy="24" r="9" fill="#f2eee2" opacity=".88"/>
+  </symbol>
+</svg>
