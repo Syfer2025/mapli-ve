@@ -41,12 +41,19 @@ import { expandGeoNodes, type GeoExpansion, type GeoViewport } from "./geo-nodes
 import { expandCalloutNodes, type CalloutExpansion } from "./callout-nodes.js";
 import { expandRouteNodes, type RouteExpansion } from "./route-nodes.js";
 import { activeActionCameraCenter } from "./action-camera.js";
+import { drawCompositionFrame } from "./composition-frame.js";
 import {
-  startPngSequenceExport,
-  startVideoExport,
+  startDebugExport,
+  type DebugExportOptions,
   type StartExportResult,
 } from "../../export/export-service.js";
 import { bindExportViewport } from "../../export/export-controller.js";
+import { applyOverrideToElement, useExportSurface } from "../../export/useExportSurface.js";
+import { effectivePixelRatio, surfaceMatches } from "../../export/surface-override.js";
+import {
+  previewPixelRatioForSize,
+  usePreviewSupersampling,
+} from "../../export/preview-supersampling.js";
 import { onGeoLayerLoaded } from "../../geo/geo-data.js";
 import { expandParticleEffects, type ParticleExpansion } from "./particle-nodes.js";
 import {
@@ -272,6 +279,7 @@ function acquireController(canvas: HTMLCanvasElement): ControllerLease {
 
 export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactNode {
   const session = useEditorSession();
+  const rootRef = useRef<HTMLDivElement>(null);
   const pixiCanvasRef = useRef<HTMLCanvasElement>(null);
   const uiCanvasRef = useRef<HTMLCanvasElement>(null);
   /**
@@ -296,10 +304,38 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
   const [rendererStatus, setRendererStatus] = useState("preparando GPU…");
   /** Incrementa quando uma camada geográfica chega, para refazer o frame. */
   const [geoRevision, setGeoRevision] = useState(0);
+  const previewSupersampling = usePreviewSupersampling();
+  const previewPixelRatio = previewPixelRatioForSize(
+    window.devicePixelRatio,
+    previewSupersampling,
+    surfaceSize[0],
+    surfaceSize[1],
+  );
 
   sessionRef.current = session;
   gizmoModeRef.current = gizmoMode;
   mapRef.current = map;
+
+  /**
+   * O overlay acompanha o mapa no tamanho de export ([ADR-022](../../../../../docs/adr/ADR-022-export-resolution-from-composition.md)).
+   *
+   * A raiz `.scene-overlay` é posicionada sobre o mapa, então ela precisa do mesmo
+   * tamanho de CSS — senão o Pixi fica no tamanho do painel e a composição
+   * estica um sobre o outro sem erro nenhum. O canvas Pixi em si não é tocado
+   * aqui: quem o dimensiona é a `ScreenScene`, pelo `pixelRatio` abaixo.
+   */
+  const exportOverride = useExportSurface(
+    "map-overlay",
+    (override) => {
+      applyOverrideToElement(rootRef.current, override);
+    },
+    // **Este é o predicado que a regressão do critério 6 cobrou.** O mapa
+    // redimensiona de forma síncrona em `map.resize()`; o Pixi só chega ao tamanho
+    // novo depois de `ResizeObserver` → `setState` → efeito de render. Confirmar
+    // antes disso deixava o compositor esticar um overlay de 2360×800 dentro de um
+    // frame de 1920×1080 — plausível, e diferente entre execuções.
+    (override) => surfaceMatches(override, pixiCanvasRef.current),
+  );
 
   /**
    * Anuncia mapa e sonda ao controlador de export.
@@ -310,7 +346,7 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
    */
   useEffect(() => {
     if (map === null) return;
-    bindExportViewport({
+    return bindExportViewport({
       map,
       probe: () => ({
         frame: frameRef.current?.screen.frame ?? -1,
@@ -321,7 +357,6 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
         pendingAssets: scene3dLayerPending(map) + activeStudioPendingModels(),
       }),
     });
-    return () => bindExportViewport(null);
   }, [map]);
 
   const updatePen = useCallback((next: PenState | null): void => {
@@ -483,7 +518,11 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
         const laidOutAt = performance.now();
         const composed = createScreenScene(evaluated, layout, {
           size: surfaceSize,
-          pixelRatio: Math.max(1, window.devicePixelRatio),
+          // Durante o export a escala do job manda; fora dele, a tela. O Pixi é a
+          // única das três superfícies que já repetia bit a bit com MSAA
+          // (ADR-023), mas o TAMANHO dele tem de casar com o do mapa de todo
+          // jeito — o `frame-composer` compõe pelo tamanho da primeira.
+          pixelRatio: effectivePixelRatio(exportOverride, previewPixelRatio),
         });
         // Efeitos de partícula entram como nós sintéticos: um por instância,
         // logo depois do nó dono na ordem de desenho.
@@ -612,6 +651,10 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
     session.selectedCompositionId,
     session.selectedNodeIds,
     surfaceSize,
+    // Mudar a escala do export tem de repintar: é ela que dimensiona o Pixi.
+    exportOverride,
+    // Preferência local, ignorada pelo override enquanto o job está ativo.
+    previewPixelRatio,
   ]);
 
   /**
@@ -895,18 +938,12 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
        * sabe qual frame desenhou e quantas vezes repintou, e é dessa contagem que
        * a política de `settle` depende.
        */
-      exportPngSequence: (options?: {
-        readonly range?: { readonly first: number; readonly last: number };
-        readonly outputFps?: number;
-        readonly directory?: string;
-        readonly format?: "png" | "mp4";
-      }) => {
+      exportPngSequence: (options?: DebugExportOptions) => {
         const liveMap = mapRef.current;
         if (liveMap === null) {
           return Promise.resolve({ ok: false, directory: "", message: "mapa indisponível" });
         }
-        const executar = options?.format === "mp4" ? startVideoExport : startPngSequenceExport;
-        return executar({
+        return startDebugExport({
           map: liveMap,
           probe: () => ({
             frame: frameRef.current?.screen.frame ?? -1,
@@ -917,6 +954,12 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
           ...(options?.range === undefined ? {} : { range: options.range }),
           ...(options?.outputFps === undefined ? {} : { outputFps: options.outputFps }),
           ...(options?.directory === undefined ? {} : { directory: options.directory }),
+          ...(options?.format === undefined ? {} : { format: options.format }),
+          // A escala atravessa para o verificador poder exportar acima de 2 MP e
+          // afirmar `SAMPLES === 0` — o critério que o ADR-023 exige.
+          ...(options?.scale === undefined ? {} : { scale: options.scale }),
+          ...(options?.supersampling === undefined ? {} : { supersampling: options.supersampling }),
+          ...(options?.motionBlur === undefined ? {} : { motionBlur: options.motionBlur }),
         });
       },
     });
@@ -932,7 +975,7 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
   }, []);
 
   return (
-    <div className="scene-overlay" aria-label="Objetos animados da cena">
+    <div className="scene-overlay" ref={rootRef} aria-label="Objetos animados da cena">
       <canvas ref={pixiCanvasRef} className="scene-overlay__pixi" aria-hidden="true" />
       <canvas ref={uiCanvasRef} className="scene-overlay__ui" aria-hidden="true" />
       <div className="scene-overlay__gizmos" role="toolbar" aria-label="Transformação">
@@ -1078,6 +1121,11 @@ function drawUi(
   if (context === null) return;
   context.setTransform(dpr, 0, 0, dpr, 0, 0);
   context.clearRect(0, 0, width, height);
+
+  // Antes de tudo: a moldura é fundo de chrome, e gizmo e caminho desenham por
+  // cima dela. Ver `composition-frame.ts` para por que ela mora neste canvas.
+  drawCompositionFrame(context, frame.composition, [width, height]);
+
   context.lineWidth = 1;
   context.strokeStyle = "#68b7ff";
   context.fillStyle = "#68b7ff";
@@ -1369,12 +1417,7 @@ interface Phase4DebugSurface {
   readonly getSnapshot: () => SerializedDebugFrame;
   readonly captureExport: () => Promise<CapturedFrame>;
   readonly setGizmoMode: (mode: GizmoMode) => void;
-  readonly exportPngSequence: (options?: {
-    readonly range?: { readonly first: number; readonly last: number };
-    readonly outputFps?: number;
-    readonly directory?: string;
-    readonly format?: "png" | "mp4";
-  }) => Promise<StartExportResult>;
+  readonly exportPngSequence: (options?: DebugExportOptions) => Promise<StartExportResult>;
 }
 
 declare global {

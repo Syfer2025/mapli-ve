@@ -514,6 +514,25 @@ export class StudioSceneRuntime {
     return this.frameProfiler.recordCpuFrame(milliseconds, this.profileReflectionOn);
   }
 
+  /**
+   * A escala do backing store, que o export conduz ([ADR-022](../../../../../docs/adr/ADR-022-export-resolution-from-composition.md)).
+   *
+   * Fora do export é `min(devicePixelRatio, 2)`, o teto herdado que impede uma
+   * tela 3× de pagar nove vezes os pixels no preview. **Durante** o export o teto
+   * não vale: quem manda é a escala do job, e recortá-la aqui produziria um
+   * arquivo menor que o pedido sem dizer nada — que é exatamente o pecado do
+   * `maxCanvasSize` do MapLibre que o `planExportResolution` recusa a repetir.
+   *
+   * O `render` chama `setSize` em todo frame, então trocar a escala já entra no
+   * próximo desenho. O alvo do reflexo acompanha sozinho: ele deriva o tamanho de
+   * `renderer.getPixelRatio()`.
+   */
+  setPixelRatio(ratio: number): void {
+    if (!Number.isFinite(ratio) || ratio <= 0) return;
+    if (this.renderer.getPixelRatio() === ratio) return;
+    this.renderer.setPixelRatio(ratio);
+  }
+
   /** Reconcilia e desenha um frame. `width`/`height` em pixels CSS. */
   render(scene: StudioScene, width: number, height: number): void {
     this.stage = scene.stage;

@@ -52,6 +52,55 @@ Duas leituras que fecham o diagnóstico:
   multiamostrado no render target dele antes de blitar, e é justamente a etapa
   que os outros dois entregam ao driver.
 
+### Segunda máquina, 2026-07-29: o limiar não é universal — e isso reforça a decisão
+
+O gatilho de revisão 2 desta página — _"quando o driver ou a versão do Chromium
+mudar"_ — disparou na retomada seguinte, noutra máquina. Medido lá:
+
+| O quê     | Primeira medição        | Segunda medição              |
+| --------- | ----------------------- | ---------------------------- |
+| GPU       | NVIDIA RTX **3060 Ti**  | NVIDIA RTX **4090**          |
+| Sistema   | Windows 10              | Windows 11                   |
+| Chromium  | —                       | Chrome 150 / Electron 43     |
+| Driver    | ANGLE/D3D11             | ANGLE/D3D11                  |
+| `SAMPLES` | 4 com `antialias: true` | 4 com `antialias: true`      |
+| Limiar    | **~2 MP**               | **não reproduz até 8,29 MP** |
+
+Com `antialias: true` restaurado só para a medição, repintura do mesmo estado na
+RTX 4090:
+
+| Tamanho     | MP   | Mapa     | Palco Three | Overlay Pixi |
+| ----------- | ---- | -------- | ----------- | ------------ |
+| 1248 × 566  | 0,71 | idêntico | idêntico    | idêntico     |
+| 1920 × 1080 | 2,07 | idêntico | idêntico    | idêntico     |
+| 2560 × 1440 | 3,69 | idêntico | idêntico    | idêntico     |
+| 3072 × 1728 | 5,31 | idêntico | —           | —            |
+| 3840 × 2160 | 8,29 | idêntico | idêntico    | idêntico     |
+
+Diferença medida em pixel, não só em hash: **0 pixel, delta máximo 0**, nas duas
+repinturas de cada tamanho.
+
+**A guarda de conteúdo é o que torna esta linha lícita.** "1 hash em 3 leituras" é
+também o que uma captura chapada relata — a lição 3 do
+[tools/probes/README](../../tools/probes/README.md), e ela vale dobrado quando o
+resultado é o que se queria ver. A leitura de cada tamanho carrega quantas cores
+distintas tem e quanta energia de borda: **331 cores a 0,71 MP subindo a 1604 a
+8,29 MP**, energia de 26 mil a 311 mil. É conteúdo de mapa, e a repetição é real.
+
+**Não absolve o MSAA — condena mais.** O que a segunda medição prova não é que o
+resolve multiamostrado é determinístico; é que a bit-exatidão dele **depende de
+qual placa o usuário tem**. Determinismo que muda com o hardware não é
+determinismo: seria um projeto que exporta igual na máquina do dono e diferente na
+de quem recebe o arquivo, sem nada na tela dizendo qual das duas está certa.
+
+**E a consequência prática é a pior das duas.** Nesta máquina, alguém que
+reintroduza `antialias: true` por qualidade de imagem **não seria pego por
+comparação de bytes** — os dois exports sairiam idênticos aqui e divergentes na
+3060 Ti. O critério do `verify:phase8` portanto não pode se contentar em comparar
+hashes acima de 2 MP: tem de **afirmar `SAMPLES === 0`** nas duas superfícies, que
+é estrutura, não sintoma. Era recomendação antes desta medição; agora é a única
+coisa que separa a decisão de se desfazer em silêncio.
+
 ### O que custa desligar
 
 Mapa em 1920 × 1080, enquadramento fixo no Estreito de Hormuz, estilo detalhado.
@@ -142,7 +191,9 @@ dois se cruzam, o invariante ganha — e o preço medido é 1%.
   `antialias: true` por qualidade, e o custo não aparece em nenhum teste que
   exporte no tamanho do painel. O verificador tem de exportar **acima de 2 MP** e
   afirmar `SAMPLES === 0` nas duas superfícies, senão esta decisão se desfaz em
-  silêncio na primeira vez que alguém mexer.
+  silêncio na primeira vez que alguém mexer. A segunda medição acima endurece
+  isto: em GPU onde o defeito não reproduz, comparar hashes **não pega** a
+  regressão, e a afirmação estrutural é o único verificador que sobra.
 - **O palco perde MSAA nas arestas do modelo 3D**, onde ele fazia mais efeito que
   no mapa. É o custo mais visível desta decisão, e a mitigação honesta é o
   supersampling da alternativa D quando alguém reclamar — com o ADR próprio que
@@ -152,8 +203,11 @@ dois se cruzam, o invariante ganha — e o preço medido é 1%.
 
 1. Quando o dono apontar borda visivelmente pior em captura específica. Aí a
    alternativa D entra com medição de custo em 4K.
-2. Quando o driver ou a versão do Chromium mudar: o limiar de 2 MP é desta
+2. ~~Quando o driver ou a versão do Chromium mudar: o limiar de 2 MP é desta
    combinação ANGLE/D3D11 + RTX 3060 Ti, e o verificador é o que vai contar se
-   ele mudou.
+   ele mudou.~~ **Disparou em 2026-07-29, e a decisão fica.** Na RTX 4090 o
+   defeito não reproduz até 8,29 MP — o limiar é da placa, não do tamanho, e é
+   exatamente por isso que a suavização do driver não pode carregar o critério 2
+   da Fase 8. Ver a segunda medição acima.
 3. Se aparecer superfície nova composta pelo export, ela entra nesta decisão
    antes de entrar no `frame-composer`.

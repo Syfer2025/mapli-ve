@@ -3,14 +3,37 @@
   flex-direction: column;
   gap: var(--space-4);
   padding: var(--space-5);
-  min-width: 320px;
+  min-width: 0;
 }
 
 .render-queue__status {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
+  min-width: 0;
   color: var(--fg-muted);
+}
+
+/* Em dock estreito os controles continuam alcançáveis sem pintar fora do painel. */
+.ui-panel__toolbar:has(.render-queue__controls) {
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-end;
+}
+
+.render-queue__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.render-queue__controls > * {
+  flex: none;
 }
 
 .render-queue__format {
@@ -20,6 +43,48 @@
   background: var(--bg-input);
   color: var(--fg);
   padding: 2px var(--space-2);
+}
+
+/* Mais estreito que o de formato: são três opções curtas, e o painel é apertado. */
+.render-queue__scale,
+.render-queue__supersampling,
+.render-queue__preview-quality,
+.render-queue__motion-samples,
+.render-queue__shutter {
+  min-width: 118px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--fg);
+  padding: 2px var(--space-2);
+}
+
+.render-queue__preview-quality {
+  min-width: 142px;
+}
+
+.render-queue__motion-samples {
+  min-width: 148px;
+}
+
+.render-queue__shutter {
+  min-width: 124px;
+}
+
+/* A resolução de saída no rodapé, em tabular para não dançar ao trocar escala. */
+.render-queue__output {
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-panel__footer:has(.render-queue__footer) {
+  min-width: 0;
+}
+
+.render-queue__footer {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .render-queue__badge {
@@ -61,6 +126,20 @@
   /* Transição curta: o progresso avança de frame em frame e uma animação longa
      faria a barra ficar sempre atrasada em relação ao número ao lado. */
   transition: width 120ms linear;
+}
+
+.render-queue__bar-fill--finalizing {
+  animation: render-queue-finalizing 1.1s ease-in-out infinite alternate;
+}
+
+@keyframes render-queue-finalizing {
+  from {
+    opacity: 0.45;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .render-queue__message {

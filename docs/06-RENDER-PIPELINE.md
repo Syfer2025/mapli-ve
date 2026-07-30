@@ -469,9 +469,11 @@ Sampling temporal: renderiza N subframes por frame e acumula.
 
 ```
 frame f, shutter 180°, samples 8:
-  subframes: f − 0.25 … f + 0.25 em 8 passos
-  acumula em float render target
-  divide por 8
+  janela: f − 0.25 … f + 0.25
+  subframes: pontos médios de 8 faixas uniformes da janela
+  settle + composite + box espacial em cada subframe
+  acumula RGBA8 sRGB pré-multiplicado em Float32Array
+  resolve alfa e canais com arredondamento half-up
 ```
 
 Custo: N× o tempo de render. Só em export, nunca em preview.
@@ -483,7 +485,9 @@ onde tempo não-inteiro é válido — e a razão pela qual a assinatura é
 Motion blur não se aplica ao mapa base (o MapLibre renderiza um estado por vez).
 Blur de câmera rápida sobre o mapa exigiria abordagem diferente (blur direcional
 pós-processo por vetor de velocidade da câmera) — registrado como possibilidade
-futura, não escopo.
+futura, não escopo. A acumulação lê o composto final: com câmera estática o mapa
+se repete e fica nítido; uma troca rápida de estado do mapa dentro do obturador
+também seria mesclada e continua sendo um caso não suportado.
 
 ---
 

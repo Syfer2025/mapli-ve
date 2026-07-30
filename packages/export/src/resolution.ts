@@ -27,6 +27,14 @@ export interface ExportResolutionInput {
    */
   readonly scale?: number;
   /**
+   * Quantas amostras por eixo o export renderiza antes de reduzir.
+   *
+   * Inteiro e positivo. Vive no job, não no documento, e não muda a resolução
+   * final: fator 2 em uma saída 1920×1080 conduz as superfícies a 3840×2160 e
+   * devolve 1920×1080 depois do box determinístico (ADR-024).
+   */
+  readonly supersampling?: number;
+  /**
    * Teto por eixo, em pixels. Padrão medido: o `maxCanvasSize` do MapLibre, que é
    * **[4096, 4096]** na construção e **baixa o pixel ratio em silêncio** quando
    * estourado — pedir 7680×4320 devolveu 4096×2304 sem erro nenhum. Estourar em
@@ -42,8 +50,23 @@ export interface ExportResolution {
    * escala 1, a identidade. Um nó autorado sai no tamanho em que foi autorado.
    */
   readonly layout: readonly [number, number];
-  /** Multiplicador do backing store. Vai para `map.setPixelRatio` e ao Pixi. */
-  readonly pixelRatio: number;
+  /** Multiplicador pedido para a saída, separado da resolução interna. */
+  readonly scale: number;
+  /** Fator inteiro do box. 1 preserva o caminho anterior sem redutor. */
+  readonly supersampling: number;
+  /**
+   * Multiplicador do backing store. Vai para `map.setPixelRatio`, Pixi e Three.
+   * É `scale × supersampling`, nunca a escala que deve aparecer como tamanho do
+   * arquivo na interface.
+   */
+  readonly renderPixelRatio: number;
+  /**
+   * Tamanho físico que as superfícies precisam alcançar antes da redução.
+   *
+   * É calculado com o mesmo `Math.round(layout × renderPixelRatio)` usado pelos
+   * backends. Nomeá-lo impede o compositor de delegar a redução a `drawImage`.
+   */
+  readonly render: readonly [number, number];
   /** Tamanho final do frame, em pixels. Par nos dois eixos por construção. */
   readonly output: readonly [number, number];
   /**
@@ -77,6 +100,9 @@ export const DEFAULT_MAX_DIMENSION = 4096;
  */
 export const EXPORT_SCALES: readonly number[] = Object.freeze([0.5, 1, 2]);
 
+/** Fatores oferecidos na interface. A API aceita qualquer inteiro que caiba. */
+export const EXPORT_SUPERSAMPLING_FACTORS: readonly number[] = Object.freeze([1, 2]);
+
 /** Arredonda para baixo até o par mais próximo. Ver `evenSize` no encoder. */
 function toEven(value: number): number {
   return value - (value % 2);
@@ -92,6 +118,7 @@ function toEven(value: number): number {
  */
 export function planExportResolution(input: ExportResolutionInput): ExportResolution {
   const scale = input.scale ?? 1;
+  const supersampling = input.supersampling ?? 1;
   const maxDimension = input.maxDimension ?? DEFAULT_MAX_DIMENSION;
 
   if (!Number.isInteger(input.compositionWidth) || input.compositionWidth <= 0) {
@@ -107,6 +134,14 @@ export function planExportResolution(input: ExportResolutionInput): ExportResolu
   if (!Number.isFinite(scale) || scale <= 0) {
     throw new ExportResolutionError(`escala inválida: ${String(scale)}`);
   }
+  if (!Number.isInteger(supersampling) || supersampling <= 0) {
+    throw new ExportResolutionError(
+      `fator de supersampling inválido: ${String(supersampling)}; use inteiro positivo`,
+    );
+  }
+  if (!Number.isInteger(maxDimension) || maxDimension <= 0) {
+    throw new ExportResolutionError(`teto por eixo inválido: ${String(maxDimension)}`);
+  }
 
   const rawWidth = Math.round(input.compositionWidth * scale);
   const rawHeight = Math.round(input.compositionHeight * scale);
@@ -116,11 +151,28 @@ export function planExportResolution(input: ExportResolutionInput): ExportResolu
         `${rawWidth}×${rawHeight}, abaixo do mínimo de 2 px por eixo`,
     );
   }
-  if (rawWidth > maxDimension || rawHeight > maxDimension) {
+  const renderPixelRatio = scale * supersampling;
+  const renderWidth = Math.round(input.compositionWidth * renderPixelRatio);
+  const renderHeight = Math.round(input.compositionHeight * renderPixelRatio);
+  if (renderWidth > maxDimension || renderHeight > maxDimension) {
     throw new ExportResolutionError(
-      `${rawWidth}×${rawHeight} passa do teto de ${maxDimension} px por eixo. ` +
+      `${renderWidth}×${renderHeight} de render (saída ${rawWidth}×${rawHeight}, ` +
+        `supersampling ${supersampling}×) passa do teto de ${maxDimension} px por eixo. ` +
         `O teto é o maxCanvasSize do MapLibre, fixado na construção do mapa ` +
         `(ADR-022); subi-lo exige medir o efeito no mapa ao vivo em tela HiDPI.`,
+    );
+  }
+  if (
+    supersampling > 1 &&
+    (renderWidth % supersampling !== 0 ||
+      renderHeight % supersampling !== 0 ||
+      renderWidth / supersampling !== rawWidth ||
+      renderHeight / supersampling !== rawHeight)
+  ) {
+    throw new ExportResolutionError(
+      `supersampling ${supersampling}× exige blocos inteiros, mas a escala ${scale} ` +
+        `produz render ${renderWidth}×${renderHeight} para saída ` +
+        `${rawWidth}×${rawHeight}. Ajuste a escala ou use fator 1 (ADR-024).`,
     );
   }
 
@@ -132,7 +184,10 @@ export function planExportResolution(input: ExportResolutionInput): ExportResolu
 
   return Object.freeze({
     layout: Object.freeze([input.compositionWidth, input.compositionHeight] as const),
-    pixelRatio: scale,
+    scale,
+    supersampling,
+    renderPixelRatio,
+    render: Object.freeze([renderWidth, renderHeight] as const),
     output: Object.freeze([width, height] as const),
     adjustedFor: Object.freeze(adjusted),
   });
@@ -147,7 +202,11 @@ export function planExportResolution(input: ExportResolutionInput): ExportResolu
  */
 export function describeExportResolution(resolution: ExportResolution): string {
   const [width, height] = resolution.output;
-  const escala = resolution.pixelRatio === 1 ? "" : ` · ${resolution.pixelRatio}×`;
+  const escala = resolution.scale === 1 ? "" : ` · ${resolution.scale}×`;
+  const supersampling =
+    resolution.supersampling === 1
+      ? ""
+      : ` · SS ${resolution.supersampling}× (render ${resolution.render[0]}×${resolution.render[1]})`;
   const par = resolution.adjustedFor.includes("even") ? " (par para H.264)" : "";
-  return `${width}×${height}${escala}${par}`;
+  return `${width}×${height}${escala}${supersampling}${par}`;
 }

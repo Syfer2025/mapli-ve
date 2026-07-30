@@ -19,13 +19,29 @@
  * 6. Com cache frio, `model3d` e `route3d` já aparecem no primeiro export; a
  *    execução quente produz os mesmos hashes. Esta é a prova de que o settle
  *    espera o parse assíncrono do GLB, não apenas câmera e tiles.
+ * 7. **Exportar acima de 2 MP dá arquivos byte-idênticos.** Até o ADR-022 o frame
+ *    saía do tamanho do painel — 0,71 MP nesta máquina — e por isso este
+ *    verificador ficou 7/7 durante sessões sem nunca exportar grande, que é
+ *    justamente onde a repintura com MSAA deixava de ser bit-exata.
+ * 8. **`SAMPLES === 0` no mapa e no palco.** Afirmação estrutural, e não
+ *    substituível pelo critério 7: há GPU em que o defeito do MSAA não reproduz
+ *    (medido numa RTX 4090), e nela comparar hashes deixaria a regressão passar.
+ *    Ver a segunda medição do ADR-023.
+ * 9. **Supersampling 2× é byte-idêntico e usa o box decidido.** O verificador
+ *    reduz por conta própria o PNG 4K e exige os mesmos pixels do arquivo 1080p.
+ * 10. O controle explícito do preview dobra os backing stores de Map/Pixi/Three
+ *     e devolve a preferência local ao valor anterior no fim.
+ * 11. Motion blur visita subframes realmente fracionários, repete bytes entre
+ *     execuções, difere do frame instantâneo e preserva os três bypasses.
  *
  * Escreve numa pasta temporária escolhida sem diálogo (o verificador chama o
  * escritor direto), e desfaz o que criou no documento.
  */
 
+import { existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { inflateSync } from "node:zlib";
 
 const DEBUG_URL = "http://localhost:9222/json/list";
 const REQUEST_TIMEOUT_MS = 240_000;
@@ -118,6 +134,40 @@ class CdpClient {
  * `C:UsersalexmOneDrive` sem erro nenhum nesta base de código.
  */
 const SAIDA = join(tmpdir(), "theatrum-verify-phase8").replaceAll("\\", "/");
+/** Pasta separada para o export 4K: os arquivos são grandes e o nome se repete. */
+const SAIDA_4K = join(tmpdir(), "theatrum-verify-phase8-4k").replaceAll("\\", "/");
+/** SS2 termina em 1080p; pasta própria preserva a referência 4K para o box externo. */
+const SAIDA_SS = join(tmpdir(), "theatrum-verify-phase8-ss").replaceAll("\\", "/");
+/** Tem de continuar inexistente: plano inválido não pode sequer começar a saída. */
+const SAIDA_RECUSA_SS = join(
+  tmpdir(),
+  `theatrum-verify-phase8-ss-refusal-${process.pid}-${Date.now()}`,
+).replaceAll("\\", "/");
+const MOTION_RUN = `${process.pid}-${Date.now()}`;
+const SAIDA_MOTION_A = join(tmpdir(), `theatrum-verify-phase8-motion-a-${MOTION_RUN}`).replaceAll(
+  "\\",
+  "/",
+);
+const SAIDA_MOTION_B = join(tmpdir(), `theatrum-verify-phase8-motion-b-${MOTION_RUN}`).replaceAll(
+  "\\",
+  "/",
+);
+const SAIDA_MOTION_OFF = join(
+  tmpdir(),
+  `theatrum-verify-phase8-motion-off-${MOTION_RUN}`,
+).replaceAll("\\", "/");
+const SAIDA_MOTION_ANGLE_ZERO = join(
+  tmpdir(),
+  `theatrum-verify-phase8-motion-angle-zero-${MOTION_RUN}`,
+).replaceAll("\\", "/");
+const SAIDA_MOTION_ONE_SAMPLE = join(
+  tmpdir(),
+  `theatrum-verify-phase8-motion-one-sample-${MOTION_RUN}`,
+).replaceAll("\\", "/");
+const SAIDA_RECUSA_MOTION = join(
+  tmpdir(),
+  `theatrum-verify-phase8-motion-refusal-${MOTION_RUN}`,
+).replaceAll("\\", "/");
 
 const PRELUDE = `
 const session = () => window.__theatrumPhase3;
@@ -150,6 +200,61 @@ const medirComposicao = () => {
   });
   return info;
 };
+
+/** Hash dos pixels que já estão nos canvases, sem pedir repaint nem export. */
+const hashPreviewCanvases = async () => {
+  const required = ['.maplibregl-canvas', '.scene-overlay__pixi'];
+  const selectors = [
+    '.maplibregl-canvas',
+    '.scene-overlay__studio',
+    '.scene-overlay__pixi',
+  ];
+  const surfaces = [];
+  try {
+    for (const selector of selectors) {
+      const canvas = document.querySelector(selector);
+      if (!(canvas instanceof HTMLCanvasElement)) continue;
+      if (canvas.width <= 1 || canvas.height <= 1) {
+        return { ok: false, reason: selector + ' sem tamanho físico', surfaces };
+      }
+      const scratch = document.createElement('canvas');
+      scratch.width = canvas.width;
+      scratch.height = canvas.height;
+      const context = scratch.getContext('2d', { willReadFrequently: true });
+      if (context === null) {
+        return { ok: false, reason: 'contexto 2D ausente para ' + selector, surfaces };
+      }
+      context.drawImage(canvas, 0, 0);
+      const pixels = context.getImageData(0, 0, scratch.width, scratch.height).data;
+      let energy = 0;
+      for (let index = 0; index < pixels.length; index += 4) {
+        energy += pixels[index] + pixels[index + 1] + pixels[index + 2] + pixels[index + 3];
+      }
+      const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', pixels));
+      const sha256 = [...digest].map((value) => value.toString(16).padStart(2, '0')).join('');
+      surfaces.push({
+        selector,
+        size: [scratch.width, scratch.height],
+        energy,
+        sha256,
+      });
+    }
+    const requiredPresent = required.every((selector) =>
+      surfaces.some((surface) => surface.selector === selector && surface.energy > 0),
+    );
+    return {
+      ok: requiredPresent,
+      reason: requiredPresent ? null : 'mapa/Pixi ausentes ou sem pixels legíveis',
+      surfaces,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: error instanceof Error ? error.message : String(error),
+      surfaces,
+    };
+  }
+};
 `;
 
 const results = [];
@@ -162,7 +267,10 @@ function record(name, ok, detail) {
 const MONTAR_CENA = `(async () => {
   const S = session();
   S.actions.pause();
-  while (S.commandBus.history.canUndo()) S.commandBus.history.undo();
+  const history = S.commandBus.history;
+  if (history.entries().length !== 0 || history.cursor() !== -1) {
+    throw new Error('verificador exige histórico vazio para não apagar trabalho preexistente');
+  }
   await wait(300);
   mapa().jumpTo({ center: [35.6, 50.2], zoom: 6, pitch: 0, bearing: 0 });
   await window.__theatrumPhase2.settle(4000);
@@ -325,6 +433,548 @@ const EXPORTAR = `(async () => {
 })()`;
 
 /**
+ * Export **acima de 2 MP**, com a escala do job (ADR-022).
+ *
+ * Quatro frames, não nove: em 3840×2160 cada frame é 8,29 MP, e a prova de
+ * byte-identidade não precisa de mais. Os quatro cabem na animação de opacidade
+ * do rótulo, então continuam distintos entre si — export congelado não passa.
+ */
+const EXPORTAR_4K = `(async () => {
+  const r = await overlay().exportPngSequence({
+    range: { first: 0, last: 3 },
+    scale: 2,
+    directory: ${JSON.stringify(SAIDA_4K)},
+  });
+  return {
+    ok: r.ok,
+    directory: r.directory,
+    message: r.message ?? null,
+    written: r.report ? r.report.written : 0,
+    settleFailed: r.report ? r.report.settleFailed : -1,
+    errors: r.report ? r.report.errors : [],
+    hashes: r.report ? r.report.hashes : [],
+  };
+})()`;
+
+/**
+ * Mesma saída 1080p do job normal, mas superfícies a 3840×2160 e box 2×.
+ *
+ * O resultado traz o plano para provar que escala de saída e supersampling não
+ * foram confundidos. A prova de pixel abaixo continua independente dele.
+ */
+const EXPORTAR_SS2 = `(async () => {
+  const r = await overlay().exportPngSequence({
+    range: { first: 0, last: 3 },
+    supersampling: 2,
+    directory: ${JSON.stringify(SAIDA_SS)},
+  });
+  return {
+    ok: r.ok,
+    directory: r.directory,
+    message: r.message ?? null,
+    written: r.report ? r.report.written : 0,
+    settleFailed: r.report ? r.report.settleFailed : -1,
+    errors: r.report ? r.report.errors : [],
+    hashes: r.report ? r.report.hashes : [],
+    resolution: r.resolution ?? null,
+    boxReducedFrames: r.boxReducedFrames ?? -1,
+  };
+})()`;
+
+/**
+ * Três frames com SS2 e configuração temporal opcional.
+ *
+ * O polling roda concorrente ao export dentro do renderer. Como cada subframe
+ * precisa ficar quieto por 60 ms, consultar a cada 10 ms torna observável o frame
+ * que o overlay realmente avaliou — não apenas o que o planejador diz ter pedido.
+ */
+function exportarMotion(directory, motionBlur = null) {
+  const temporal = motionBlur === null ? "" : `motionBlur: ${JSON.stringify(motionBlur)},`;
+  return `(async () => {
+    const seen = [];
+    let last = '';
+    const timer = setInterval(() => {
+      const snapshot = overlay().getSnapshot();
+      if (!snapshot || snapshot.ready !== true) return;
+      const key = String(snapshot.renders) + ':' + String(snapshot.frame);
+      if (key === last || seen.length >= 512) return;
+      last = key;
+      seen.push({ renders: snapshot.renders, frame: snapshot.frame });
+    }, 10);
+    try {
+      const r = await overlay().exportPngSequence({
+        range: { first: 3, last: 5 },
+        supersampling: 2,
+        ${temporal}
+        directory: ${JSON.stringify(directory)},
+      });
+      return {
+        ok: r.ok,
+        directory: r.directory,
+        message: r.message ?? null,
+        written: r.report ? r.report.written : 0,
+        settleFailed: r.report ? r.report.settleFailed : -1,
+        settleFailedOutputFrames: r.report ? r.report.settleFailedOutputFrames : -1,
+        errors: r.report ? r.report.errors : [],
+        hashes: r.report ? r.report.hashes : [],
+        motionBlur: r.report ? r.report.motionBlur : null,
+        boxReducedFrames: r.boxReducedFrames ?? -1,
+        seen,
+      };
+    } finally {
+      clearInterval(timer);
+    }
+  })()`;
+}
+
+/** Círculo opaco com 140 px/frame, e o único outro nó animado desligado. */
+function montarCenaMotion(labelId) {
+  return `(async () => {
+    const S = session();
+    const state = S.getSnapshot();
+    const compositionId = state.selectedCompositionId;
+    const labelDisabled = S.actions.dispatch({
+      type: 'node.set-flags',
+      payload: {
+        compositionId,
+        nodeId: ${JSON.stringify(labelId)},
+        flags: { enabled: false },
+      },
+      source: 'user',
+    });
+    const circle = S.actions.addNodeOfType('shape.circle');
+    if (!circle) throw new Error('addNodeOfType shape.circle da prova motion falhou');
+    S.actions.renameNode(circle, 'Motion blur · prova temporal');
+    S.actions.setNodeAnchor(circle, { space: 'comp', position: [400, 540] });
+    S.actions.setPropertyValue(circle, 'props.radius', 64);
+    S.actions.setPropertyValue(circle, 'props.fill', '#ff3b30ff');
+    S.actions.setPropertyValue(circle, 'props.stroke', '#ffffffff');
+    S.actions.setPropertyValue(circle, 'props.strokeWidth', 0);
+    S.actions.setPlayhead(0);
+    S.actions.setPropertyValue(circle, 'transform.position', [0, 0]);
+    if (!S.actions.togglePropertyKeyframe(circle, 'transform.position')) {
+      throw new Error('keyframe inicial do círculo motion falhou');
+    }
+    S.actions.setPlayhead(8);
+    if (!S.actions.setPropertyValue(circle, 'transform.position', [1120, 0])) {
+      throw new Error('keyframe final do círculo motion falhou');
+    }
+    S.actions.setPlayhead(3);
+    S.actions.clearSelection();
+    await window.__theatrumPhase2.settle(3000);
+    await wait(500);
+    return { circle, labelDisabled, compositionId };
+  })()`;
+}
+
+function desmontarCenaMotion(fixture, labelId) {
+  return `(async () => {
+    const S = session();
+    const before = S.getSnapshot();
+    const beforeComposition = before.document.compositions.find(
+      (candidate) => candidate.id === ${JSON.stringify(fixture.compositionId)},
+    );
+    const circlePresentBefore = beforeComposition?.nodes[${JSON.stringify(fixture.circle)}] !== undefined;
+    const labelDisabledBefore =
+      beforeComposition?.nodes[${JSON.stringify(labelId)}]?.enabled === false;
+    const deleteAccepted = S.actions.dispatch({
+      type: 'node.delete',
+      payload: {
+        compositionId: ${JSON.stringify(fixture.compositionId)},
+        nodeId: ${JSON.stringify(fixture.circle)},
+      },
+      source: 'user',
+    });
+    const enableAccepted = S.actions.dispatch({
+      type: 'node.set-flags',
+      payload: {
+        compositionId: ${JSON.stringify(fixture.compositionId)},
+        nodeId: ${JSON.stringify(labelId)},
+        flags: { enabled: true },
+      },
+      source: 'user',
+    });
+    S.actions.setPlayhead(0);
+    S.actions.clearSelection();
+    await window.__theatrumPhase2.settle(3000);
+    await wait(300);
+    const after = S.getSnapshot();
+    const afterComposition = after.document.compositions.find(
+      (candidate) => candidate.id === ${JSON.stringify(fixture.compositionId)},
+    );
+    return {
+      circlePresentBefore,
+      labelDisabledBefore,
+      deleteAccepted,
+      enableAccepted,
+      circleAbsentAfter: afterComposition?.nodes[${JSON.stringify(fixture.circle)}] === undefined,
+      labelEnabledAfter: afterComposition?.nodes[${JSON.stringify(labelId)}]?.enabled === true,
+      playheadRestored: after.playheadFrame === 0,
+      document: JSON.stringify(canonical(after.document)),
+    };
+  })()`;
+}
+
+/**
+ * `SAMPLES` de uma superfície composta, lido do contexto vivo.
+ *
+ * É afirmação estrutural, e é a única que sobrevive a uma GPU onde o defeito do
+ * MSAA não reproduz — como a RTX 4090 desta máquina, medida em 2026-07-29:
+ * lá, `antialias: true` repete bit a bit até 8,29 MP, então **comparar hashes não
+ * pegaria a regressão**. Ver a segunda medição do ADR-023.
+ */
+const SAMPLES_DE = (seletor) => `(() => {
+  const canvas = document.querySelector(${JSON.stringify(seletor)});
+  if (canvas === null) return { presente: false };
+  const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
+  if (gl === null) return { presente: true, contexto: false };
+  const attrs = gl.getContextAttributes();
+  return {
+    presente: true,
+    contexto: true,
+    samples: gl.getParameter(gl.SAMPLES),
+    antialias: attrs === null ? null : attrs.antialias,
+    fisico: [canvas.width, canvas.height],
+  };
+})()`;
+
+/** Largura e altura de um PNG, direto do IHDR. Prova em disco, não em canvas. */
+function pngSize(file) {
+  const bytes = readFileSync(file);
+  return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+}
+
+/**
+ * Decodificador independente e deliberadamente estreito.
+ *
+ * O escritor da base produz PNG RGBA8, sem entrelaçamento e com filtro 0 por
+ * linha. Exigir esse contrato deixa qualquer mudança do encoder visível em vez
+ * de interpretar bytes por aproximação.
+ */
+function decodePngRgba(file) {
+  const bytes = readFileSync(file);
+  const signature = "89504e470d0a1a0a";
+  if (bytes.subarray(0, 8).toString("hex") !== signature) {
+    throw new Error(`${file}: assinatura PNG inválida`);
+  }
+  let at = 8;
+  let width = 0;
+  let height = 0;
+  let bitDepth = -1;
+  let colorType = -1;
+  let interlace = -1;
+  const idat = [];
+  while (at + 12 <= bytes.length) {
+    const length = bytes.readUInt32BE(at);
+    const type = bytes.toString("ascii", at + 4, at + 8);
+    const data = bytes.subarray(at + 8, at + 8 + length);
+    if (type === "IHDR") {
+      width = data.readUInt32BE(0);
+      height = data.readUInt32BE(4);
+      bitDepth = data[8];
+      colorType = data[9];
+      interlace = data[12];
+    } else if (type === "IDAT") {
+      idat.push(data);
+    } else if (type === "IEND") {
+      break;
+    }
+    at += length + 12;
+  }
+  if (width <= 0 || height <= 0 || bitDepth !== 8 || colorType !== 6 || interlace !== 0) {
+    throw new Error(
+      `${file}: esperado RGBA8 não entrelaçado; veio ${width}×${height}, ` +
+        `depth=${bitDepth}, color=${colorType}, interlace=${interlace}`,
+    );
+  }
+  const inflated = inflateSync(Buffer.concat(idat));
+  const stride = width * 4;
+  if (inflated.length !== (stride + 1) * height) {
+    throw new Error(`${file}: IDAT tem ${inflated.length} bytes, tamanho incompatível`);
+  }
+  const rgba = new Uint8Array(stride * height);
+  for (let y = 0; y < height; y += 1) {
+    const source = y * (stride + 1);
+    if (inflated[source] !== 0) {
+      throw new Error(`${file}: filtro PNG ${inflated[source]} na linha ${y}; esperado 0`);
+    }
+    rgba.set(inflated.subarray(source + 1, source + 1 + stride), y * stride);
+  }
+  return { width, height, rgba };
+}
+
+/** Referência externa do box 2×: não importa nem executa código de produção. */
+function independentBox2(frame) {
+  if (frame.width % 2 !== 0 || frame.height % 2 !== 0) {
+    throw new Error(`referência 2× exige dimensão par, veio ${frame.width}×${frame.height}`);
+  }
+  const width = frame.width / 2;
+  const height = frame.height / 2;
+  const rgba = new Uint8Array(width * height * 4);
+  let nonUniformBlocks = 0;
+  let differsFromDecimation = false;
+  let target = 0;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const offsets = [
+        (y * 2 * frame.width + x * 2) * 4,
+        (y * 2 * frame.width + x * 2 + 1) * 4,
+        ((y * 2 + 1) * frame.width + x * 2) * 4,
+        ((y * 2 + 1) * frame.width + x * 2 + 1) * 4,
+      ];
+      const first = offsets[0];
+      let alphaSum = 0;
+      let redAlpha = 0;
+      let greenAlpha = 0;
+      let blueAlpha = 0;
+      let uniform = true;
+      for (const offset of offsets) {
+        const alpha = frame.rgba[offset + 3];
+        alphaSum += alpha;
+        redAlpha += frame.rgba[offset] * alpha;
+        greenAlpha += frame.rgba[offset + 1] * alpha;
+        blueAlpha += frame.rgba[offset + 2] * alpha;
+        if (
+          frame.rgba[offset] !== frame.rgba[first] ||
+          frame.rgba[offset + 1] !== frame.rgba[first + 1] ||
+          frame.rgba[offset + 2] !== frame.rgba[first + 2] ||
+          frame.rgba[offset + 3] !== frame.rgba[first + 3]
+        ) {
+          uniform = false;
+        }
+      }
+      if (!uniform) nonUniformBlocks += 1;
+      rgba[target] =
+        alphaSum === 0 ? 0 : Math.floor((redAlpha + Math.floor(alphaSum / 2)) / alphaSum);
+      rgba[target + 1] =
+        alphaSum === 0 ? 0 : Math.floor((greenAlpha + Math.floor(alphaSum / 2)) / alphaSum);
+      rgba[target + 2] =
+        alphaSum === 0 ? 0 : Math.floor((blueAlpha + Math.floor(alphaSum / 2)) / alphaSum);
+      rgba[target + 3] = Math.floor((alphaSum + 2) / 4);
+      if (
+        rgba[target] !== frame.rgba[first] ||
+        rgba[target + 1] !== frame.rgba[first + 1] ||
+        rgba[target + 2] !== frame.rgba[first + 2] ||
+        rgba[target + 3] !== frame.rgba[first + 3]
+      ) {
+        differsFromDecimation = true;
+      }
+      target += 4;
+    }
+  }
+  return { width, height, rgba, nonUniformBlocks, differsFromDecimation };
+}
+
+function sameBytes(a, b) {
+  if (a.byteLength !== b.byteLength) return false;
+  for (let index = 0; index < a.byteLength; index += 1) {
+    if (a[index] !== b[index]) return false;
+  }
+  return true;
+}
+
+function sameExportBytes(a, directoryA, b, directoryB) {
+  if (a.hashes.length === 0 || a.hashes.length !== b.hashes.length) return false;
+  return a.hashes.every((entry, index) => {
+    const other = b.hashes[index];
+    return (
+      other !== undefined &&
+      entry.filename === other.filename &&
+      sameBytes(
+        readFileSync(join(directoryA, entry.filename)),
+        readFileSync(join(directoryB, other.filename)),
+      )
+    );
+  });
+}
+
+/**
+ * Mede o A/B visual do motion blur sem importar código de produção.
+ *
+ * O círculo da fixture cruza uma faixa conhecida. Fora dela, os bytes devem ser
+ * exatamente os do frame instantâneo: é a guarda de que o mapa estático não foi
+ * alterado por um pós-processo espacial de tela inteira.
+ */
+function measureMotionPixels(blurReport, blurDirectory, instantReport, instantDirectory) {
+  const proof = {
+    allFramesDiffer: true,
+    changedPixels: 0,
+    changedInsideCorridor: 0,
+    changedOutsideCorridor: 0,
+    error: null,
+  };
+  try {
+    for (let index = 0; index < 3; index += 1) {
+      const blurEntry = blurReport.hashes[index];
+      const instantEntry = instantReport.hashes[index];
+      if (blurEntry === undefined || instantEntry === undefined) {
+        throw new Error(`relatório incompleto no frame motion ${index}`);
+      }
+      const blur = decodePngRgba(join(blurDirectory, blurEntry.filename));
+      const instant = decodePngRgba(join(instantDirectory, instantEntry.filename));
+      if (blur.width !== instant.width || blur.height !== instant.height) {
+        throw new Error(
+          `dimensão divergiu: ${blur.width}×${blur.height} / ${instant.width}×${instant.height}`,
+        );
+      }
+      const compositionFrame = index + 3;
+      const centerX = 400 + 140 * compositionFrame;
+      const left = Math.floor(centerX - 100);
+      const right = Math.ceil(centerX + 100);
+      const top = 440;
+      const bottom = 640;
+      let frameDifferences = 0;
+      for (let y = 0; y < blur.height; y += 1) {
+        for (let x = 0; x < blur.width; x += 1) {
+          const offset = (y * blur.width + x) * 4;
+          const differs =
+            blur.rgba[offset] !== instant.rgba[offset] ||
+            blur.rgba[offset + 1] !== instant.rgba[offset + 1] ||
+            blur.rgba[offset + 2] !== instant.rgba[offset + 2] ||
+            blur.rgba[offset + 3] !== instant.rgba[offset + 3];
+          if (!differs) continue;
+          frameDifferences += 1;
+          proof.changedPixels += 1;
+          if (x >= left && x <= right && y >= top && y <= bottom) {
+            proof.changedInsideCorridor += 1;
+          } else {
+            proof.changedOutsideCorridor += 1;
+          }
+        }
+      }
+      proof.allFramesDiffer &&= frameDifferences > 100;
+    }
+  } catch (error) {
+    proof.allFramesDiffer = false;
+    proof.error = error instanceof Error ? error.message : String(error);
+  }
+  return proof;
+}
+
+function measureSupersamplingPixels(highReport, ssReport, lowReport) {
+  const proof = {
+    kernelMatches: true,
+    differsFromLow: false,
+    nonUniformBlocks: 0,
+    differsFromDecimation: false,
+    highSize: null,
+    ssSize: null,
+    error: null,
+  };
+  try {
+    for (let index = 0; index < 4; index += 1) {
+      const highHash = highReport.hashes[index];
+      const ssHash = ssReport.hashes[index];
+      const lowHash = lowReport.hashes[index];
+      if (highHash === undefined || ssHash === undefined || lowHash === undefined) {
+        throw new Error(`relatório incompleto no frame ${index}`);
+      }
+      const high = decodePngRgba(join(SAIDA_4K, highHash.filename));
+      const ss = decodePngRgba(join(SAIDA_SS, ssHash.filename));
+      const low = decodePngRgba(join(SAIDA, lowHash.filename));
+      const expected = independentBox2(high);
+      proof.highSize ??= [high.width, high.height];
+      proof.ssSize ??= [ss.width, ss.height];
+      proof.kernelMatches &&= sameBytes(expected.rgba, ss.rgba);
+      proof.differsFromLow ||= !sameBytes(ss.rgba, low.rgba);
+      proof.nonUniformBlocks += expected.nonUniformBlocks;
+      proof.differsFromDecimation ||= expected.differsFromDecimation;
+    }
+  } catch (error) {
+    proof.kernelMatches = false;
+    proof.error = error instanceof Error ? error.message : String(error);
+  }
+  return proof;
+}
+
+/**
+ * Põe uma aba qualquer do dockview na frente.
+ *
+ * `PointerEvent` no próprio elemento da aba: `element.click()` o dockview ignora,
+ * e `Input.dispatchMouseEvent` por coordenada funciona só às vezes. Ver
+ * 09-CONTINUIDADE, "Trocar de aba do dockview por CDP".
+ */
+async function activateTabNamed(client, label, mountedSelector) {
+  const mounted = () =>
+    client.evaluate(`Boolean(document.querySelector(${JSON.stringify(mountedSelector)}))`);
+  if ((await mounted()) === true) return true;
+  const clicked = await client.evaluate(`(() => {
+    const tab = [...document.querySelectorAll('.dv-tab')].find((t) =>
+      t.textContent.includes(${JSON.stringify(label)}),
+    );
+    if (tab === undefined) return false;
+    for (const type of ['pointerdown', 'pointerup']) {
+      tab.dispatchEvent(new PointerEvent(type, {
+        bubbles: true, composed: true, cancelable: true,
+        pointerId: 1, isPrimary: true, button: 0,
+      }));
+    }
+    return true;
+  })()`);
+  if (clicked !== true) return false;
+  const deadline = Date.now() + 8000;
+  for (;;) {
+    if ((await mounted()) === true) return true;
+    if (Date.now() > deadline) return false;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+}
+
+/**
+ * Usa o controle visível — não o store interno — e espera o backing store chegar.
+ *
+ * Isso prova as duas metades do requisito de preview: existe um controle
+ * explícito e ele está realmente ligado às superfícies do painel ativo.
+ */
+async function setPreviewFactorAndMeasure(client, factor, selectors, maxBaseDpr = null) {
+  const maxDprLiteral = maxBaseDpr === null ? "null" : String(maxBaseDpr);
+  return client.evaluate(`(async () => {
+    const control = document.querySelector('select[aria-label="Qualidade do preview"]');
+    if (!(control instanceof HTMLSelectElement)) {
+      return { ok: false, reason: 'controle de qualidade ausente', surfaces: [] };
+    }
+    control.value = ${JSON.stringify(String(factor))};
+    control.dispatchEvent(new Event('change', { bubbles: true }));
+    const maxBaseDpr = ${maxDprLiteral};
+    const base = maxBaseDpr === null
+      ? window.devicePixelRatio
+      : Math.max(1, Math.min(window.devicePixelRatio, maxBaseDpr));
+    const expectedRatio = base * ${String(factor)};
+    const selectors = ${JSON.stringify(selectors)};
+    const measure = () => selectors.map((selector) => {
+      const canvas = document.querySelector(selector);
+      if (!(canvas instanceof HTMLCanvasElement)) return { selector, present: false };
+      return {
+        selector,
+        present: true,
+        css: [canvas.clientWidth, canvas.clientHeight],
+        physical: [canvas.width, canvas.height],
+        expected: [
+          Math.round(canvas.clientWidth * expectedRatio),
+          Math.round(canvas.clientHeight * expectedRatio),
+        ],
+      };
+    });
+    const deadline = Date.now() + 8000;
+    for (;;) {
+      const surfaces = measure();
+      const settled = surfaces.length === selectors.length && surfaces.every((surface) =>
+        surface.present === true &&
+        surface.css[0] > 1 &&
+        surface.css[1] > 1 &&
+        surface.physical[0] === surface.expected[0] &&
+        surface.physical[1] === surface.expected[1]
+      );
+      if (settled) return { ok: true, value: control.value, expectedRatio, surfaces };
+      if (Date.now() >= deadline) {
+        return { ok: false, value: control.value, expectedRatio, surfaces, reason: 'timeout' };
+      }
+      await wait(16);
+    }
+  })()`);
+}
+
+/**
  * Põe o Viewport na frente antes de medir.
  *
  * **Por que isto existe.** O dockview só monta o painel ativo, e o layout é
@@ -338,10 +988,80 @@ const EXPORTAR = `(async () => {
  * dockview ignora, nem `Input.dispatchMouseEvent` por coordenada, que funciona só
  * às vezes. É a conclusão registrada em 09-CONTINUIDADE, aplicada aqui.
  */
+/**
+ * O Viewport está montado **e pintado**?
+ *
+ * Montado não basta, e a diferença custou uma rodada inteira. O MapLibre cria o
+ * canvas na hora, com o **fallback de 400×300** quando o container ainda não foi
+ * medido; e `drawImage` de um canvas WebGL que ainda não pintou devolve zero em
+ * todos os canais. Rodar o critério 1 nesse instante relata
+ * `.maplibregl-canvas 400x300 soma=0 ILEGÍVEL`, e a leitura errada é "o export
+ * quebrou".
+ *
+ * Medido nesta base: logo depois de recarregar o renderer, o verificador dá 6/7
+ * no código **sem nenhuma mudança**, e 7/7 com o app já assentado. Verificador que
+ * depende de quão recente foi o último reload não é verificador — é a mesma
+ * família do critério que dependia da ordem em que outro rodou.
+ *
+ * As três condições são as mesmas de uma sonda honesta: existe, tem tamanho
+ * plausível, e tem conteúdo. A terceira é a guarda de conteúdo do
+ * `tools/probes/README.md`, lição 3.
+ */
+const VIEWPORT_PRONTO = `(async () => {
+  const canvas = document.querySelector('.maplibregl-canvas');
+  if (canvas === null) return { pronto: false, motivo: 'canvas ausente' };
+  if (canvas.clientWidth <= 1 || canvas.clientHeight <= 1) {
+    return { pronto: false, motivo: 'canvas sem tamanho de CSS' };
+  }
+  const m = window.__theatrumPhase2 === undefined ? null : window.__theatrumPhase2.map;
+  if (m === null) return { pronto: false, motivo: 'superfície do mapa ausente' };
+  // isStyleLoaded() NAO entra aqui. Medido nesta base: ele devolve false com o
+  // mapa carregado, pintando, nove camadas no estilo e areTilesLoaded()
+  // verdadeiro. Usa-lo como porta trava o verificador por 20 s num mapa
+  // perfeitamente pronto. Quem responde "da para capturar?" e a leitura de volta.
+  //
+  // Sem acento grave neste bloco: ele mora DENTRO de um template literal, e
+  // backtick aqui fecha a string. E a armadilha 4.1, e ela acabou de morder.
+  //
+  // Pedir a repintura, nao esperar por ela. O MapLibre repinta sob demanda:
+  // depois de assentar, ele fica ocioso e a leitura de volta devolve zero em
+  // todos os canais — a armadilha 4.11, e a condição exata do pump do export
+  // entre frames. Esperar passivamente aqui deu 20 s de 'soma 0' com o mapa
+  // perfeitamente carregado. Toda sonda deste repositório força o repaint; esta
+  // guarda também.
+  await new Promise((resolve) => { m.once('idle', resolve); m.triggerRepaint(); });
+  if (!m.areTilesLoaded()) return { pronto: false, motivo: 'tiles pendentes' };
+  const s = document.createElement('canvas');
+  s.width = 32; s.height = 32;
+  const ctx = s.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(canvas, 0, 0, 32, 32);
+  const px = ctx.getImageData(0, 0, 32, 32).data;
+  let soma = 0;
+  for (let i = 0; i < px.length; i += 4) soma += px[i] + px[i + 1] + px[i + 2];
+  if (soma === 0) return { pronto: false, motivo: 'canvas não pintou nem sob triggerRepaint' };
+  return { pronto: true, tamanho: [canvas.clientWidth, canvas.clientHeight], soma };
+})()`;
+
 async function activateViewportTab(client) {
   const mounted = () => client.evaluate(`Boolean(document.querySelector('.maplibregl-canvas'))`);
-  if ((await mounted()) === true) return;
+  if ((await mounted()) !== true) await clickViewportTab(client);
+  await waitForViewportReady(client);
+}
 
+/** Espera o Viewport ficar legível, ou nomeia o que faltou. */
+async function waitForViewportReady(client) {
+  const deadline = Date.now() + 20_000;
+  for (;;) {
+    const ultimo = await client.evaluate(VIEWPORT_PRONTO);
+    if (ultimo.pronto === true) return ultimo;
+    if (Date.now() > deadline) {
+      throw new Error(`Viewport não ficou pronto em 20 s: ${ultimo.motivo}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+}
+
+async function clickViewportTab(client) {
   const clicked = await client.evaluate(`(() => {
     const tab = [...document.querySelectorAll('.dv-tab')].find((t) =>
       t.textContent.includes('Viewport'),
@@ -366,7 +1086,8 @@ async function activateViewportTab(client) {
   }
   const deadline = Date.now() + 6000;
   for (;;) {
-    if ((await mounted()) === true) return;
+    const montado = await client.evaluate(`Boolean(document.querySelector('.maplibregl-canvas'))`);
+    if (montado === true) return;
     if (Date.now() > deadline) throw new Error("Viewport não montou depois de ativar a aba");
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
@@ -378,14 +1099,27 @@ async function main() {
   await client.connect();
   await activateViewportTab(client);
 
-  const baseline = await client.evaluate(
+  const baselineState = await client.evaluate(
     `(async () => {
-      session().actions.pause();
-      session().actions.clearSelection();
+      const S = session();
+      S.actions.pause();
+      S.actions.clearSelection();
       await wait(120);
-      return JSON.stringify(canonical(session().getSnapshot().document));
+      return {
+        document: JSON.stringify(canonical(S.getSnapshot().document)),
+        historyEntries: S.commandBus.history.entries().length,
+        historyCursor: S.commandBus.history.cursor(),
+      };
     })()`,
   );
+  if (baselineState.historyEntries !== 0 || baselineState.historyCursor !== -1) {
+    client.close();
+    throw new Error(
+      "verify:phase8 recusou uma sessão com histórico: salve/recarregue o projeto antes de " +
+        "rodar a prova; nenhum comando do documento foi executado.",
+    );
+  }
+  const baseline = baselineState.document;
 
   try {
     const cena = await client.evaluate(MONTAR_CENA);
@@ -470,14 +1204,46 @@ async function main() {
           `erros=${primeira.errors.length}; saída em ${primeira.directory}`,
       );
 
+      // ── (medição do 7, na cena limpa — antes dos filtros e do 3D) ────────
+      //
+      // A posição é deliberada e está declarada no roteiro, não é régua movida.
+      // A referência high-res e o SS precisam vir da mesma cena. Filtros e 3D
+      // entram depois porque mudariam os pixels entre H e S, não porque sejam
+      // instáveis: a regressão correspondente está fechada no critério 5.
+      const primeira4k = await client.evaluate(EXPORTAR_4K);
+      const segunda4k = await client.evaluate(EXPORTAR_4K);
+      // Mesmas superfícies físicas do 4K acima, mas arquivo final 1080p. Isso
+      // permite conferir o kernel contra os próprios pixels high-res.
+      const primeiroSs2 = await client.evaluate(EXPORTAR_SS2);
+      const segundoSs2 = await client.evaluate(EXPORTAR_SS2);
+      // Agora, antes de o critério de filtros reutilizar SAIDA e substituir o
+      // 1080p sem SS, preserva a comparação de pixel low/high/SS.
+      const pixelsSs2 = measureSupersamplingPixels(segunda4k, segundoSs2, segunda);
+      const recusadoSs2 = await client.evaluate(
+        `(async () => {
+          const r = await overlay().exportPngSequence({
+            range: { first: 0, last: 0 },
+            scale: 2,
+            supersampling: 2,
+            directory: ${JSON.stringify(SAIDA_RECUSA_SS)},
+          });
+          return {
+            ok: r.ok,
+            directory: r.directory,
+            message: r.message ?? null,
+            written: r.report ? r.report.written : 0,
+          };
+        })()`,
+      );
+      const refusalDirectoryCreated = existsSync(SAIDA_RECUSA_SS);
+
       // ── 5. A cena suspeita: dois nós geo com filtro ──────────────────────
       //
-      // O 09-CONTINUIDADE carregava uma suspeita herdada: com região **e**
-      // estradas pintando ao mesmo tempo, aplicar outline+glow derrubou a área
-      // da captura de 1,25 M para 539 mil pixels, uma vez, sem reproduzir. Ou o
-      // caminho de captura com filtros é instável — e aí o export não presta —
-      // ou o episódio foi outra coisa. Montar a cena e exportar duas vezes é o
-      // que resolve a dúvida em vez de carregá-la para a próxima fase.
+      // Este é o dono da regressão filtro + resize: não basta comparar dois
+      // vetores de hashes. Os efeitos precisam existir, as duas execuções
+      // precisam estar completas e assentadas, e os nove frames animados
+      // precisam continuar diferentes entre si. Sem essas guardas, renderer
+      // congelado ou export parcial vira uma falsa aprovação "idêntica".
       const comFiltros = await client.evaluate(
         `(async () => {
           const S = session();
@@ -499,32 +1265,358 @@ async function main() {
             range: { first: 0, last: 8 },
             directory: ${JSON.stringify(SAIDA)},
           });
+          if (glow !== null) S.actions.removeEffect(alvo, glow);
+          if (outline !== null) S.actions.removeEffect(alvo, outline);
+          await window.__theatrumPhase2.settle(3000);
+          await wait(300);
+          const semEfeitos = await overlay().exportPngSequence({
+            range: { first: 0, last: 0 },
+            directory: ${JSON.stringify(SAIDA)},
+          });
           return {
             estradas: est !== null,
             outline: outline !== null,
             glow: glow !== null,
             erro: S.getSnapshot().error ?? null,
-            a: a.report ? a.report.hashes : [],
-            b: b.report ? b.report.hashes : [],
-            bytesA: a.report ? a.report.written : 0,
+            a: {
+              ok: a.ok,
+              written: a.report ? a.report.written : 0,
+              hashes: a.report ? a.report.hashes : [],
+              settleFailed: a.report ? a.report.settleFailed : -1,
+              errors: a.report ? a.report.errors : [a.message],
+            },
+            b: {
+              ok: b.ok,
+              written: b.report ? b.report.written : 0,
+              hashes: b.report ? b.report.hashes : [],
+              settleFailed: b.report ? b.report.settleFailed : -1,
+              errors: b.report ? b.report.errors : [b.message],
+            },
+            semEfeitos: {
+              ok: semEfeitos.ok,
+              written: semEfeitos.report ? semEfeitos.report.written : 0,
+              hashes: semEfeitos.report ? semEfeitos.report.hashes : [],
+              settleFailed: semEfeitos.report ? semEfeitos.report.settleFailed : -1,
+              errors: semEfeitos.report ? semEfeitos.report.errors : [semEfeitos.message],
+            },
           };
         })()`,
       );
+      const filtrosCompletos =
+        comFiltros.estradas &&
+        comFiltros.outline &&
+        comFiltros.glow &&
+        comFiltros.a.ok &&
+        comFiltros.b.ok &&
+        comFiltros.a.written === 9 &&
+        comFiltros.b.written === 9 &&
+        comFiltros.a.hashes.length === 9 &&
+        comFiltros.b.hashes.length === 9 &&
+        comFiltros.semEfeitos.ok &&
+        comFiltros.semEfeitos.written === 1 &&
+        comFiltros.semEfeitos.hashes.length === 1 &&
+        comFiltros.a.settleFailed === 0 &&
+        comFiltros.b.settleFailed === 0 &&
+        comFiltros.semEfeitos.settleFailed === 0 &&
+        comFiltros.a.errors.length === 0 &&
+        comFiltros.b.errors.length === 0 &&
+        comFiltros.semEfeitos.errors.length === 0;
       const filtrosIguais =
-        comFiltros.a.length > 0 &&
-        comFiltros.a.length === comFiltros.b.length &&
-        comFiltros.a.every((h, i) => h.sha256 === comFiltros.b[i].sha256);
-      // E os frames continuam diferentes entre si: com filtro instável o
-      // esperado seria variação onde não deveria haver, ou nenhuma onde deveria.
-      const filtrosDistintos = new Set(comFiltros.a.map((h) => h.sha256)).size;
+        comFiltros.a.hashes.length === comFiltros.b.hashes.length &&
+        comFiltros.a.hashes.every(
+          (hash, index) =>
+            hash.filename === comFiltros.b.hashes[index]?.filename &&
+            hash.sha256 === comFiltros.b.hashes[index]?.sha256,
+        );
+      const filtrosDistintosA = new Set(comFiltros.a.hashes.map((hash) => hash.sha256)).size;
+      const filtrosDistintosB = new Set(comFiltros.b.hashes.map((hash) => hash.sha256)).size;
+      const filtrosAlteramPixel =
+        comFiltros.a.hashes[0]?.sha256 !== comFiltros.semEfeitos.hashes[0]?.sha256;
       record(
         "5 · export estável com dois nós geo e filtros aplicados",
-        filtrosIguais && filtrosDistintos > 1,
+        filtrosCompletos &&
+          filtrosIguais &&
+          filtrosDistintosA === 9 &&
+          filtrosDistintosB === 9 &&
+          filtrosAlteramPixel,
         `estradas=${comFiltros.estradas} outline=${comFiltros.outline} glow=${comFiltros.glow}; ` +
-          `${comFiltros.bytesA} frames, hashes entre execuções ${filtrosIguais ? "idênticos" : "DIVERGEM"}, ` +
-          `${filtrosDistintos} distintos entre frames` +
+          `frames=${comFiltros.a.written}/${comFiltros.b.written}, ` +
+          `settleFailed=${comFiltros.a.settleFailed}/${comFiltros.b.settleFailed}, ` +
+          `erros=${comFiltros.a.errors.length}/${comFiltros.b.errors.length}, ` +
+          `hashes entre execuções ${filtrosIguais ? "idênticos" : "DIVERGEM"}, ` +
+          `distintos=${filtrosDistintosA}/${filtrosDistintosB}, ` +
+          `frame filtrado ${filtrosAlteramPixel ? "difere" : "NÃO DIFERE"} do mesmo frame sem efeitos` +
           `${comFiltros.erro === null ? "" : `; erro na sessão: ${comFiltros.erro}`}`,
       );
+
+      // ── (medição do 11, antes de inserir qualquer outro movimento) ────────
+      //
+      // O model3d do critério seguinte percorre uma rota. Medir o A/B temporal
+      // antes dele deixa uma única explicação para cada pixel diferente: o
+      // círculo conhecido abaixo. O placar fica na ordem e só é impresso depois
+      // do critério 10.
+      const motionProof = {
+        complete: false,
+        hashesStable: false,
+        bytesStable: false,
+        distinctFrames: 0,
+        traceMatches: false,
+        traceSamples: 0,
+        liveObserved: false,
+        liveFrames: 0,
+        settleTiming: false,
+        settleMinMs: null,
+        settleMaxMs: null,
+        diagnostics: false,
+        identities: false,
+        bypassDistinct: false,
+        bypassSeeksObserved: false,
+        bypassSeenFrames: [],
+        bypassDiagnostics: [],
+        fixtureRestored: false,
+        fixtureTeardown: null,
+        refusal: false,
+        pixels: {
+          allFramesDiffer: false,
+          changedPixels: 0,
+          changedInsideCorridor: 0,
+          changedOutsideCorridor: -1,
+          error: null,
+        },
+        ui: null,
+        error: null,
+      };
+      const motionDocumentBefore = await client.evaluate(
+        "JSON.stringify(canonical(session().getSnapshot().document))",
+      );
+      let motionFixture = null;
+      try {
+        motionFixture = await client.evaluate(montarCenaMotion(cena.rot));
+        if (motionFixture.labelDisabled !== true) {
+          throw new Error("não foi possível isolar o rótulo animado");
+        }
+        const motionA = await client.evaluate(
+          exportarMotion(SAIDA_MOTION_A, { shutterAngle: 180, samples: 4 }),
+        );
+        const motionB = await client.evaluate(
+          exportarMotion(SAIDA_MOTION_B, { shutterAngle: 180, samples: 4 }),
+        );
+        const instant = await client.evaluate(exportarMotion(SAIDA_MOTION_OFF));
+        const angleZero = await client.evaluate(
+          exportarMotion(SAIDA_MOTION_ANGLE_ZERO, { shutterAngle: 0, samples: 4 }),
+        );
+        const oneSample = await client.evaluate(
+          exportarMotion(SAIDA_MOTION_ONE_SAMPLE, { shutterAngle: 180, samples: 1 }),
+        );
+        const invalidMotion = await client.evaluate(`(async () => {
+          const r = await overlay().exportPngSequence({
+            range: { first: 3, last: 3 },
+            motionBlur: { shutterAngle: 180, samples: 0 },
+            directory: ${JSON.stringify(SAIDA_RECUSA_MOTION)},
+          });
+          return {
+            ok: r.ok,
+            directory: r.directory,
+            message: r.message ?? null,
+            report: r.report ?? null,
+          };
+        })()`);
+
+        const complete = (report) =>
+          report.ok === true &&
+          report.written === 3 &&
+          report.hashes.length === 3 &&
+          report.settleFailed === 0 &&
+          report.settleFailedOutputFrames === 0 &&
+          report.errors.length === 0;
+        motionProof.complete =
+          complete(motionA) &&
+          complete(motionB) &&
+          complete(instant) &&
+          complete(angleZero) &&
+          complete(oneSample);
+        motionProof.hashesStable =
+          motionA.hashes.length === motionB.hashes.length &&
+          motionA.hashes.every(
+            (entry, index) =>
+              entry.filename === motionB.hashes[index]?.filename &&
+              entry.sha256 === motionB.hashes[index]?.sha256,
+          );
+        motionProof.bytesStable = sameExportBytes(motionA, SAIDA_MOTION_A, motionB, SAIDA_MOTION_B);
+        motionProof.distinctFrames = new Set(motionA.hashes.map((entry) => entry.sha256)).size;
+
+        // Referência independente: 180° = meia exposição; quatro pontos médios.
+        const expectedSamples = [3, 4, 5].flatMap((center) =>
+          [-0.1875, -0.0625, 0.0625, 0.1875].map((offset) => center + offset),
+        );
+        const close = (a, b) => Math.abs(a - b) <= 1e-12;
+        const traceMatches = (report) => {
+          const trace = report.motionBlur?.sampleTrace ?? [];
+          return (
+            trace.length === expectedSamples.length &&
+            trace.every(
+              (sample, index) =>
+                sample.outputFrame === Math.floor(index / 4) + 3 &&
+                sample.sampleIndex === index % 4 &&
+                close(sample.requestedFrame, expectedSamples[index]) &&
+                close(sample.observedFrame, expectedSamples[index]) &&
+                sample.quiet === true,
+            )
+          );
+        };
+        const liveObserved = (report) =>
+          expectedSamples.every((expected) =>
+            report.seen.some(
+              (sample) => Number.isFinite(sample.frame) && close(sample.frame, expected),
+            ),
+          );
+        motionProof.traceMatches = traceMatches(motionA) && traceMatches(motionB);
+        motionProof.traceSamples = motionA.motionBlur?.sampleTrace?.length ?? 0;
+        motionProof.liveObserved = liveObserved(motionA) && liveObserved(motionB);
+        motionProof.liveFrames = new Set(
+          motionA.seen
+            .map((sample) => sample.frame)
+            .filter((frame) => expectedSamples.some((expected) => close(frame, expected))),
+        ).size;
+        const settleSamples = [motionA, motionB].flatMap(
+          (report) => report.motionBlur?.sampleTrace?.map((sample) => sample.settleMs) ?? [],
+        );
+        motionProof.settleTiming =
+          settleSamples.length === expectedSamples.length * 2 &&
+          settleSamples.every(
+            (settleMs) => Number.isFinite(settleMs) && settleMs >= 60 && settleMs < 4_000,
+          );
+        motionProof.settleMinMs = settleSamples.length === 0 ? null : Math.min(...settleSamples);
+        motionProof.settleMaxMs = settleSamples.length === 0 ? null : Math.max(...settleSamples);
+
+        const diagnosticMatches = (report) =>
+          report.motionBlur?.enabled === true &&
+          report.motionBlur?.shutterAngle === 180 &&
+          report.motionBlur?.samples === 4 &&
+          report.motionBlur?.effectiveSamples === 4 &&
+          report.motionBlur?.totalSamples === 12 &&
+          report.motionBlur?.processedSamples === 12 &&
+          report.motionBlur?.settledSamples === 12 &&
+          report.motionBlur?.accumulatedSamples === 12 &&
+          report.motionBlur?.resolvedFrames === 3 &&
+          report.motionBlur?.accumulatorAllocations === 1 &&
+          report.motionBlur?.accumulatorBytes === 41_472_000 &&
+          report.motionBlur?.accumulatorFloatBytes === 33_177_600 &&
+          report.boxReducedFrames === 12;
+        motionProof.diagnostics = diagnosticMatches(motionA) && diagnosticMatches(motionB);
+
+        const identityDiagnostic = (report, shutterAngle, samples) =>
+          report.motionBlur?.enabled === false &&
+          report.motionBlur?.shutterAngle === shutterAngle &&
+          report.motionBlur?.samples === samples &&
+          report.motionBlur?.effectiveSamples === 1 &&
+          report.motionBlur?.exposureFrames === 0 &&
+          report.motionBlur?.totalSamples === 3 &&
+          report.motionBlur?.processedSamples === 3 &&
+          report.motionBlur?.settledSamples === 3 &&
+          report.motionBlur?.accumulatedSamples === 0 &&
+          report.motionBlur?.resolvedFrames === 0 &&
+          report.motionBlur?.accumulatorAllocations === 0 &&
+          report.motionBlur?.accumulatorBytes === 0 &&
+          report.motionBlur?.accumulatorFloatBytes === 0 &&
+          report.motionBlur?.sampleTrace?.length === 0 &&
+          report.boxReducedFrames === 3;
+        const expectedBypassFrames = [3, 4, 5];
+        const observedBypassFrames = (report) =>
+          expectedBypassFrames.filter((expected) =>
+            report.seen.some(
+              (sample) => Number.isFinite(sample.frame) && close(sample.frame, expected),
+            ),
+          );
+        const bypasses = [
+          { label: "ausente", report: instant, shutterAngle: 180, samples: 1 },
+          { label: "ângulo0", report: angleZero, shutterAngle: 0, samples: 4 },
+          { label: "amostra1", report: oneSample, shutterAngle: 180, samples: 1 },
+        ];
+        motionProof.bypassDiagnostics = bypasses.map(
+          ({ label, report, shutterAngle, samples }) => ({
+            label,
+            ok: identityDiagnostic(report, shutterAngle, samples),
+            shutterAngle: report.motionBlur?.shutterAngle ?? null,
+            samples: report.motionBlur?.samples ?? null,
+            total: report.motionBlur?.totalSamples ?? null,
+            processed: report.motionBlur?.processedSamples ?? null,
+            settled: report.motionBlur?.settledSamples ?? null,
+            trace: report.motionBlur?.sampleTrace?.length ?? null,
+            box: report.boxReducedFrames,
+            distinctHashes: new Set(report.hashes.map((entry) => entry.sha256)).size,
+            seen: observedBypassFrames(report),
+          }),
+        );
+        motionProof.bypassSeenFrames = motionProof.bypassDiagnostics.map(
+          (diagnostic) => diagnostic.seen,
+        );
+        motionProof.bypassSeeksObserved = motionProof.bypassSeenFrames.every(
+          (frames) => frames.length === expectedBypassFrames.length,
+        );
+        motionProof.bypassDistinct = motionProof.bypassDiagnostics.every(
+          (diagnostic) => diagnostic.distinctHashes === 3,
+        );
+        motionProof.identities =
+          sameExportBytes(instant, SAIDA_MOTION_OFF, angleZero, SAIDA_MOTION_ANGLE_ZERO) &&
+          sameExportBytes(instant, SAIDA_MOTION_OFF, oneSample, SAIDA_MOTION_ONE_SAMPLE) &&
+          motionProof.bypassDistinct &&
+          motionProof.bypassSeeksObserved &&
+          motionProof.bypassDiagnostics.every((diagnostic) => diagnostic.ok);
+        motionProof.refusal =
+          invalidMotion.ok === false &&
+          invalidMotion.directory === "" &&
+          invalidMotion.report === null &&
+          /amostras|inteiro/i.test(invalidMotion.message ?? "") &&
+          !existsSync(SAIDA_RECUSA_MOTION);
+        motionProof.pixels = measureMotionPixels(
+          motionA,
+          SAIDA_MOTION_A,
+          instant,
+          SAIDA_MOTION_OFF,
+        );
+      } catch (error) {
+        motionProof.error = error instanceof Error ? error.message : String(error);
+      } finally {
+        if (motionFixture !== null) {
+          motionProof.fixtureTeardown = await client.evaluate(
+            desmontarCenaMotion(motionFixture, cena.rot),
+          );
+        } else {
+          motionProof.fixtureTeardown = await client.evaluate(`(() => ({
+            circlePresentBefore: false,
+            labelDisabledBefore: false,
+            deleteAccepted: false,
+            enableAccepted: false,
+            circleAbsentAfter: false,
+            labelEnabledAfter: false,
+            playheadRestored: session().getSnapshot().playheadFrame === 0,
+            document: JSON.stringify(canonical(session().getSnapshot().document)),
+          }))()`);
+        }
+        const teardown = motionProof.fixtureTeardown;
+        motionProof.fixtureRestored =
+          teardown.circlePresentBefore === true &&
+          teardown.labelDisabledBefore === true &&
+          teardown.deleteAccepted === true &&
+          teardown.enableAccepted === true &&
+          teardown.circleAbsentAfter === true &&
+          teardown.labelEnabledAfter === true &&
+          teardown.playheadRestored === true &&
+          teardown.document === motionDocumentBefore;
+      }
+      if (!motionProof.fixtureRestored) {
+        const teardown = motionProof.fixtureTeardown;
+        throw new Error(
+          "fixture de motion blur não restaurou o documento antes da prova 3D: " +
+            `delete=${String(teardown?.deleteAccepted)}, ` +
+            `enable=${String(teardown?.enableAccepted)}, ` +
+            `circleAbsent=${String(teardown?.circleAbsentAfter)}, ` +
+            `labelEnabled=${String(teardown?.labelEnabledAfter)}, ` +
+            `playhead=${String(teardown?.playheadRestored)}, ` +
+            `document=${String(teardown?.document === motionDocumentBefore)}`,
+        );
+      }
 
       // ── 6. GLB frio: model3d + route3d já no primeiro export ─────────────
       //
@@ -544,8 +1636,8 @@ async function main() {
             hash.sha256 === quente3d.hashes[index].sha256,
         );
       const visual3dEntrou =
-        frio3d.hashes.length === comFiltros.b.length &&
-        frio3d.hashes.some((hash, index) => hash.sha256 !== comFiltros.b[index]?.sha256);
+        frio3d.hashes.length === comFiltros.b.hashes.length &&
+        frio3d.hashes.some((hash, index) => hash.sha256 !== comFiltros.b.hashes[index]?.sha256);
       const distintos3d = new Set(frio3d.hashes.map((hash) => hash.sha256)).size;
       const settle3dOk =
         frio3d.ok && quente3d.ok && frio3d.settleFailed === 0 && quente3d.settleFailed === 0;
@@ -562,6 +1654,439 @@ async function main() {
           `visual 3D ${visual3dEntrou ? "entrou no frame" : "não alterou o frame"}; ` +
           `${distintos3d} hashes distintos; settleFailed frio=${frio3d.settleFailed} quente=${quente3d.settleFailed}`,
       );
+
+      // ── 7. Export ACIMA de 2 MP, byte-idêntico ───────────────────────────
+      //
+      // O critério 2 estava 7/7 há sessões porque nunca exportou grande: o frame
+      // saía do tamanho do painel, 0,71 MP nesta máquina, abaixo do limiar em que
+      // a repintura do MSAA deixava de ser bit-exata. Com o ADR-022 o tamanho vem
+      // da composição, e com escala 2 são 8,29 MP — quatro vezes acima do limiar
+      // medido na RTX 3060 Ti do ADR-023.
+      //
+      // O tamanho é afirmado no **arquivo em disco**, pelo IHDR do PNG, e não no
+      // canvas: o canvas volta ao tamanho do painel no `finally` da transação, e
+      // perguntar a ele depois responderia sobre o preview, não sobre a entrega.
+      //
+      // As duas execuções foram medidas acima, com a cena de mapa e overlay.
+      const iguais4k =
+        primeira4k.hashes.length > 0 &&
+        primeira4k.hashes.length === segunda4k.hashes.length &&
+        primeira4k.hashes.every(
+          (hash, index) =>
+            hash.filename === segunda4k.hashes[index].filename &&
+            hash.sha256 === segunda4k.hashes[index].sha256,
+        );
+      const distintos4k = new Set(primeira4k.hashes.map((hash) => hash.sha256)).size;
+      let medido4k = null;
+      let erro4k = null;
+      try {
+        const primeiro = primeira4k.hashes[0];
+        if (primeiro !== undefined) {
+          medido4k = pngSize(join(SAIDA_4K, primeiro.filename));
+        }
+      } catch (error) {
+        erro4k = error instanceof Error ? error.message : String(error);
+      }
+      const megapixels = medido4k === null ? 0 : (medido4k.width * medido4k.height) / 1e6;
+      record(
+        "7 · export acima de 2 MP dá arquivos byte-idênticos",
+        iguais4k &&
+          distintos4k > 1 &&
+          primeira4k.settleFailed === 0 &&
+          medido4k !== null &&
+          medido4k.width === 3840 &&
+          medido4k.height === 2160,
+        `${primeira4k.written} frames em ` +
+          `${medido4k === null ? `TAMANHO NÃO LIDO${erro4k === null ? "" : ` (${erro4k})`}` : `${medido4k.width}×${medido4k.height}`} ` +
+          `= ${megapixels.toFixed(2)} MP; duas execuções ${iguais4k ? "IDÊNTICAS" : "DIVERGEM"}; ` +
+          `${distintos4k} hashes distintos; settleFailed=${primeira4k.settleFailed}` +
+          `${primeira4k.errors.length === 0 ? "" : `; erros: ${primeira4k.errors.slice(0, 2).join("; ")}`}`,
+      );
+
+      // ── 8. SAMPLES === 0 nas duas superfícies compostas ──────────────────
+      //
+      // **Este critério é estrutural de propósito, e o 7 não o substitui.** Na
+      // RTX 4090 desta máquina, medido em 2026-07-29, o defeito do MSAA não
+      // reproduz: com `antialias: true` a repintura repete bit a bit até 8,29 MP.
+      // Ou seja, quem reintroduzir a flag por qualidade de imagem passaria pelo
+      // critério 7 aqui e entregaria arquivo divergente na máquina de quem
+      // recebe. Comparar bytes é sintoma; perguntar `SAMPLES` é estrutura.
+      //
+      // O palco exige aba própria e um nó `studio.stage`: sem ele o runtime nunca
+      // chama `setSize`, o canvas fica nos 300×150 de fábrica e o contexto medido
+      // não é o que exporta.
+      const samplesMapa = await client.evaluate(SAMPLES_DE(".maplibregl-canvas"));
+      const palcoMontado = await client.evaluate(
+        `(async () => {
+          const S = session();
+          const estado = S.getSnapshot();
+          const comp = estado.document.compositions.find((c) => c.id === estado.selectedCompositionId);
+          const existente = Object.values(comp.nodes).find((n) => n.type === 'studio.stage');
+          if (existente !== undefined) return { criado: false };
+          S.actions.addNodeOfType('studio.stage');
+          S.actions.clearSelection();
+          await wait(400);
+          return { criado: true };
+        })()`,
+      );
+      const abriuPalco = await activateTabNamed(client, "Palco 3D", ".studio-viewport__stage");
+      const samplesPalco = abriuPalco
+        ? await client.evaluate(
+            `(async () => { await wait(1200); return ${SAMPLES_DE(".studio-viewport__stage")}; })()`,
+          )
+        : { presente: false };
+      // Volta para o Viewport antes do desfazer, senão o próximo critério — e a
+      // próxima rodada — herdam a aba errada. É a lição do verificador que não era
+      // idempotente, aplicada a este.
+      await activateViewportTab(client);
+      const msaaDesligado =
+        samplesMapa.presente === true &&
+        samplesMapa.samples === 0 &&
+        samplesMapa.antialias === false &&
+        samplesPalco.presente === true &&
+        samplesPalco.samples === 0 &&
+        samplesPalco.antialias === false;
+      record(
+        "8 · MSAA desligado nas duas superfícies compostas (ADR-023)",
+        msaaDesligado,
+        `mapa SAMPLES=${samplesMapa.samples ?? "?"} antialias=${samplesMapa.antialias ?? "?"}` +
+          ` (${samplesMapa.fisico?.join("x") ?? "ausente"}); ` +
+          `palco SAMPLES=${samplesPalco.samples ?? "?"} antialias=${samplesPalco.antialias ?? "?"}` +
+          ` (${samplesPalco.fisico?.join("x") ?? "ausente"})` +
+          `${palcoMontado.criado ? "; nó studio.stage criado para medir" : ""}` +
+          `${abriuPalco ? "" : "; ABA DO PALCO NÃO ABRIU"}`,
+      );
+
+      // ── 9. Supersampling determinístico, com kernel provado ───────────────
+      //
+      // H = scale2/SS1 e S = scale1/SS2 conduzem as superfícies à MESMA
+      // resolução física (3840×2160). O Node decodifica H e executa outro box,
+      // sem importar o redutor de produção. Exigir S === box(H) prova mais que
+      // dois hashes iguais: fator ignorado, nearest-neighbor ou drawImage
+      // reduzindo pelo Chromium ficam vermelhos.
+      const sameHashes = (a, b) =>
+        a.hashes.length === 4 &&
+        b.hashes.length === 4 &&
+        a.hashes.every(
+          (hash, index) =>
+            hash.filename === b.hashes[index]?.filename && hash.sha256 === b.hashes[index]?.sha256,
+        );
+      const complete = (report) =>
+        report.ok === true &&
+        report.written === 4 &&
+        report.hashes.length === 4 &&
+        report.settleFailed === 0 &&
+        report.errors.length === 0;
+      const highStable = sameHashes(primeira4k, segunda4k);
+      const ssStable = sameHashes(primeiroSs2, segundoSs2);
+      const highDistinct = new Set(primeira4k.hashes.map((hash) => hash.sha256)).size;
+      const ssDistinct = new Set(primeiroSs2.hashes.map((hash) => hash.sha256)).size;
+      const ssPlan = segundoSs2.resolution;
+      const planCorrect =
+        ssPlan !== null &&
+        ssPlan.scale === 1 &&
+        ssPlan.supersampling === 2 &&
+        ssPlan.renderPixelRatio === 2 &&
+        ssPlan.render?.[0] === 3840 &&
+        ssPlan.render?.[1] === 2160 &&
+        ssPlan.output?.[0] === 1920 &&
+        ssPlan.output?.[1] === 1080;
+      const refusalCorrect =
+        recusadoSs2.ok === false &&
+        recusadoSs2.written === 0 &&
+        recusadoSs2.directory === "" &&
+        !refusalDirectoryCreated &&
+        /teto|4096/i.test(recusadoSs2.message ?? "");
+      const sizesCorrect =
+        pixelsSs2.highSize?.[0] === 3840 &&
+        pixelsSs2.highSize?.[1] === 2160 &&
+        pixelsSs2.ssSize?.[0] === 1920 &&
+        pixelsSs2.ssSize?.[1] === 1080;
+      record(
+        "9 · SS2 repete bytes e é exatamente o box do render 4K (ADR-024)",
+        complete(primeira4k) &&
+          complete(segunda4k) &&
+          complete(primeiroSs2) &&
+          complete(segundoSs2) &&
+          highStable &&
+          ssStable &&
+          highDistinct === 4 &&
+          ssDistinct === 4 &&
+          primeiroSs2.boxReducedFrames === 4 &&
+          segundoSs2.boxReducedFrames === 4 &&
+          planCorrect &&
+          refusalCorrect &&
+          sizesCorrect &&
+          pixelsSs2.kernelMatches &&
+          pixelsSs2.differsFromLow &&
+          pixelsSs2.nonUniformBlocks > 0 &&
+          pixelsSs2.differsFromDecimation,
+        `H ${pixelsSs2.highSize?.join("×") ?? "?"}, S ${pixelsSs2.ssSize?.join("×") ?? "?"}; ` +
+          `H1=H2 ${highStable}, S1=S2 ${ssStable}, distintos=${highDistinct}/${ssDistinct}; ` +
+          `S=box(H) ${pixelsSs2.kernelMatches}, S≠low ${pixelsSs2.differsFromLow}, ` +
+          `box CPU=${primeiroSs2.boxReducedFrames}/${segundoSs2.boxReducedFrames} frames, ` +
+          `blocos não uniformes=${pixelsSs2.nonUniformBlocks}, ` +
+          `difere de decimação=${pixelsSs2.differsFromDecimation}; ` +
+          `plano=${planCorrect}, teto recusado=${refusalCorrect}, ` +
+          `pasta de recusa criada=${refusalDirectoryCreated}` +
+          `${pixelsSs2.error === null ? "" : `; erro: ${pixelsSs2.error}`}`,
+      );
+
+      // ── 10. Controle explícito do preview, desligado da saída ─────────────
+      const queueOpened = await activateTabNamed(
+        client,
+        "Fila de render",
+        'select[aria-label="Qualidade do preview"]',
+      );
+      const originalPreview = await client.evaluate(
+        `document.querySelector('select[aria-label="Qualidade do preview"]')?.value ?? '1'`,
+      );
+      let mapNormal = { ok: false, surfaces: [], reason: "não medido" };
+      let mapSmooth = { ok: false, surfaces: [], reason: "não medido" };
+      let studioNormal = { ok: false, surfaces: [], reason: "não medido" };
+      let studioSmooth = { ok: false, surfaces: [], reason: "não medido" };
+      let studioOpenedForPreview = false;
+      let restoredPreview = { ok: false, surfaces: [], reason: "não restaurado" };
+      try {
+        mapNormal = await setPreviewFactorAndMeasure(
+          client,
+          1,
+          [".maplibregl-canvas", ".scene-overlay__pixi"],
+          null,
+        );
+        mapSmooth = await setPreviewFactorAndMeasure(
+          client,
+          2,
+          [".maplibregl-canvas", ".scene-overlay__pixi"],
+          null,
+        );
+        studioOpenedForPreview = await activateTabNamed(
+          client,
+          "Palco 3D",
+          ".studio-viewport__stage",
+        );
+        if (studioOpenedForPreview) {
+          studioNormal = await setPreviewFactorAndMeasure(
+            client,
+            1,
+            [".studio-viewport__stage", ".studio-viewport__pixi"],
+            2,
+          );
+          studioSmooth = await setPreviewFactorAndMeasure(
+            client,
+            2,
+            [".studio-viewport__stage", ".studio-viewport__pixi"],
+            2,
+          );
+        }
+      } finally {
+        if (studioOpenedForPreview) {
+          await setPreviewFactorAndMeasure(
+            client,
+            Number(originalPreview),
+            [".studio-viewport__stage", ".studio-viewport__pixi"],
+            2,
+          );
+        }
+        await activateViewportTab(client);
+        restoredPreview = await setPreviewFactorAndMeasure(
+          client,
+          Number(originalPreview),
+          [".maplibregl-canvas", ".scene-overlay__pixi"],
+          null,
+        );
+        await activateTabNamed(client, "Timeline", ".timeline-panel__canvas");
+      }
+      const doubled = (normal, smooth) =>
+        normal.ok === true &&
+        smooth.ok === true &&
+        normal.surfaces.length === smooth.surfaces.length &&
+        normal.surfaces.every((surface) => {
+          const next = smooth.surfaces.find((candidate) => candidate.selector === surface.selector);
+          return (
+            next !== undefined &&
+            surface.css[0] === next.css[0] &&
+            surface.css[1] === next.css[1] &&
+            next.physical[0] === surface.physical[0] * 2 &&
+            next.physical[1] === surface.physical[1] * 2
+          );
+        });
+      const mapDoubled = doubled(mapNormal, mapSmooth);
+      const studioDoubled = doubled(studioNormal, studioSmooth);
+      record(
+        "10 · controle visível dobra Map/Pixi/Three no preview e restaura a preferência",
+        mapDoubled &&
+          studioDoubled &&
+          queueOpened &&
+          studioOpenedForPreview &&
+          restoredPreview.ok === true &&
+          restoredPreview.value === originalPreview,
+        `controle ${originalPreview}× restaurado=${restoredPreview.ok}; ` +
+          `mapa/Pixi dobraram=${mapDoubled}, Three/Pixi dobraram=${studioDoubled}; ` +
+          `mapa ${mapNormal.surfaces.map((surface) => surface.physical?.join("×")).join("+")}→` +
+          `${mapSmooth.surfaces.map((surface) => surface.physical?.join("×")).join("+")}; ` +
+          `palco ${studioNormal.surfaces
+            .map((surface) => surface.physical?.join("×"))
+            .join("+")}→${studioSmooth.surfaces
+            .map((surface) => surface.physical?.join("×"))
+            .join("+")}`,
+      );
+
+      // ── 11. Motion blur temporal real, determinístico e com bypass ────────
+      //
+      // O custo também é contrato: muda o controle sem apertar Exportar e lê a
+      // estimativa já visível. O valor vem de duração × 8 × 100 ms, calculado
+      // aqui sem importar o estimador de produção.
+      try {
+        const queueOpenedForMotion = await activateTabNamed(
+          client,
+          "Fila de render",
+          'select[aria-label="Amostras de motion blur do export"]',
+        );
+        motionProof.ui = await client.evaluate(`(async () => {
+          const samples = document.querySelector(
+            'select[aria-label="Amostras de motion blur do export"]',
+          );
+          const shutter = document.querySelector(
+            'select[aria-label="Ângulo do obturador do motion blur"]',
+          );
+          if (!(samples instanceof HTMLSelectElement) || !(shutter instanceof HTMLSelectElement)) {
+            return { ok: false, reason: 'controles ausentes' };
+          }
+          const initialSamples = samples.value;
+          const shutterDisabledWhenOff = shutter.disabled;
+          await window.__theatrumPhase2.settle(3000);
+          await wait(200);
+          const playheadBefore = session().getSnapshot().playheadFrame;
+          const previewBefore = await hashPreviewCanvases();
+          samples.value = '8';
+          samples.dispatchEvent(new Event('change', { bubbles: true }));
+          await wait(80);
+          const state = session().getSnapshot();
+          const playheadAfterSelection = state.playheadFrame;
+          const previewAfterSelection = await hashPreviewCanvases();
+          const previewUnchanged =
+            previewBefore.ok === true &&
+            previewAfterSelection.ok === true &&
+            previewBefore.surfaces.length === previewAfterSelection.surfaces.length &&
+            previewBefore.surfaces.every((surface) => {
+              const after = previewAfterSelection.surfaces.find(
+                (candidate) => candidate.selector === surface.selector,
+              );
+              return (
+                after !== undefined &&
+                after.size[0] === surface.size[0] &&
+                after.size[1] === surface.size[1] &&
+                after.sha256 === surface.sha256
+              );
+            });
+          const composition = state.document.compositions.find(
+            (candidate) => candidate.id === state.selectedCompositionId,
+          );
+          const duration = composition ? composition.duration : 0;
+          const seconds = duration * 8 * 100 / 1000;
+          const rounded = Math.max(0, Math.round(seconds));
+          const hours = Math.floor(rounded / 3600);
+          const minutes = Math.floor((rounded % 3600) / 60);
+          const remaining = rounded % 60;
+          const pad = (value) => String(value).padStart(2, '0');
+          const formatted =
+            hours > 0
+              ? String(hours) + ':' + pad(minutes) + ':' + pad(remaining)
+              : String(minutes) + ':' + pad(remaining);
+          const panel = samples.closest('.ui-panel');
+          const text = panel ? panel.textContent : '';
+          const enabledAfterSelection = shutter.disabled === false;
+          samples.value = '1';
+          samples.dispatchEvent(new Event('change', { bubbles: true }));
+          await wait(50);
+          const playheadAfterRestore = session().getSnapshot().playheadFrame;
+          return {
+            ok:
+              initialSamples === '1' &&
+              shutterDisabledWhenOff &&
+              enabledAfterSelection &&
+              playheadBefore === playheadAfterSelection &&
+              playheadBefore === playheadAfterRestore &&
+              previewUnchanged &&
+              text.includes('≈' + formatted) &&
+              text.includes('só de estabilização') &&
+              text.includes(String(duration) + ' frames × 8 amostras') &&
+              text.includes('preview continua instantâneo'),
+            initialSamples,
+            shutterDisabledWhenOff,
+            enabledAfterSelection,
+            playheadBefore,
+            playheadAfterSelection,
+            playheadAfterRestore,
+            previewUnchanged,
+            previewBefore,
+            previewAfterSelection,
+            duration,
+            formatted,
+            text: text.slice(0, 1200),
+          };
+        })()`);
+        motionProof.ui.queueOpened = queueOpenedForMotion;
+      } catch (error) {
+        motionProof.ui = {
+          ok: false,
+          reason: error instanceof Error ? error.message : String(error),
+        };
+      } finally {
+        await activateTabNamed(client, "Timeline", ".timeline-panel__canvas");
+      }
+
+      const pixelsLocalized =
+        motionProof.pixels.allFramesDiffer &&
+        motionProof.pixels.changedPixels > 100 &&
+        motionProof.pixels.changedInsideCorridor === motionProof.pixels.changedPixels &&
+        motionProof.pixels.changedOutsideCorridor === 0;
+      record(
+        "11 · motion blur acumula subframes reais, repete bytes e preserva os bypasses",
+        motionProof.error === null &&
+          motionProof.complete &&
+          motionProof.hashesStable &&
+          motionProof.bytesStable &&
+          motionProof.distinctFrames === 3 &&
+          motionProof.traceMatches &&
+          motionProof.liveObserved &&
+          motionProof.settleTiming &&
+          motionProof.diagnostics &&
+          motionProof.identities &&
+          motionProof.fixtureRestored &&
+          motionProof.refusal &&
+          pixelsLocalized &&
+          motionProof.ui?.ok === true &&
+          motionProof.ui?.queueOpened === true,
+        `A/B hashes=${motionProof.hashesStable} bytes=${motionProof.bytesStable}, ` +
+          `frames distintos=${motionProof.distinctFrames}; ` +
+          `trace=${motionProof.traceSamples}/12 correto=${motionProof.traceMatches}, ` +
+          `subframes vistos ao vivo=${motionProof.liveFrames}/12; ` +
+          `settle por amostra=${motionProof.settleTiming} ` +
+          `(${motionProof.settleMinMs?.toFixed(1) ?? "?"}–${motionProof.settleMaxMs?.toFixed(1) ?? "?"} ms); ` +
+          `diagnóstico Float32/SS=${motionProof.diagnostics}, ` +
+          `bypasses=${motionProof.bypassDiagnostics
+            .map(
+              (diagnostic) =>
+                `${diagnostic.label} ${diagnostic.shutterAngle}°/${diagnostic.samples} ` +
+                `t/p/s=${diagnostic.total}/${diagnostic.processed}/${diagnostic.settled} ` +
+                `trace=${diagnostic.trace} box=${diagnostic.box} ` +
+                `hashes=${diagnostic.distinctHashes} seeks=${diagnostic.seen.join("/")}`,
+            )
+            .join("; ")}, ` +
+          `ausente=ângulo0=amostra1 ${motionProof.identities ? "idênticos" : "DIVERGEM"}; ` +
+          `fixture restaurada=${motionProof.fixtureRestored}; ` +
+          `configuração inválida recusada antes da pasta=${motionProof.refusal}; ` +
+          `pixels alterados=${motionProof.pixels.changedPixels}, ` +
+          `dentro=${motionProof.pixels.changedInsideCorridor}, ` +
+          `fora=${motionProof.pixels.changedOutsideCorridor}; ` +
+          `estimativa antes do clique=${motionProof.ui?.ok === true} ` +
+          `(${motionProof.ui?.formatted ?? motionProof.ui?.reason ?? "?"}), ` +
+          `preview/playhead intactos=${motionProof.ui?.previewUnchanged === true && motionProof.ui?.playheadBefore === motionProof.ui?.playheadAfterSelection}` +
+          `${motionProof.error === null ? "" : `; erro: ${motionProof.error}`}` +
+          `${motionProof.pixels.error === null ? "" : `; pixel: ${motionProof.pixels.error}`}`,
+      );
     }
   } finally {
     const restored = await client.evaluate(
@@ -572,7 +2097,12 @@ async function main() {
         session().actions.setPlayhead(0);
         session().actions.clearSelection();
         await wait(300);
-        return { n, doc: JSON.stringify(canonical(session().getSnapshot().document)) };
+        const doc = JSON.stringify(canonical(session().getSnapshot().document));
+        // A entrada foi aceita apenas com histórico vazio. Depois de desfazer os
+        // comandos da prova, apagar as entradas deixa a próxima rodada igualmente
+        // limpa sem tocar em trabalho do usuário.
+        bus.history.clear();
+        return { n, doc };
       })()`,
     );
     const clean = restored.doc === baseline;

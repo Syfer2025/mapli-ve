@@ -49,7 +49,11 @@ import {
   type ReactNode,
   type WheelEvent as ReactWheelEvent,
 } from "react";
-import { startPngSequenceExport, startVideoExport } from "../../export/export-service.js";
+import { startDebugExport, type DebugExportOptions } from "../../export/export-service.js";
+import { bindExportViewport } from "../../export/export-controller.js";
+import { applyOverrideToElement, useExportSurface } from "../../export/useExportSurface.js";
+import { effectivePixelRatio, surfaceMatches } from "../../export/surface-override.js";
+import { usePreviewSupersampling } from "../../export/preview-supersampling.js";
 import { editorActions, getEditorSessionSnapshot } from "../../document/editor-session.js";
 import { useEditorSession } from "../../document/useEditorSession.js";
 import { importLocalModel, loadLocalModelIndex } from "../../assets/local-models.js";
@@ -63,6 +67,7 @@ import {
   type StudioMarker,
 } from "./studio-markers.js";
 import { createStudioProjectorPort, withStudioProjection } from "./studio-projector.js";
+import { drawCompositionFrame } from "./composition-frame.js";
 import {
   compileStudioLabels,
   compileStudioTour,
@@ -146,6 +151,38 @@ function paintMarkers(
 }
 
 /**
+ * A moldura da composição, em superfície própria ([ADR-022](../../../../../docs/adr/ADR-022-export-resolution-from-composition.md)).
+ *
+ * O palco exporta sozinho desde o ADR-014, então tem o mesmo problema do
+ * Viewport: o painel não tem a proporção da composição, e sem a guia o dono
+ * compõe o enquadramento olhando uma área que o vídeo não vai mostrar.
+ *
+ * **Canvas separado do de marcadores, e isso não é organização.** A guia morou
+ * lá por um commit e o critério 5 do `verify:phase7e3` reprovou na hora: ele mede
+ * a tinta do canvas de marcadores e exige que ela suma quando o modo de marcação
+ * desliga. A moldura não some — é justamente o aviso permanente — e 430 mil
+ * pixels de escurecimento passaram a contar como marcador. Superfície de chrome
+ * com dois donos vira medição de outra coisa.
+ */
+function paintCompositionGuide(
+  canvas: HTMLCanvasElement | null,
+  size: readonly [number, number],
+  composition: { readonly width: number; readonly height: number } | null,
+): void {
+  if (canvas === null || composition === null || size[0] <= 0 || size[1] <= 0) return;
+  const pixelRatio = Math.max(1, Math.min(window.devicePixelRatio, 2));
+  const width = Math.round(size[0] * pixelRatio);
+  const height = Math.round(size[1] * pixelRatio);
+  if (canvas.width !== width) canvas.width = width;
+  if (canvas.height !== height) canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (context === null) return;
+  context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  context.clearRect(0, 0, size[0], size[1]);
+  drawCompositionFrame(context, composition, [size[0], size[1]]);
+}
+
+/**
  * Enquadramento com que um ponto nasce.
  *
  * A conta mora em `studio-framing.ts`, e mudou: era `raio × 0,9`, que **ignora a lente**.
@@ -201,12 +238,9 @@ interface StudioDebugWindow extends Window {
      * Mesma assinatura do `__theatrumPhase4`, para o verificador não precisar
      * saber de qual painel está falando.
      */
-    readonly exportPngSequence: (options?: {
-      readonly range?: { readonly first: number; readonly last: number };
-      readonly outputFps?: number;
-      readonly directory?: string;
-      readonly format?: "png" | "mp4";
-    }) => Promise<{ readonly ok: boolean; readonly message?: string }>;
+    readonly exportPngSequence: (
+      options?: DebugExportOptions,
+    ) => Promise<{ readonly ok: boolean; readonly message?: string }>;
     /**
      * Os pontos de interesse do último frame, com a ancoragem já resolvida ([ADR-016](../../../../../docs/adr/ADR-016-poi-anchored-to-object.md)).
      *
@@ -263,6 +297,11 @@ export function StudioViewport(): ReactNode {
    * por construção. Ver o cabeçalho de `studio-markers.ts`.
    */
   const markerCanvasRef = useRef<HTMLCanvasElement>(null);
+  /**
+   * Moldura da composição, também fora do `frame-composer`. Superfície própria e
+   * não a dos marcadores — ver `paintCompositionGuide`.
+   */
+  const guideCanvasRef = useRef<HTMLCanvasElement>(null);
   const runtimeRef = useRef<StudioSceneRuntime | null>(null);
   const rendererRef = useRef<Renderer | null>(null);
   /**
@@ -329,6 +368,32 @@ export function StudioViewport(): ReactNode {
   /** Bump para repintar quando o GLB termina de carregar, fora do ciclo do React. */
   const [assetRevision, setAssetRevision] = useState(0);
   const [status, setStatus] = useState("palco vazio · adicione um nó Palco 3D");
+  const previewSupersampling = usePreviewSupersampling();
+  const previewPixelRatio =
+    Math.max(1, Math.min(window.devicePixelRatio, 2)) * previewSupersampling;
+
+  /**
+   * O palco também vai ao tamanho da composição durante o export ([ADR-022](../../../../../docs/adr/ADR-022-export-resolution-from-composition.md)).
+   *
+   * Duas metades, como no mapa: o container em pixels de CSS — que o
+   * `ResizeObserver` transforma em `size`, e daí no `setSize` do Three — e a
+   * escala do backing store no runtime. Sem a segunda, pedir 2× devolveria o
+   * palco em 1× e a composição o esticaria sobre o frame.
+   */
+  const exportOverride = useExportSurface(
+    "studio",
+    (override) => {
+      applyOverrideToElement(containerRef.current, override);
+      // A base continua limitada a DPR 2; o fator explícito do preview multiplica
+      // essa base. Durante export, o override do job vence os dois.
+      runtimeRef.current?.setPixelRatio(effectivePixelRatio(override, previewPixelRatio));
+    },
+    // As DUAS superfícies do painel, não só o palco: o compositor lê as duas, e
+    // basta uma estar atrasada para o frame sair esticado.
+    (override) =>
+      surfaceMatches(override, canvasRef.current) &&
+      surfaceMatches(override, pixiCanvasRef.current),
+  );
 
   /**
    * O contexto WebGL nasce com o painel e morre com ele.
@@ -349,6 +414,13 @@ export function StudioViewport(): ReactNode {
     // dirige o export vive no outro. Um por aplicativo é o limite declarado no
     // ADR-014; se algum dia houver dois palcos, este é o ponto que muda.
     setActiveStudioRuntime(runtime);
+    const unbindExport = bindExportViewport({
+      probe: () => ({
+        frame: frameRef.current,
+        renders: runtime.status().renders,
+        pendingAssets: runtime.pendingModels(),
+      }),
+    });
     // VITE_THEATRUM_VERIFY gera um build estático de produção com sondas para os
     // verificadores. Sem a flag, o bundle distribuído elimina este bloco como
     // elimina o DEV — CDP não ganha superfície de execução por acidente.
@@ -402,14 +474,8 @@ export function StudioViewport(): ReactNode {
          * tile de mapa, e é por isso que `map` virou opcional em vez de o palco
          * fingir um mapa parado.
          */
-        exportPngSequence: (options?: {
-          readonly range?: { readonly first: number; readonly last: number };
-          readonly outputFps?: number;
-          readonly directory?: string;
-          readonly format?: "png" | "mp4";
-        }) => {
-          const executar = options?.format === "mp4" ? startVideoExport : startPngSequenceExport;
-          return executar({
+        exportPngSequence: (options?: DebugExportOptions) => {
+          return startDebugExport({
             probe: () => ({
               frame: frameRef.current,
               renders: runtime.status().renders,
@@ -418,6 +484,14 @@ export function StudioViewport(): ReactNode {
             ...(options?.range === undefined ? {} : { range: options.range }),
             ...(options?.outputFps === undefined ? {} : { outputFps: options.outputFps }),
             ...(options?.directory === undefined ? {} : { directory: options.directory }),
+            ...(options?.format === undefined ? {} : { format: options.format }),
+            // Mesma razão do `__theatrumPhase4`: o critério de 2 MP do ADR-023
+            // precisa poder pedir escala daqui, com o palco montado.
+            ...(options?.scale === undefined ? {} : { scale: options.scale }),
+            ...(options?.supersampling === undefined
+              ? {}
+              : { supersampling: options.supersampling }),
+            ...(options?.motionBlur === undefined ? {} : { motionBlur: options.motionBlur }),
           });
         },
         profile: {
@@ -430,11 +504,17 @@ export function StudioViewport(): ReactNode {
       };
     }
     return () => {
+      unbindExport();
       runtimeRef.current = null;
       setActiveStudioRuntime(null);
       runtime.dispose();
     };
   }, []);
+
+  useEffect(() => {
+    if (exportOverride !== null) return;
+    runtimeRef.current?.setPixelRatio(previewPixelRatio);
+  }, [exportOverride, previewPixelRatio]);
 
   /**
    * Overlay Pixi do palco — o quarto contexto WebGL do aplicativo.
@@ -555,6 +635,7 @@ export function StudioViewport(): ReactNode {
     );
     markersRef.current = markers;
     paintMarkers(markerCanvasRef.current, markers, size, session.selectedNodeId);
+    paintCompositionGuide(guideCanvasRef.current, size, composition);
 
     const renderer = rendererRef.current;
     if (renderer !== null) {
@@ -572,7 +653,9 @@ export function StudioViewport(): ReactNode {
         stage === null ? base : withStudioProjection(base, models, runtime, viewport, pois);
       const composed = createScreenScene(pass.scene, layout, {
         size: viewport,
-        pixelRatio: Math.max(1, window.devicePixelRatio),
+        // A mesma escala do palco, não a da tela: as duas superfícies deste
+        // painel são compostas uma sobre a outra pelo tamanho da primeira.
+        pixelRatio: effectivePixelRatio(exportOverride, previewPixelRatio),
       });
       // Rótulo com guia (7E.2) é o que a apresentação usa para falar do míssil e
       // da cabine. O projetor geo entra como o do palco: um rótulo ancorado em
@@ -628,6 +711,10 @@ export function StudioViewport(): ReactNode {
     marking,
     // Mover a câmera de autoria tem de repintar o palco: é ela que o runtime recebe.
     authoringCamera,
+    // E mudar a escala do export também: ela dimensiona o Three e o Pixi daqui.
+    exportOverride,
+    // O controle explícito de qualidade repinta as duas superfícies do preview.
+    previewPixelRatio,
   ]);
 
   /**
@@ -1195,6 +1282,7 @@ export function StudioViewport(): ReactNode {
       >
         <canvas ref={canvasRef} className="studio-viewport__stage" aria-hidden="true" />
         <canvas ref={pixiCanvasRef} className="studio-viewport__pixi" aria-hidden="true" />
+        <canvas ref={guideCanvasRef} className="studio-viewport__guide" aria-hidden="true" />
         <canvas ref={markerCanvasRef} className="studio-viewport__markers" aria-hidden="true" />
         <div className="studio-viewport__tools" role="toolbar" aria-label="Palco 3D">
           <Button

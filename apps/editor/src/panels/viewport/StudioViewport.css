@@ -74,6 +74,29 @@
   pointer-events: none;
 }
 
+/*
+  Moldura da composição (ADR-022), em superfície PRÓPRIA.
+
+  Ela morou no canvas de marcadores por um commit, e o critério 5 do
+  `verify:phase7e3` cobrou na hora: aquele critério mede a tinta do canvas de
+  marcadores e exige que ela suma ao desligar o modo de marcação. A moldura não
+  some — ela avisa o tempo todo qual é o enquadramento do vídeo — então 430 mil
+  pixels de escurecimento passaram a contar como marcador.
+
+  A lição não é sobre CSS: superfície de chrome com dois donos vira medição de
+  outra coisa. Abaixo dos marcadores no z-index, porque marcador é o que se
+  clica.
+*/
+.studio-viewport__guide {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
 /* Mira só no modo de marcação: fora dele o palco inteiro é área de câmera. */
 .studio-viewport--marking {
   cursor: crosshair;
