@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { DockviewApi, DockviewReadyEvent } from "dockview-react";
 import { bridge } from "../bridge/index.js";
 import { WORKSPACE_VERSION, type WorkspaceState } from "@theatrum/shell";
@@ -15,6 +15,7 @@ import {
 
 const SAVE_DEBOUNCE_MS = 400;
 const MAX_LAYOUT_WAIT_FRAMES = 120;
+const PROGRAMMATIC_LAYOUT_SETTLE_MS = 250;
 let lastWorkspaceSnapshotMs = 0;
 
 /**
@@ -88,6 +89,7 @@ function snapshotWorkspace(
 
 export interface WorkspaceLayout {
   readonly onReady: (event: DockviewReadyEvent) => void;
+  readonly workspaceRef: RefObject<HTMLElement | null>;
   readonly restored: boolean;
   readonly workspacePresetId: WorkspacePresetSelectionId;
   readonly applyPreset: (presetId: WorkspacePresetId) => ApplyWorkspacePresetResult;
@@ -102,9 +104,11 @@ export interface WorkspaceLayout {
  * (docs/01-ARCHITECTURE.md § 2).
  */
 export function useWorkspaceLayout(): WorkspaceLayout {
+  const workspaceRef = useRef<HTMLElement>(null);
   const apiRef = useRef<DockviewApi | null>(null);
   const contentModeBinding = useRef<{ dispose(): void } | null>(null);
   const layoutChangeBinding = useRef<{ dispose(): void } | null>(null);
+  const resizeBinding = useRef<ResizeObserver | null>(null);
   const saveTimer = useRef<number | null>(null);
   const pendingSave = useRef<WorkspaceState | null>(null);
   const saveTail = useRef<Promise<void>>(Promise.resolve());
@@ -112,6 +116,21 @@ export function useWorkspaceLayout(): WorkspaceLayout {
   const [workspacePresetId, setWorkspacePresetId] = useState<WorkspacePresetSelectionId>("editing");
   const workspacePresetRef = useRef<WorkspacePresetSelectionId>("editing");
   const programmaticLayoutChanges = useRef(0);
+  const programmaticLayoutTimers = useRef<Set<number>>(new Set());
+
+  const settleProgrammaticLayoutChange = useCallback((): void => {
+    const timer = window.setTimeout(() => {
+      programmaticLayoutTimers.current.delete(timer);
+      programmaticLayoutChanges.current = Math.max(0, programmaticLayoutChanges.current - 1);
+    }, PROGRAMMATIC_LAYOUT_SETTLE_MS);
+    programmaticLayoutTimers.current.add(timer);
+  }, []);
+
+  const resetProgrammaticLayoutChanges = useCallback((): void => {
+    for (const timer of programmaticLayoutTimers.current) window.clearTimeout(timer);
+    programmaticLayoutTimers.current.clear();
+    programmaticLayoutChanges.current = 0;
+  }, []);
 
   /**
    * Contador de geração para descartar montagens obsoletas.
@@ -176,7 +195,45 @@ export function useWorkspaceLayout(): WorkspaceLayout {
       contentModeBinding.current = null;
       layoutChangeBinding.current?.dispose();
       layoutChangeBinding.current = null;
+      resizeBinding.current?.disconnect();
+      resizeBinding.current = null;
+      resetProgrammaticLayoutChanges();
       apiRef.current = event.api;
+
+      /*
+       * O auto-resize do dockview pode chegar vários frames depois do resize
+       * nativo do Electron. Nesse intervalo, barra superior e workspace têm o
+       * tamanho novo, mas os grupos ainda usam a geometria anterior. Controlar o
+       * layout pelo próprio container torna a atualização imediata e também
+       * evita que um resize da janela transforme o preset em "Personalizado".
+       */
+      const workspace = workspaceRef.current;
+      if (workspace !== null) {
+        const layoutToContainer = (width: number, height: number): void => {
+          if (isStale() || width <= 0 || height <= 0) return;
+          programmaticLayoutChanges.current += 1;
+          try {
+            event.api.layout(Math.round(width), Math.round(height), true);
+          } finally {
+            /*
+             * O Dockview pode emitir onDidLayoutChange alguns frames depois de
+             * `layout()`. Manter o guarda durante a estabilização impede que um
+             * simples resize transforme o preset ativo em "Personalizado".
+             */
+            settleProgrammaticLayoutChange();
+          }
+        };
+        const bounds = workspace.getBoundingClientRect();
+        layoutToContainer(bounds.width, bounds.height);
+        const observer = new ResizeObserver((entries) => {
+          const entry = entries[0];
+          if (entry !== undefined) {
+            layoutToContainer(entry.contentRect.width, entry.contentRect.height);
+          }
+        });
+        observer.observe(workspace);
+        resizeBinding.current = observer;
+      }
 
       void (async () => {
         const sized = await waitForContainerSize(event.api);
@@ -237,7 +294,7 @@ export function useWorkspaceLayout(): WorkspaceLayout {
         });
       })();
     },
-    [persist],
+    [persist, resetProgrammaticLayoutChanges, settleProgrammaticLayoutChange],
   );
 
   const applyPreset = useCallback(
@@ -260,12 +317,10 @@ export function useWorkspaceLayout(): WorkspaceLayout {
         contentModeBinding.current = bindWorkspaceContentMode(api);
         persist(api);
       }
-      queueMicrotask(() => {
-        programmaticLayoutChanges.current = Math.max(0, programmaticLayoutChanges.current - 1);
-      });
+      settleProgrammaticLayoutChange();
       return result;
     },
-    [persist],
+    [persist, settleProgrammaticLayoutChange],
   );
 
   const resetLayout = useCallback(
@@ -293,11 +348,14 @@ export function useWorkspaceLayout(): WorkspaceLayout {
       contentModeBinding.current = null;
       layoutChangeBinding.current?.dispose();
       layoutChangeBinding.current = null;
+      resizeBinding.current?.disconnect();
+      resizeBinding.current = null;
+      resetProgrammaticLayoutChanges();
       flushPendingSave();
     };
-  }, [flushCurrentWorkspace, flushPendingSave]);
+  }, [flushCurrentWorkspace, flushPendingSave, resetProgrammaticLayoutChanges]);
 
-  return { onReady, restored, workspacePresetId, applyPreset, resetLayout };
+  return { onReady, workspaceRef, restored, workspacePresetId, applyPreset, resetLayout };
 }
 
 function nextWorkspaceSnapshotMs(): number {

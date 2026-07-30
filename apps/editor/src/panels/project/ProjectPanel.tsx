@@ -1,17 +1,24 @@
 import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type DragEvent,
   type KeyboardEvent,
   type ReactNode,
+  type RefObject,
 } from "react";
+import { createPortal } from "react-dom";
 import type { NodeCategory, NodeTypeDefinition } from "@theatrum/scene-graph";
 import type { Composition } from "@theatrum/schema";
 import { createUnresolvedNodePlaceholder } from "@theatrum/plugin-host";
 import { editorActions, nodeTypeRegistry } from "../../document/editor-session.js";
 import { useEditorSession } from "../../document/useEditorSession.js";
 import { Button, Panel } from "../../ui/index.js";
+import { positionFloatingMenu, type FloatingMenuPosition } from "./floating-menu.js";
 import "./ProjectPanel.css";
 
 const CATEGORY_LABELS: Readonly<Record<NodeCategory, string>> = Object.freeze({
@@ -36,7 +43,14 @@ export function ProjectPanel(): ReactNode {
   const [renaming, setRenaming] = useState<{ readonly id: string; readonly value: string } | null>(
     null,
   );
-  const addMenuRef = useRef<HTMLDetailsElement>(null);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [addMenuPosition, setAddMenuPosition] = useState<FloatingMenuPosition>({
+    left: 0,
+    top: 0,
+    maxHeight: 200,
+  });
+  const addButtonRef = useRef<HTMLButtonElement>(null);
+  const addMenuRef = useRef<HTMLDivElement>(null);
 
   const selected =
     composition === undefined || session.selectedNodeId === null
@@ -50,22 +64,85 @@ export function ProjectPanel(): ReactNode {
     setRenaming(null);
   };
 
+  const updateAddMenuPosition = useCallback((): void => {
+    const anchor = addButtonRef.current?.getBoundingClientRect();
+    if (anchor === undefined) return;
+    setAddMenuPosition(
+      positionFloatingMenu(
+        { left: anchor.left, top: anchor.top, right: anchor.right, bottom: anchor.bottom },
+        { width: window.innerWidth, height: window.innerHeight },
+      ),
+    );
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!addMenuOpen) return;
+    updateAddMenuPosition();
+    window.addEventListener("resize", updateAddMenuPosition);
+    window.addEventListener("scroll", updateAddMenuPosition, true);
+    return () => {
+      window.removeEventListener("resize", updateAddMenuPosition);
+      window.removeEventListener("scroll", updateAddMenuPosition, true);
+    };
+  }, [addMenuOpen, updateAddMenuPosition]);
+
+  useEffect(() => {
+    if (!addMenuOpen) return;
+    const closeOutside = (event: PointerEvent): void => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (addButtonRef.current?.contains(target) || addMenuRef.current?.contains(target)) return;
+      setAddMenuOpen(false);
+    };
+    const closeOnEscape = (event: globalThis.KeyboardEvent): void => {
+      if (event.key !== "Escape") return;
+      setAddMenuOpen(false);
+      addButtonRef.current?.focus();
+    };
+    document.addEventListener("pointerdown", closeOutside, true);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside, true);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [addMenuOpen]);
+
   return (
     <Panel
       title="Documento"
       toolbar={
         <>
-          <details className="project-tree__add" ref={addMenuRef}>
-            <summary aria-label="Adicionar objeto" title="Adicionar objeto">
+          <div className="project-tree__add">
+            <button
+              type="button"
+              ref={addButtonRef}
+              aria-label="Adicionar objeto"
+              aria-haspopup="menu"
+              aria-expanded={addMenuOpen}
+              title="Adicionar objeto"
+              onClick={() => setAddMenuOpen((open) => !open)}
+            >
               +
-            </summary>
-            <NodeTypeMenu
-              onPick={(type) => {
-                editorActions.addNodeOfType(type);
-                if (addMenuRef.current !== null) addMenuRef.current.open = false;
-              }}
-            />
-          </details>
+            </button>
+          </div>
+          {addMenuOpen
+            ? createPortal(
+                <NodeTypeMenu
+                  menuRef={addMenuRef}
+                  style={{
+                    left: addMenuPosition.left,
+                    top: addMenuPosition.top,
+                    maxHeight: addMenuPosition.maxHeight,
+                  }}
+                  onPick={(type) => {
+                    editorActions.addNodeOfType(type);
+                    setAddMenuOpen(false);
+                    addButtonRef.current?.focus();
+                  }}
+                />,
+                document.body,
+              )
+            : null}
           <Button
             size="sm"
             iconOnly
@@ -154,7 +231,15 @@ export function ProjectPanel(): ReactNode {
  * Gerado inteiramente do registry de tipos: um tipo novo aparece aqui sem
  * nenhuma linha nova de UI. Ver critério 5 da Fase 4 em docs/08-ROADMAP.md.
  */
-function NodeTypeMenu({ onPick }: { readonly onPick: (type: string) => void }): ReactNode {
+function NodeTypeMenu({
+  menuRef,
+  style,
+  onPick,
+}: {
+  readonly menuRef: RefObject<HTMLDivElement | null>;
+  readonly style: CSSProperties;
+  readonly onPick: (type: string) => void;
+}): ReactNode {
   const categories = useMemo(() => {
     const grouped = new Map<NodeCategory, NodeTypeDefinition[]>();
     for (const definition of nodeTypeRegistry.list()) {
@@ -166,7 +251,13 @@ function NodeTypeMenu({ onPick }: { readonly onPick: (type: string) => void }): 
   }, []);
 
   return (
-    <div className="project-tree__add-menu" role="menu" aria-label="Tipos de objeto">
+    <div
+      ref={menuRef}
+      className="project-tree__add-menu"
+      role="menu"
+      aria-label="Tipos de objeto"
+      style={style}
+    >
       {categories.map(([category, definitions]) => (
         <div className="project-tree__add-group" key={category}>
           <span className="project-tree__add-category">{CATEGORY_LABELS[category]}</span>

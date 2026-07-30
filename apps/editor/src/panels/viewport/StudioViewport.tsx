@@ -1093,7 +1093,14 @@ export function StudioViewport(): ReactNode {
   const handleFrameObject = (): void => {
     const runtime = runtimeRef.current;
     const stage = stageRef.current;
-    if (runtime === null || stage === null) return;
+    if (runtime === null) {
+      setStatus("palco 3D ainda inicializando · aguarde para enquadrar");
+      return;
+    }
+    if (stage === null) {
+      setStatus("sem palco na composição · adicione um palco antes de enquadrar");
+      return;
+    }
     const loaded = runtime.loadedModelIds();
     const first = loaded[0];
     if (first === undefined) {

@@ -95,6 +95,11 @@
   --shadow-panel: 0 2px 8px rgb(0 0 0 / 0.35);
   --shadow-popover: 0 6px 20px rgb(0 0 0 / 0.5);
 
+  /* ---- Camadas ---- */
+  --z-popover: 1200;
+  --z-modal: 2000;
+  --z-notice: 2100;
+
   /* ---- Transições: nada acima de 200 ms numa ferramenta profissional ---- */
   --transition-fast: 80ms;
   --transition: 140ms;

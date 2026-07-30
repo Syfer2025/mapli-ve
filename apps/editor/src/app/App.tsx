@@ -34,7 +34,8 @@ import { Button } from "../ui/index.js";
 import "./App.css";
 
 export function App(): ReactNode {
-  const { onReady, restored, workspacePresetId, applyPreset, resetLayout } = useWorkspaceLayout();
+  const { onReady, workspaceRef, restored, workspacePresetId, applyPreset, resetLayout } =
+    useWorkspaceLayout();
   const shortcuts = useShortcutPreferences();
 
   useEffect(() => {
@@ -72,9 +73,10 @@ export function App(): ReactNode {
       />
       <RecoveryBanner />
 
-      <main className="app__workspace" data-restored={restored || undefined}>
+      <main ref={workspaceRef} className="app__workspace" data-restored={restored || undefined}>
         <DockviewReact
           components={PANEL_COMPONENTS}
+          disableAutoResizing
           onReady={onReady}
           theme={THEATRUM_DOCKVIEW_THEME}
         />

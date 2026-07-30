@@ -164,7 +164,7 @@
   position: relative;
 }
 
-.project-tree__add > summary {
+.project-tree__add > button {
   display: inline-flex;
   width: var(--control-height-sm);
   height: var(--control-height-sm);
@@ -180,26 +180,20 @@
   cursor: default;
 }
 
-.project-tree__add > summary::-webkit-details-marker {
-  display: none;
-}
-
-.project-tree__add > summary:hover {
+.project-tree__add > button:hover {
   background: var(--bg-hover);
   border-color: var(--border-strong);
 }
 
-.project-tree__add[open] > summary {
+.project-tree__add > button[aria-expanded="true"] {
   background: var(--bg-active);
   border-color: var(--border-strong);
 }
 
 .project-tree__add-menu {
-  position: absolute;
-  z-index: 5;
-  inset-inline-start: 0;
+  position: fixed;
+  z-index: var(--z-popover);
   min-width: 216px;
-  max-height: 60vh;
   overflow-y: auto;
   padding: var(--space-2) 0;
   border: 1px solid var(--border-strong);
