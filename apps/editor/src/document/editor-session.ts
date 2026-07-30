@@ -10,6 +10,7 @@ import {
 } from "@theatrum/assets";
 import { createCommandBus, type HistorySnapshot } from "@theatrum/commands";
 import { createBuiltinActionRegistry } from "@theatrum/behaviors";
+import { subframe } from "@theatrum/core-time";
 import { createIdFactory } from "@theatrum/core-utils";
 import { createDocumentStore } from "@theatrum/document";
 import { createBuiltinNodeTypeRegistry, type NodeTypeDefinition } from "@theatrum/scene-graph";
@@ -208,6 +209,23 @@ export const editorActions = Object.freeze({
     if (composition === undefined || !Number.isFinite(frame)) return;
     update({
       playheadFrame: Math.max(0, Math.min(composition.duration, Math.round(frame))),
+    });
+  },
+
+  /**
+   * Move temporal exclusivo do pump de export.
+   *
+   * Scrub, teclado e playback continuam em `setPlayhead`, que arredonda. Só o
+   * motion blur pode pôr uma fração no estado transitório da sessão, e ela nunca
+   * entra no documento nem no histórico. O último frame visível é
+   * `duration - 1`; o sentinel `duration` do fim da timeline não é uma pose para
+   * amostrar.
+   */
+  setExportPlayhead(frame: number): void {
+    const composition = selectedComposition();
+    if (composition === undefined || !Number.isFinite(frame)) return;
+    update({
+      playheadFrame: subframe(Math.max(0, Math.min(Math.max(0, composition.duration - 1), frame))),
     });
   },
 

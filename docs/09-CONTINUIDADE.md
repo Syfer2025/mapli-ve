@@ -64,7 +64,7 @@ Os verificadores visuais dirigem o Electron real por CDP:
 | 7C · rotas e setas       | `verify:phase7c`        | verde          |
 | 7D · textos no mapa      | `verify:phase7d`        | 4/4            |
 | 7E.3 · modo estúdio      | `verify:phase7e3`       | 14/14 × 2      |
-| 8 · export byte-idêntico | `verify:phase8`         | 7/7            |
+| 8 · export byte-idêntico | `verify:phase8`         | 11/11 × 3      |
 | 8 · arquivo MP4 H.264    | `verify:phase8-video`   | 6/6            |
 | 8 · GIF + ProRes/alfa    | `verify:phase8-formats` | bloqueado aqui |
 
@@ -252,49 +252,38 @@ Próximo passo sugerido: instrumentar `studio-reflection.ts` para gravar o
 conteúdo do target em dois frames idênticos e comparar; suspeitar de reúso de
 render target entre tamanhos e de estado de GL que o `finally` não devolve.
 
-Ordem que vem agora, conforme o prompt de passagem:
+Estado dos três blocos desta retomada, na ordem combinada:
 
-1. **Terminar a resolução escolhida.** O ADR está aceito e o núcleo puro entregue;
-   falta a ligação dos painéis. Detalhe em
-   [§ 3.1](#31-a-resolução-do-export-decidida-e-medida-ligação-pendente).
-2. **Timeline própria do modo palco.** `TimelinePanel.tsx` e `timeline-model.ts`
-   não têm referência a `studio.stage`. Decidir e documentar antes do código se
-   será painel separado ou o mesmo painel ciente do modo; a segunda direção é mais
-   consistente com o restante do editor. No palco importam câmera, POIs e roteiro,
-   não as camadas do mapa.
-3. **Contornos do mapa “meio grosseiros”.** Perguntar ao dono _onde_ antes de
-   alterar: Viewport, export ou zoom específico. Quantização da malha, AA do Pixi,
-   largura HiDPI e recorte são apenas suspeitos a medir. **Uma pista nova, e ela
-   corta na direção contrária:** o [ADR-023](adr/ADR-023-no-msaa-on-composed-surfaces.md)
-   desligou o MSAA, o que deixa a borda 1% mais dura. Se o dono reclamar agora,
-   perguntar se piorou hoje ou se já era — e a resposta provavelmente não é MSAA
-   de todo modo, porque o MapLibre suaviza preenchimento e traço no shader.
-4. **Fase 9 — Scene Script.** É a integração com qualquer IA por compilador; o
-   editor continua sem chamar modelo.
-5. **Motion blur, checkpoint e retomada.** Não começado. O motion blur depende de
-   `evaluate` aceitar frame fracionário, que a assinatura já permite
-   ([ADR-004](adr/ADR-004-time-in-frames.md) e `subframe()` em `core-time`), e de
-   acumular N subframes por frame. É o que mais separa "parece jogo" de "parece
-   filmado", e é pré-requisito do palco de voo em
-   [11-VISAO-FUTURA § 2](11-VISAO-FUTURA.md).
+1. **Filtro do Pixi + redimensionamento:** fechado. A tabela literal do `glow`
+   eliminou a variação do driver, e o critério não aprova export sem efeito,
+   parcial ou congelado.
+2. **Supersampling determinístico:** fechado. SS 2× renderiza maior, reduz com
+   box nosso e repete byte a byte; o preview tem controle explícito, desligado por
+   padrão.
+3. **Motion blur por acumulação:** é o próximo bloco e ainda não foi iniciado.
+   Continua limitado ao export, com settle por subframe e acumulador reutilizado,
+   conforme o [ADR-025](adr/ADR-025-motion-blur-accumulation.md).
 
-### 3.1 A resolução do export: decidida e medida, ligação pendente
+### 3.1 A resolução do export: decidida, ligada e ampliada por SS
 
 **2026-07-29.** O gatilho que o [ADR-013](adr/ADR-013-export-frame-composition.md)
 declarou — "quando alguém pedir export acima do tamanho da janela" — disparou. Foi
-medido no Electron real e virou dois ADRs. O que está feito e o que falta:
+medido no Electron real e virou dois ADRs; o pedido de suavização disparou o
+terceiro. Inventário atual:
 
-| Peça                                                          | Estado               |
-| ------------------------------------------------------------- | -------------------- |
-| [ADR-022](adr/ADR-022-export-resolution-from-composition.md)  | aceito               |
-| [ADR-023](adr/ADR-023-no-msaa-on-composed-surfaces.md)        | aceito               |
-| `packages/export/src/resolution.ts` — a conta pura, 14 testes | **entregue**         |
-| `antialias: false` no mapa e no palco                         | **entregue**         |
-| Conduzir as superfícies ao tamanho da composição              | **entregue**         |
-| Seletor de escala no painel de fila                           | **entregue**         |
-| Critérios novos no `verify:phase8` exportando acima de 2 MP   | **entregue**         |
-| Guia de moldura da composição no canvas de gizmos             | **entregue**         |
-| Filtro do Pixi + redimensionamento repetindo bit a bit        | **regressão aberta** |
+| Peça                                                           | Estado       |
+| -------------------------------------------------------------- | ------------ |
+| [ADR-022](adr/ADR-022-export-resolution-from-composition.md)   | aceito       |
+| [ADR-023](adr/ADR-023-no-msaa-on-composed-surfaces.md)         | aceito       |
+| [ADR-024](adr/ADR-024-deterministic-supersampling.md)          | implementado |
+| `resolution.ts` — saída, render, escala e SS, 19 testes        | **entregue** |
+| `supersampling.ts` — box determinístico em CPU, 8 testes       | **entregue** |
+| `antialias: false` no mapa e no palco                          | **entregue** |
+| Conduzir as superfícies ao tamanho físico planejado            | **entregue** |
+| Seletores de escala/SS do job e SS do preview                  | **entregue** |
+| Critérios acima de 2 MP, SS exato e preview físico no `phase8` | **entregue** |
+| Guia de moldura da composição no canvas de gizmos              | **entregue** |
+| Filtro do Pixi + redimensionamento repetindo bit a bit         | **entregue** |
 
 **O achado que vale mais que o pedido.** Acima de ~2 MP, repintar o **mesmo
 estado** não devolve os mesmos bytes — e a causa é o MSAA:
@@ -307,11 +296,11 @@ estado** não devolve os mesmos bytes — e a causa é o MSAA:
 | 3840 × 2160 | **diverge** | idêntico    | **diverge** | idêntico     |
 
 Isto atacava o critério 2 da Fase 8 e ficou invisível porque **o frame de export
-saía do tamanho do painel — 1248×566 nesta máquina, 0,71 MP, abaixo do limiar.** O
-`verify:phase8` está 7/7 há sessões porque nunca exportou grande. Assim que a
-ligação entrar, ele passa a exportar acima de 2 MP e a afirmar `SAMPLES === 0`;
-sem esse critério, a decisão do ADR-023 se desfaz na primeira vez que alguém
-reintroduzir `antialias: true` por qualidade de imagem.
+saía do tamanho do painel — 1248×566 nesta máquina, 0,71 MP, abaixo do limiar.**
+Durante sessões ele ficou 7/7 porque nunca exportava grande. A ligação passou a
+exportar acima de 2 MP e a afirmar `SAMPLES === 0`; sem esse critério, a decisão
+do ADR-023 se desfaria na primeira vez que alguém reintroduzisse
+`antialias: true` por qualidade de imagem.
 
 **E o limiar é da placa, não do tamanho — medido em 2026-07-29 na máquina
 seguinte.** Antes de tocar na ligação, rodei a `probe-export-resolution-6a` como o
@@ -380,9 +369,12 @@ contextos do ADR-012 conta os da bancada junto com os do aplicativo. Sonda que
 precisa de teto de GPU lê `MAX_TEXTURE_SIZE` de um contexto que já existe, ou cria
 **um** por vez.
 
-### ⚠ REGRESSÃO ABERTA: filtro do Pixi + redimensionamento não repete bit a bit
+### ✅ REGRESSÃO FECHADA: filtro do Pixi + redimensionamento repete bit a bit
 
-**Isolado em 2026-07-29, não corrigido. É o primeiro item da lista.**
+**Fechado em 2026-07-29.** A causa estava no kernel do `glow`: as doze direções
+eram calculadas com `sin`/`cos` dentro do fragmento. Substituí-las pelos doze
+vetores literais removeu a aproximação transcendental do driver do caminho por
+pixel.
 
 A ligação do ADR-022 redimensiona as superfícies no começo de todo export. Com
 **filtro do Pixi na cena** — `outline` + `glow` sobre um nó geo — duas execuções
@@ -425,18 +417,87 @@ Três hipóteses testadas e **derrubadas por medição**, cada uma revertida:
    como lembrete de que "duas execuções iguais" sem a guarda de "frames distintos
    entre si" é falsa aprovação.
 
-O que ainda não foi olhado, e é por onde eu começaria: o `filterArea` e o
-`padding` do passe de filtro dependem do retângulo do nó em pixels de tela, e esse
-retângulo muda com a resolução; e o passe de blur do `glow` amostra fora do
-retângulo, onde mora o conteúdo que o pool recicla. A pergunta a responder com
-pixel, não com leitura de código, é **de quanto** os frames diferem — a sonda atual
-só compara hash. `scratchpad/probe-divergencia.mjs` já monta a cena e aceita
-escala e filtros por argumento; falta fazê-la relatar contagem de pixels e delta
-máximo, como a `probe-limiar-com-guarda.mjs` faz.
+A sonda passou a guardar A/B em diretórios separados, decodificar os PNGs RGBA8 e
+relatar pixels, delta máximo, caixa da diferença e guarda de conteúdo. A medição
+que separou as camadas:
 
-Decisão a tomar pelo dono, e não por mim: aceitar o limite enquanto o defeito é
-investigado, ou segurar a ligação do ADR-022 até ele fechar. O trabalho está
-entregue e verde em tudo o mais; este é o preço declarado.
+- em escala 1, o arquivo divergente tinha **1 pixel, delta máximo 1**;
+- o mapa naquele pixel era idêntico, `[24,36,31,255]`;
+- o canvas Pixi alternava `[81,135,182,136]` ↔ `[81,137,182,136]`; o compositor
+  só reduzia os dois níveis de verde a um;
+- `outline` sozinho: **0/8** rodadas divergentes; `glow` sozinho: **3/8**;
+- `glow` com força zero: **0/10**; com raio zero: **0/10**. O passe, a textura e
+  a geometria central estavam estáveis; a variação exigia amostra espacial.
+
+Quatro hipóteses adicionais foram testadas e **derrubadas**, cada uma revertida:
+
+1. limitar as amostras a `uInputClamp` — **7/12** ainda divergiram nos mesmos
+   cinco pixels em escala 2;
+2. herdar a resolução física do alvo — fechou escala 2, mas escala 1 ainda deu
+   **1/16**;
+3. desligar o MSAA também no Pixi — escala 1 ainda deu **3/24**;
+4. recusar o render híbrido entre `map.resize()` e o `ResizeObserver` — escala 1
+   piorou para **7/24**.
+
+Com a tabela literal de direções, a mesma cena ficou **0/24 em escala 1 e 0/24 em
+escala 2**, sempre quatro frames distintos e `settleFailed=0`. O critério 5 do
+`verify:phase8` também passou a exigir estrada, outline e glow realmente criados,
+nove frames completos e distintos nas duas execuções, zero erro/settle falho e
+nomes mais hashes idênticos. Ele ainda remove os efeitos e exige que o mesmo frame
+mude, provando que os filtros participaram dos pixels comparados. Export parcial,
+congelado ou sem efeito não recebe mais "IDÊNTICAS".
+
+Placar final deste bloco: `verify:phase8` **9/9 em oito rodadas consecutivas** —
+as três últimas já com todas essas guardas —, `verify:phase8-video` **6/6**,
+`verify:phase7e3` **14/14** e `pnpm check` verde com **1.227 testes em 121
+arquivos**. `verify:phase8-formats` não foi repetido porque esta máquina continua
+sem FFmpeg.
+
+### Supersampling determinístico entrou
+
+**Fechado em 2026-07-29.** O [ADR-024](adr/ADR-024-deterministic-supersampling.md)
+agora separa o tamanho final do arquivo do tamanho físico de render. Um job
+1080p com SS 2× conduz mapa, overlay Pixi e palco Three a **3840×2160**, compõe
+essas superfícies 1:1 e só então reduz para **1920×1080** com um box em CPU.
+
+O contrato é deliberadamente estreito: fator inteiro, soma de bytes sRGB, alfa
+premultiplicado, arredondamento _half-up_, corte de paridade depois do box e
+destino reaproveitado. Fator 1 passa pelo caminho antigo sem redutor. Combinação
+cujo backing não divide pelo fator é recusada; o mesmo acontece quando o render
+físico ultrapassa os 4096 px do MapLibre — por isso 1080p+SS2 passa e 4K+SS2 não.
+
+O painel de fila ganhou dois controles distintos: SS do arquivo, pertencente ao
+job, e qualidade SS do preview, preferência local da máquina e desligada por
+padrão. Nesta máquina, o segundo dobra de verdade o backing do MapLibre, do Pixi
+e do Three; em tela HiDPI larga, MapLibre e Pixi compartilham a mesma densidade
+limitada a 4096 em vez de se desencontrarem. Se um export estiver em andamento,
+o fator do job vence a preferência.
+
+A prova não se limita a comparar duas execuções iguais. O critério 9 decodifica
+os PNGs sem usar o código de produção, reduz independentemente o render 4K e
+exige igualdade exata com o SS2 em 1080p; também exige SS2 diferente do caminho
+normal e da mera decimação, quatro frames distintos, erro/settle zero e recusa
+de 4K+SS2 antes de criar saída. Foram **233.097 blocos não uniformes** exercitando
+o kernel. O critério 10 aciona o controle visível e mede os backing stores:
+mapa/Pixi passaram de 1665×798 para 3330×1596 e Three/Pixi de 1665×826 para
+3330×1652, com restauração ao fim.
+
+Placar final deste bloco: `verify:phase8` **11/11 em três rodadas consecutivas
+com as guardas finais**, inclusive duas sem recarregar e a última depois do
+verificador de vídeo; `verify:phase8-video` **6/6** com Map/Pixi observados ao
+vivo em 3840×2160, os 12 frames contados no box em CPU e pixels de um frame MP4
+decodificados em 1920×1080;
+`verify:phase7e3` **14/14**; e `pnpm check` verde com **1.246 testes em 123
+arquivos**, quatro typechecks, lint/formatação, **379 módulos e 1.008
+dependências** sem violação e build. `verify:phase8-formats` continua sem nova
+prova porque esta máquina não tem FFmpeg no PATH.
+
+A auditoria final fechou três falsos positivos da bancada. Pedido 4K+SS2 agora
+usa pasta inédita e exige que ela nem seja criada; o MP4 aguarda e lê um frame,
+não só metadados; e ambos os verificadores recusam uma sessão com histórico
+pré-existente antes de executar comandos. Como entram apenas com histórico
+vazio, no fim desfazem a própria cena e limpam somente essas entradas, deixando
+a rodada seguinte idempotente sem arriscar trabalho do usuário.
 
 ### A ligação das superfícies entrou, e o que ela ensinou
 
@@ -1213,6 +1274,19 @@ dizem "falta bootstrap":
 
 A ordem que funciona, do zero: `pnpm install` → `pnpm data:fetch` →
 `pnpm geo:build` → `pnpm check`.
+
+### 4.19 HMR pode duplicar um store de módulo
+
+Depois de alterar o módulo que guarda a preferência de supersampling, duas
+rodadas do verificador ficaram esperando superfícies que nunca saíam de
+1665×798. Uma sonda mostrou que o pedido de override era emitido pela cópia nova
+do módulo enquanto os componentes React continuavam inscritos na cópia antiga,
+mantida pelo HMR. Não era falha do redimensionamento nem do box.
+
+Para prova determinística depois de mexer em singleton/store de módulo, faça uma
+recarga limpa do renderer antes de medir. HMR é conveniência de autoria, não
+estado de bancada. Depois da recarga, quatro rodadas consecutivas passaram
+11/11.
 
 ## 5. Como verificar de verdade
 

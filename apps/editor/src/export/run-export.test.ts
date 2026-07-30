@@ -17,7 +17,9 @@ import {
   EXCLUDED_SURFACE_SELECTORS,
   EXPORT_MODES,
   exportSurfaceSelectors,
+  selectCompleteExportSurfaces,
   selectExportSurfaces,
+  type ComposedFrame,
 } from "./frame-composer.js";
 
 const PLAN = { compositionId: "cmp", durationFrames: 5, compositionFps: 30 };
@@ -170,16 +172,45 @@ describe("runExport", () => {
     expect(report.settleP99Ms).toBeGreaterThan(0);
   }, 20_000);
 
+  it("conta saídas repetidas separadamente quando outputFps é maior", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    try {
+      let current = -1;
+      let renders = 0;
+      const failingHost: ExportHost = {
+        seek: (frame) => {
+          current = frame;
+        },
+        observe: () => ({ frame: current, renders: (renders += 1) }),
+        mapBusy: () => false,
+        assetsBusy: () => false,
+        surfacesBusy: () => false,
+        compose: () => FRAME,
+        writeFrame: () => Promise.resolve({ ok: true, sha256: "timeout" }),
+      };
+      const exporting = runExport({
+        plan: { ...PLAN, durationFrames: 2, outputFps: 60 },
+        host: failingHost,
+      });
+      await vi.runAllTimersAsync();
+      const report = await exporting;
+
+      expect(report.plan.frames.map((frame) => frame.frame)).toEqual([0, 1, 1]);
+      expect(report.settleFailed).toBe(3);
+      expect(report.settleFailedOutputFrames).toBe(3);
+      expect(report.settleFailedFrames).toEqual([0, 1, 1]);
+      expect(report.settleFailures.map((failure) => failure.outputIndex)).toEqual([0, 1, 2]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("interrompe quando pedido, e diz que interrompeu", async () => {
     const h = host();
-    let vistos = 0;
     const report = await runExport({
       plan: PLAN,
       host: h.host,
-      shouldAbort: () => {
-        vistos += 1;
-        return vistos > 2;
-      },
+      shouldAbort: () => h.written.length >= 2,
     });
     expect(report.aborted).toBe(true);
     expect(report.written).toBe(2);
@@ -215,6 +246,345 @@ describe("runExport", () => {
     expect(report.plan.outputFps).toBe(15);
     expect(report.plan.frames).toHaveLength(3);
   });
+
+  it("faz seek, settle e compose em cada subframe fracionário, mas escreve uma vez", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    try {
+      let current = -1;
+      const seeks: number[] = [];
+      const composedAt: number[] = [];
+      const written: Uint8Array[] = [];
+      const progress: { sample: number; samplesDone: number }[] = [];
+      const motionHost: ExportHost = {
+        seek: (frame) => {
+          current = frame;
+          seeks.push(frame);
+        },
+        observe: () => ({ frame: current, renders: seeks.length }),
+        mapBusy: () => false,
+        assetsBusy: () => false,
+        surfacesBusy: () => false,
+        compose: () => {
+          composedAt.push(current);
+          return {
+            width: 1,
+            height: 1,
+            rgba: Uint8Array.from([Math.round(current * 100), 0, 0, 255]),
+          };
+        },
+        writeFrame: (_filename, frame) => {
+          written.push(frame.rgba.slice());
+          return Promise.resolve({ ok: true, sha256: "motion" });
+        },
+      };
+      const exporting = runExport({
+        plan: { ...PLAN, durationFrames: 3, range: { first: 1, last: 1 } },
+        host: motionHost,
+        motionBlur: { shutterAngle: 180, samples: 4 },
+        onProgress: (value) =>
+          progress.push({ sample: value.currentSample, samplesDone: value.samplesDone }),
+      });
+      await vi.runAllTimersAsync();
+      const report = await exporting;
+
+      const samples = [0.8125, 0.9375, 1.0625, 1.1875];
+      expect(seeks).toEqual([...samples, 1]);
+      expect(composedAt).toEqual(samples);
+      expect(written).toHaveLength(1);
+      expect([...written[0]!]).toEqual([100, 0, 0, 255]);
+      expect(report.written).toBe(1);
+      expect(report.settleFailed).toBe(0);
+      expect(report.motionBlur).toMatchObject({
+        enabled: true,
+        processedSamples: 4,
+        settledSamples: 4,
+        accumulatedSamples: 4,
+        resolvedFrames: 1,
+        accumulatorAllocations: 1,
+        accumulatorBytes: 20,
+        accumulatorFloatBytes: 16,
+      });
+      expect(report.motionBlur.sampleTrace.map((sample) => sample.requestedFrame)).toEqual(samples);
+      expect(report.motionBlur.sampleTrace.map((sample) => sample.observedFrame)).toEqual(samples);
+      expect(progress.map((entry) => entry.sample)).toEqual([1, 2, 3, 4, 4]);
+      expect(progress.at(-1)?.samplesDone).toBe(4);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("ângulo zero e uma amostra preservam o objeto composto e não alocam", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    try {
+      for (const motionBlur of [
+        { shutterAngle: 0, samples: 8 },
+        { shutterAngle: 180, samples: 1 },
+      ]) {
+        let writtenFrame: ComposedFrame | null = null;
+        const h = host({
+          writeFrame: (_filename, frame) => {
+            writtenFrame = frame;
+            return Promise.resolve({ ok: true, sha256: "identity" });
+          },
+        });
+        const exporting = runExport({
+          plan: { ...PLAN, durationFrames: 1 },
+          host: h.host,
+          motionBlur,
+        });
+        await vi.runAllTimersAsync();
+        const report = await exporting;
+        expect(writtenFrame).toBe(FRAME);
+        expect(report.motionBlur.enabled).toBe(false);
+        expect(report.motionBlur.accumulatorAllocations).toBe(0);
+        expect(report.motionBlur.accumulatedSamples).toBe(0);
+        expect(report.motionBlur.resolvedFrames).toBe(0);
+        expect(report.motionBlur.sampleTrace).toEqual([]);
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("cancelamento no meio descarta a acumulação parcial e restaura o centro", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    try {
+      let current = -1;
+      let abort = false;
+      const seeks: number[] = [];
+      let writes = 0;
+      const motionHost: ExportHost = {
+        seek: (frame) => {
+          current = frame;
+          seeks.push(frame);
+        },
+        observe: () => ({ frame: current, renders: seeks.length }),
+        mapBusy: () => false,
+        assetsBusy: () => false,
+        surfacesBusy: () => false,
+        compose: () => {
+          abort = true;
+          return { width: 1, height: 1, rgba: Uint8Array.from([1, 2, 3, 255]) };
+        },
+        writeFrame: () => {
+          writes += 1;
+          return Promise.resolve({ ok: true, sha256: "não deveria escrever" });
+        },
+      };
+      const exporting = runExport({
+        plan: { ...PLAN, durationFrames: 3, range: { first: 1, last: 1 } },
+        host: motionHost,
+        motionBlur: { shutterAngle: 180, samples: 4 },
+        shouldAbort: () => abort,
+      });
+      await vi.runAllTimersAsync();
+      const report = await exporting;
+
+      expect(report.aborted).toBe(true);
+      expect(report.written).toBe(0);
+      expect(report.motionBlur.settledSamples).toBe(1);
+      expect(report.motionBlur.processedSamples).toBe(1);
+      expect(report.motionBlur.accumulatedSamples).toBe(1);
+      expect(report.motionBlur.resolvedFrames).toBe(0);
+      expect(writes).toBe(0);
+      expect(seeks.at(-1)).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("exceção numa subamostra restaura o centro antes de subir ao serviço", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    try {
+      let current = -1;
+      const seeks: number[] = [];
+      const motionHost: ExportHost = {
+        seek: (frame) => {
+          current = frame;
+          seeks.push(frame);
+        },
+        observe: () => ({ frame: current, renders: seeks.length }),
+        mapBusy: () => false,
+        assetsBusy: () => false,
+        surfacesBusy: () => false,
+        compose: () => {
+          throw new Error("falha de leitura");
+        },
+        writeFrame: () => Promise.resolve({ ok: true, sha256: "não deveria escrever" }),
+      };
+      const exporting = runExport({
+        plan: { ...PLAN, durationFrames: 3, range: { first: 1, last: 1 } },
+        host: motionHost,
+        motionBlur: { shutterAngle: 180, samples: 4 },
+      });
+      const rejection = expect(exporting).rejects.toThrow("falha de leitura");
+      await vi.runAllTimersAsync();
+      await rejection;
+
+      expect(seeks.at(-1)).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("exceção durante o settle também restaura o centro", async () => {
+    let current = -1;
+    const seeks: number[] = [];
+    const motionHost: ExportHost = {
+      seek: (frame) => {
+        current = frame;
+        seeks.push(frame);
+      },
+      observe: () => {
+        throw new Error("sonda perdida");
+      },
+      mapBusy: () => false,
+      assetsBusy: () => false,
+      surfacesBusy: () => false,
+      compose: () => FRAME,
+      writeFrame: () => Promise.resolve({ ok: true, sha256: "não deveria escrever" }),
+    };
+
+    await expect(
+      runExport({
+        plan: { ...PLAN, durationFrames: 3, range: { first: 1, last: 1 } },
+        host: motionHost,
+        motionBlur: { shutterAngle: 180, samples: 4 },
+      }),
+    ).rejects.toThrow("sonda perdida");
+    expect(current).toBe(1);
+    expect(seeks.at(-1)).toBe(1);
+  });
+
+  it("erro ao acumular a segunda amostra restaura o centro", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    try {
+      let current = -1;
+      let composes = 0;
+      const seeks: number[] = [];
+      const motionHost: ExportHost = {
+        seek: (frame) => {
+          current = frame;
+          seeks.push(frame);
+        },
+        observe: () => ({ frame: current, renders: seeks.length }),
+        mapBusy: () => false,
+        assetsBusy: () => false,
+        surfacesBusy: () => false,
+        compose: () => {
+          composes += 1;
+          return composes === 1
+            ? { width: 1, height: 1, rgba: new Uint8Array(4) }
+            : { width: 2, height: 1, rgba: new Uint8Array(8) };
+        },
+        writeFrame: () => Promise.resolve({ ok: true, sha256: "não deveria escrever" }),
+      };
+      const exporting = runExport({
+        plan: { ...PLAN, durationFrames: 3, range: { first: 1, last: 1 } },
+        host: motionHost,
+        motionBlur: { shutterAngle: 180, samples: 4 },
+      });
+      const rejection = expect(exporting).rejects.toThrow("subframe fora da resolução");
+      await vi.runAllTimersAsync();
+      await rejection;
+
+      expect(seeks.at(-1)).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("cancelamento detectado dentro do settle descarta e restaura", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    try {
+      let current = -1;
+      let abortChecks = 0;
+      const seeks: number[] = [];
+      let composes = 0;
+      const motionHost: ExportHost = {
+        seek: (frame) => {
+          current = frame;
+          seeks.push(frame);
+        },
+        observe: () => ({ frame: current, renders: 1 }),
+        mapBusy: () => false,
+        assetsBusy: () => false,
+        surfacesBusy: () => false,
+        compose: () => {
+          composes += 1;
+          return FRAME;
+        },
+        writeFrame: () => Promise.resolve({ ok: true, sha256: "não deveria escrever" }),
+      };
+      const exporting = runExport({
+        plan: { ...PLAN, durationFrames: 3, range: { first: 1, last: 1 } },
+        host: motionHost,
+        motionBlur: { shutterAngle: 180, samples: 4 },
+        // 1: antes do frame; 2: antes da amostra; 3: dentro de waitForQuiet.
+        shouldAbort: () => (abortChecks += 1) >= 3,
+      });
+      await vi.runAllTimersAsync();
+      const report = await exporting;
+
+      expect(report.aborted).toBe(true);
+      expect(report.written).toBe(0);
+      expect(report.motionBlur.processedSamples).toBe(0);
+      expect(composes).toBe(0);
+      expect(seeks.at(-1)).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("um host que arredonda subframes falha o settle e fica visível no trace", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    try {
+      let current = -1;
+      const roundedHost: ExportHost = {
+        seek: (frame) => {
+          current = Math.round(frame);
+        },
+        observe: () => ({ frame: current, renders: 1 }),
+        mapBusy: () => false,
+        assetsBusy: () => false,
+        surfacesBusy: () => false,
+        compose: () => ({ width: 1, height: 1, rgba: Uint8Array.from([0, 0, 0, 255]) }),
+        writeFrame: () => Promise.resolve({ ok: true, sha256: "rounded" }),
+      };
+      const exporting = runExport({
+        plan: { ...PLAN, durationFrames: 3, range: { first: 1, last: 1 } },
+        host: roundedHost,
+        motionBlur: { shutterAngle: 180, samples: 4 },
+      });
+      await vi.runAllTimersAsync();
+      const report = await exporting;
+
+      expect(report.settleFailed).toBe(4);
+      expect(report.settleFailedOutputFrames).toBe(1);
+      expect(report.settleFailedFrames).toEqual([1]);
+      expect(report.settleFailures).toEqual(
+        [0.8125, 0.9375, 1.0625, 1.1875].map((sampleFrame, sampleIndex) => ({
+          outputIndex: 0,
+          outputFrame: 1,
+          sampleIndex,
+          sampleFrame,
+        })),
+      );
+      expect(report.motionBlur.processedSamples).toBe(4);
+      expect(report.motionBlur.settledSamples).toBe(0);
+      expect(report.motionBlur.sampleTrace.every((sample) => !sample.quiet)).toBe(true);
+      expect(
+        report.motionBlur.sampleTrace.some((sample) => Number.isInteger(sample.observedFrame)),
+      ).toBe(true);
+      expect(
+        report.motionBlur.sampleTrace.every(
+          (sample) => sample.requestedFrame !== sample.observedFrame,
+        ),
+      ).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("selectExportSurfaces", () => {
@@ -241,6 +611,17 @@ describe("selectExportSurfaces", () => {
       { width: 10, height: 10, z: 2 },
     ]);
     expect(ordem.map((s) => s.z)).toEqual([0, 1, 2]);
+  });
+
+  it("no modo temporal recusa a pilha inteira quando falta uma superfície", () => {
+    const background = { width: 1920, height: 1080, nome: "fundo" };
+    const overlay = { width: 1920, height: 1080, nome: "overlay" };
+    expect(selectCompleteExportSurfaces([background, overlay])).toEqual([background, overlay]);
+    expect(selectCompleteExportSurfaces([background, null])).toEqual([]);
+    expect(selectCompleteExportSurfaces([undefined, overlay])).toEqual([]);
+    expect(
+      selectCompleteExportSurfaces([background, { width: 300, height: 150, nome: "não montado" }]),
+    ).toEqual([]);
   });
 
   it("cada modo tem fundo e overlay do PROPRIO painel", () => {

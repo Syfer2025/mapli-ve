@@ -12,9 +12,12 @@
 import {
   counterDigits,
   planExportResolution,
+  planMotionBlur,
   sanitizeBasename,
   type ExportResolution,
   type FfmpegExportFormat,
+  type MotionBlurSpec,
+  type PlannedMotionBlur,
 } from "@theatrum/export";
 import type { Composition } from "@theatrum/schema";
 import type { Map as MapLibreMap } from "maplibre-gl";
@@ -59,6 +62,8 @@ export interface OverlayProbe {
   readonly pendingAssets: number;
 }
 
+export type ExportPhase = "rendering" | "finalizing";
+
 export interface StartExportOptions {
   /**
    * O mapa, quando existe.
@@ -77,6 +82,8 @@ export interface StartExportOptions {
   readonly map?: MapLibreMap;
   readonly probe: () => OverlayProbe;
   readonly onProgress?: (progress: ExportProgress) => void;
+  /** Mudança de fase para a fila não confundir render concluído com arquivo pronto. */
+  readonly onPhase?: (phase: ExportPhase) => void;
   readonly shouldAbort?: () => boolean;
   /** Trecho a exportar. Sem ele, a composição inteira. */
   readonly range?: { readonly first: number; readonly last: number };
@@ -91,7 +98,30 @@ export interface StartExportOptions {
    * autorada, que é o que `compToScreen` vira na identidade.
    */
   readonly scale?: number;
+  /**
+   * Fator inteiro renderizado por eixo antes do box determinístico (ADR-024).
+   * Ausente, 1 — o caminho anterior sem redutor.
+   */
+  readonly supersampling?: number;
+  /**
+   * Sampling temporal só no arquivo (ADR-025). Ausente mantém uma amostra e o
+   * caminho byte-idêntico anterior.
+   */
+  readonly motionBlur?: MotionBlurSpec;
 }
+
+/**
+ * Superfície de verificação embutida no renderer.
+ *
+ * Ela prova somente os dois caminhos que rodam sem sidecar: PNG e MP4. GIF,
+ * ProRes e PNG-alpha atravessam a fila de produto, não esta API de bancada.
+ */
+export type DebugExportOptions = Pick<
+  StartExportOptions,
+  "range" | "outputFps" | "directory" | "scale" | "supersampling" | "motionBlur"
+> & {
+  readonly format?: "png" | "mp4";
+};
 
 export interface StartExportResult {
   readonly ok: boolean;
@@ -103,6 +133,24 @@ export interface StartExportResult {
   readonly videoBytes?: number;
   /** Hash do arquivo único produzido por FFmpeg. */
   readonly fileSha256?: string;
+  /** Plano efetivamente usado, inclusive render ampliado e saída final. */
+  readonly resolution?: ExportResolution;
+  /** Frames que realmente atravessaram o box determinístico em CPU. */
+  readonly boxReducedFrames?: number;
+}
+
+/** Despacho único da bancada; formato fora do contrato falha em vez de virar PNG. */
+export function startDebugExport(
+  options: StartExportOptions & Pick<DebugExportOptions, "format">,
+): Promise<StartExportResult> {
+  const { format, ...job } = options;
+  if (format === undefined || format === "png") return startPngSequenceExport(job);
+  if (format === "mp4") return startVideoExport(job);
+  return Promise.resolve({
+    ok: false,
+    directory: "",
+    message: `formato indisponível na bancada: ${String(format)}`,
+  });
 }
 
 /**
@@ -156,6 +204,10 @@ type PlannedResolution =
   | { readonly ok: true; readonly resolution: ExportResolution }
   | { readonly ok: false; readonly message: string };
 
+type PlannedMotion =
+  | { readonly ok: true; readonly motionBlur: PlannedMotionBlur }
+  | { readonly ok: false; readonly message: string };
+
 /**
  * O tamanho do frame, antes de qualquer diálogo de pasta.
  *
@@ -164,7 +216,11 @@ type PlannedResolution =
  * pasta seria pedir trabalho para jogar fora. A mensagem dele já nomeia o teto e
  * de onde ele vem, então basta repassá-la.
  */
-function planResolutionFor(composition: Composition, scale: number | undefined): PlannedResolution {
+function planResolutionFor(
+  composition: Composition,
+  scale: number | undefined,
+  supersampling: number | undefined,
+): PlannedResolution {
   try {
     return {
       ok: true,
@@ -172,8 +228,18 @@ function planResolutionFor(composition: Composition, scale: number | undefined):
         compositionWidth: composition.width,
         compositionHeight: composition.height,
         ...(scale === undefined ? {} : { scale }),
+        ...(supersampling === undefined ? {} : { supersampling }),
       }),
     };
+  } catch (error: unknown) {
+    return { ok: false, message: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/** Validação temporal antes de pause, diálogo de pasta ou criação de arquivo. */
+function planMotionFor(spec: MotionBlurSpec | undefined): PlannedMotion {
+  try {
+    return { ok: true, motionBlur: planMotionBlur(spec) };
   } catch (error: unknown) {
     return { ok: false, message: error instanceof Error ? error.message : String(error) };
   }
@@ -191,7 +257,7 @@ function surfaceOverrideFor(resolution: ExportResolution): {
   return {
     width: resolution.layout[0],
     height: resolution.layout[1],
-    pixelRatio: resolution.pixelRatio,
+    pixelRatio: resolution.renderPixelRatio,
   };
 }
 
@@ -218,9 +284,13 @@ async function renderPngFrames(
     };
   }
 
-  const planned = planResolutionFor(composition, options.scale);
+  const planned = planResolutionFor(composition, options.scale, options.supersampling);
   if (!planned.ok) {
     return { result: { ok: false, directory: "", message: planned.message } };
+  }
+  const temporal = planMotionFor(options.motionBlur);
+  if (!temporal.ok) {
+    return { result: { ok: false, directory: "", message: temporal.message } };
   }
 
   editorActions.pause();
@@ -240,9 +310,16 @@ async function renderPngFrames(
   const composer = new FrameComposer({
     includeMap: !config.alpha,
     size: { width: planned.resolution.output[0], height: planned.resolution.output[1] },
+    renderSize: { width: planned.resolution.render[0], height: planned.resolution.render[1] },
+    supersampling: planned.resolution.supersampling,
+    lockMode: temporal.motionBlur.enabled,
   });
   const host: ExportHost = {
-    seek: (frame) => editorActions.setPlayhead(frame),
+    // O caminho desligado continua chamando o setter inteiro anterior. Só um job
+    // realmente temporal recebe a exceção fracionária reservada ao export.
+    seek: temporal.motionBlur.enabled
+      ? (frame) => editorActions.setExportPlayhead(frame)
+      : (frame) => editorActions.setPlayhead(frame),
     observe: options.probe,
     // `isMoving` cobre animação de câmera; `areTilesLoaded` cobre o que ainda
     // está vindo do disco. Capturar com tile pendente grava o mapa pela
@@ -271,6 +348,14 @@ async function renderPngFrames(
       };
     },
   };
+  const shouldAbort = (): boolean => {
+    const current = getEditorSessionSnapshot();
+    return (
+      options.shouldAbort?.() === true ||
+      current.selectedCompositionId !== composition.id ||
+      current.document !== state.document
+    );
+  };
 
   try {
     // As superfícies vão ao tamanho da composição pela duração do export e voltam
@@ -289,13 +374,23 @@ async function renderPngFrames(
             basename: composition.name,
           },
           host,
+          motionBlur: temporal.motionBlur,
           ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
-          ...(options.shouldAbort === undefined ? {} : { shouldAbort: options.shouldAbort }),
+          // O plano e o nome pertencem ao snapshot acima. Editar ou trocar a
+          // composição no meio interrompe, em vez de misturar dois documentos.
+          shouldAbort,
         });
       },
+      { shouldAbort },
     );
     return {
-      result: { ok: report.errors.length === 0, directory: begin.directory, report },
+      result: {
+        ok: report.errors.length === 0 && report.settleFailed === 0 && !report.aborted,
+        directory: begin.directory,
+        report,
+        resolution: planned.resolution,
+        boxReducedFrames: composer.boxReducedFrames,
+      },
       framesDirectory,
       framePrefix: sanitizeBasename(composition.name),
       digits: counterDigits(report.plan.frames.length),
@@ -308,9 +403,15 @@ async function renderPngFrames(
         ok: false,
         directory: begin.directory,
         message: error instanceof Error ? error.message : String(error),
+        resolution: planned.resolution,
+        boxReducedFrames: composer.boxReducedFrames,
       },
     };
   } finally {
+    if (temporal.motionBlur.enabled) {
+      // Exceção ou cancelamento nunca deixa uma fração vazando para autoria.
+      editorActions.setPlayhead(Math.round(getEditorSessionSnapshot().playheadFrame));
+    }
     composer.dispose();
   }
 }
@@ -339,6 +440,7 @@ async function startFfmpegSequenceExport(
   const outputFilename = `${sanitizeBasename(rendered.compositionName)}.${
     format === "gif" ? "gif" : "mov"
   }`;
+  options.onPhase?.("finalizing");
   const encoded = await bridge.export.encode({
     directory: result.directory,
     framesDirectory: rendered.framesDirectory,
@@ -387,8 +489,10 @@ export async function startVideoExport(options: StartExportOptions): Promise<Sta
     return { ok: false, directory: "", message: "nenhuma composição selecionada" };
   }
 
-  const planned = planResolutionFor(composition, options.scale);
+  const planned = planResolutionFor(composition, options.scale, options.supersampling);
   if (!planned.ok) return { ok: false, directory: "", message: planned.message };
+  const temporal = planMotionFor(options.motionBlur);
+  if (!temporal.ok) return { ok: false, directory: "", message: temporal.message };
 
   editorActions.pause();
 
@@ -406,6 +510,9 @@ export async function startVideoExport(options: StartExportOptions): Promise<Sta
   // encoder, que passa a ser a última guarda em vez da única defesa (ADR-022).
   const composer = new FrameComposer({
     size: { width: planned.resolution.output[0], height: planned.resolution.output[1] },
+    renderSize: { width: planned.resolution.render[0], height: planned.resolution.render[1] },
+    supersampling: planned.resolution.supersampling,
+    lockMode: temporal.motionBlur.enabled,
   });
   // O primeiro frame define a resolução do arquivo, e ela não pode mudar no meio:
   // um MP4 declara largura e altura no cabeçalho, uma vez.
@@ -430,7 +537,9 @@ export async function startVideoExport(options: StartExportOptions): Promise<Sta
 
   let encoded = 0;
   const host: ExportHost = {
-    seek: (frame) => editorActions.setPlayhead(frame),
+    seek: temporal.motionBlur.enabled
+      ? (frame) => editorActions.setExportPlayhead(frame)
+      : (frame) => editorActions.setPlayhead(frame),
     observe: options.probe,
     // Mesma trinca do caminho PNG acima: câmera, tiles e GLB pendente.
     mapBusy: () =>
@@ -460,6 +569,14 @@ export async function startVideoExport(options: StartExportOptions): Promise<Sta
       return { ok: true, sha256: "" };
     },
   };
+  const shouldAbort = (): boolean => {
+    const current = getEditorSessionSnapshot();
+    return (
+      options.shouldAbort?.() === true ||
+      current.selectedCompositionId !== composition.id ||
+      current.document !== state.document
+    );
+  };
 
   try {
     const report = await runWithSurfaceOverride(
@@ -475,30 +592,51 @@ export async function startVideoExport(options: StartExportOptions): Promise<Sta
             basename: composition.name,
           },
           host,
+          motionBlur: temporal.motionBlur,
           ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
-          ...(options.shouldAbort === undefined ? {} : { shouldAbort: options.shouldAbort }),
+          shouldAbort,
         });
       },
+      { shouldAbort },
     );
 
     if (encoder.current === null) {
-      return { ok: false, directory: begin.directory, report, message: "nenhum frame codificado" };
+      return {
+        ok: false,
+        directory: begin.directory,
+        report,
+        message: "nenhum frame codificado",
+        resolution: planned.resolution,
+        boxReducedFrames: composer.boxReducedFrames,
+      };
     }
+    options.onPhase?.("finalizing");
     const done = await encoder.current.finish();
     return {
-      ok: report.errors.length === 0 && done.frames > 0,
+      ok:
+        report.errors.length === 0 &&
+        report.settleFailed === 0 &&
+        !report.aborted &&
+        done.frames > 0,
       directory: begin.directory,
       report,
       videoFile: filename,
       videoBytes: done.bytes,
+      resolution: planned.resolution,
+      boxReducedFrames: composer.boxReducedFrames,
     };
   } catch (error: unknown) {
     return {
       ok: false,
       directory: begin.directory,
       message: error instanceof Error ? error.message : String(error),
+      resolution: planned.resolution,
+      boxReducedFrames: composer.boxReducedFrames,
     };
   } finally {
+    if (temporal.motionBlur.enabled) {
+      editorActions.setPlayhead(Math.round(getEditorSessionSnapshot().playheadFrame));
+    }
     encoder.current?.close();
     composer.dispose();
   }

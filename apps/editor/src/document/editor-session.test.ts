@@ -43,6 +43,21 @@ afterAll(() => {
 });
 
 describe("compatibilidade de propriedades opcionais na sessão", () => {
+  it("reserva frame fracionário ao seek de export e mantém o scrub inteiro", async () => {
+    vi.resetModules();
+    const session = await import("./editor-session.js");
+    const duration = session.getEditorSessionSnapshot().document.compositions[0]?.duration ?? 1;
+
+    session.editorActions.setPlayhead(12.25);
+    expect(session.getEditorSessionSnapshot().playheadFrame).toBe(12);
+
+    session.editorActions.setExportPlayhead(12.25);
+    expect(session.getEditorSessionSnapshot().playheadFrame).toBe(12.25);
+
+    session.editorActions.setExportPlayhead(duration + 0.75);
+    expect(session.getEditorSessionSnapshot().playheadFrame).toBe(duration - 1);
+  });
+
   it("materializa o fallback do schema ao editar ou criar o primeiro keyframe", async () => {
     vi.resetModules();
     const session = await import("./editor-session.js");

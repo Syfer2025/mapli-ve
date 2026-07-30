@@ -143,11 +143,14 @@ function pending(override: SurfaceOverride | null): readonly string[] {
 async function waitForConformance(
   override: SurfaceOverride | null,
   timeoutMs: number,
+  shouldAbort?: () => boolean,
 ): Promise<void> {
+  if (shouldAbort?.() === true) return;
   if (pending(override).length === 0) return;
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     await new Promise((resolve) => setTimeout(resolve, 16));
+    if (shouldAbort?.() === true) return;
     const faltando = pending(override);
     if (faltando.length === 0) return;
     if (Date.now() >= deadline) {
@@ -175,7 +178,7 @@ export const SURFACE_OVERRIDE_TIMEOUT_MS = 10_000;
 export async function runWithSurfaceOverride<T>(
   override: SurfaceOverride,
   body: () => Promise<T>,
-  options: { readonly timeoutMs?: number } = {},
+  options: { readonly timeoutMs?: number; readonly shouldAbort?: () => boolean } = {},
 ): Promise<T> {
   const timeoutMs = options.timeoutMs ?? SURFACE_OVERRIDE_TIMEOUT_MS;
   if (state.override !== null) {
@@ -183,7 +186,7 @@ export async function runWithSurfaceOverride<T>(
   }
   emit({ override, generation: state.generation + 1 });
   try {
-    await waitForConformance(override, timeoutMs);
+    await waitForConformance(override, timeoutMs, options.shouldAbort);
     return await body();
   } finally {
     emit({ override: null, generation: state.generation + 1 });

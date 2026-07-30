@@ -8,6 +8,7 @@ import {
   type SettleResult,
 } from "@theatrum/camera";
 import { frame } from "@theatrum/core-time";
+import { DEFAULT_MAX_DIMENSION } from "@theatrum/export";
 import {
   BUILTIN_GAZETTEER_PLACES,
   OfflineGazetteer,
@@ -52,6 +53,10 @@ import { loadNaturalEarthGazetteer } from "./natural-earth-gazetteer.js";
 import { SceneOverlay } from "./SceneOverlay.js";
 import { applyOverrideToElement, useExportSurface } from "../../export/useExportSurface.js";
 import { effectivePixelRatio, surfaceMatches } from "../../export/surface-override.js";
+import {
+  previewPixelRatioForSize,
+  usePreviewSupersampling,
+} from "../../export/preview-supersampling.js";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./MapViewport.css";
 
@@ -197,6 +202,7 @@ export function MapViewport(): ReactNode {
   const [query, setQuery] = useState("");
   const [resolution, setResolution] = useState<GazetteerResolution | null>(null);
   const gazetteerRef = useRef(new OfflineGazetteer(BUILTIN_GAZETTEER_PLACES));
+  const previewSupersampling = usePreviewSupersampling();
 
   /**
    * Durante um export o mapa vai ao tamanho da composição ([ADR-022](../../../../../docs/adr/ADR-022-export-resolution-from-composition.md)).
@@ -209,19 +215,43 @@ export function MapViewport(): ReactNode {
    * Na volta, `devicePixelRatio`, e não o valor que estava antes: o mapa nasce
    * assim, e guardar o anterior seria uma segunda verdade sobre o mesmo número.
    */
-  useExportSurface(
+  const exportOverride = useExportSurface(
     "map",
     (override) => {
       applyOverrideToElement(containerRef.current, override);
       const map = mapRef.current;
       if (map === null) return;
-      map.setPixelRatio(effectivePixelRatio(override, window.devicePixelRatio));
+      const container = containerRef.current;
+      const previewPixelRatio = previewPixelRatioForSize(
+        window.devicePixelRatio,
+        previewSupersampling,
+        container?.clientWidth ?? 0,
+        container?.clientHeight ?? 0,
+      );
+      map.setPixelRatio(effectivePixelRatio(override, previewPixelRatio));
       map.resize();
     },
     // O canvas de verdade, não o container: é ele que o compositor lê, e é ele que
     // o `maxCanvasSize` do MapLibre encolhe em silêncio acima de 4096 px.
     (override) => surfaceMatches(override, mapRef.current?.getCanvas() ?? null),
   );
+
+  /** Preferência local: o job vence enquanto houver override; fora dele, repinta. */
+  useEffect(() => {
+    if (exportOverride !== null) return;
+    const map = mapRef.current;
+    if (map === null) return;
+    const container = containerRef.current;
+    map.setPixelRatio(
+      previewPixelRatioForSize(
+        window.devicePixelRatio,
+        previewSupersampling,
+        container?.clientWidth ?? 0,
+        container?.clientHeight ?? 0,
+      ),
+    );
+    map.resize();
+  }, [exportOverride, mapInstance, previewSupersampling]);
 
   const stopAnimation = useCallback(() => {
     if (animationRef.current !== null) {
@@ -308,6 +338,9 @@ export function MapViewport(): ReactNode {
       minZoom: 0,
       maxZoom: 18,
       maxPitch: 70,
+      // O plano de export usa este mesmo número. Fixá-lo aqui impede uma
+      // atualização do MapLibre de mudar o teto físico sem mudar a recusa do job.
+      maxCanvasSize: [DEFAULT_MAX_DIMENSION, DEFAULT_MAX_DIMENSION],
       attributionControl: false,
       fadeDuration: 0,
       /**

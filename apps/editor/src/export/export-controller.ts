@@ -13,22 +13,29 @@
  */
 
 import type { Map as MapLibreMap } from "maplibre-gl";
+import type { MotionBlurSpec } from "@theatrum/export";
 import {
   startAlphaPngSequenceExport,
   startGifExport,
   startPngSequenceExport,
   startProRes4444Export,
   startVideoExport,
+  type ExportPhase,
   type OverlayProbe,
 } from "./export-service.js";
-import type { ExportReport } from "./run-export.js";
+import type { ExportProgress, ExportReport } from "./run-export.js";
 
 export type ExportFormat = "png" | "png-alpha" | "mp4" | "gif" | "prores4444";
 
 export interface ExportJobState {
   readonly status: "idle" | "running" | "done" | "failed" | "aborted";
+  readonly phase: ExportPhase | "idle";
   readonly done: number;
   readonly total: number;
+  readonly currentSample: number;
+  readonly samplesPerFrame: number;
+  readonly samplesDone: number;
+  readonly totalSamples: number;
   /** Última medida de settle, em ms. Útil para ver o mapa engasgando. */
   readonly settleMs: number;
   /** Milissegundos por frame, média móvel; base da estimativa de conclusão. */
@@ -46,8 +53,13 @@ export interface ExportJobState {
 
 const IDLE: ExportJobState = Object.freeze({
   status: "idle",
+  phase: "idle",
   done: 0,
   total: 0,
+  currentSample: 0,
+  samplesPerFrame: 1,
+  samplesDone: 0,
+  totalSamples: 0,
   settleMs: 0,
   msPerFrame: 0,
   directory: "",
@@ -60,12 +72,16 @@ const IDLE: ExportJobState = Object.freeze({
 });
 
 interface ViewportBinding {
-  readonly map: MapLibreMap;
+  readonly map?: MapLibreMap;
   readonly probe: () => OverlayProbe;
 }
 
+interface BoundViewport extends ViewportBinding {
+  readonly token: symbol;
+}
+
 let state: ExportJobState = IDLE;
-let binding: ViewportBinding | null = null;
+let binding: BoundViewport | null = null;
 let abortRequested = false;
 const listeners = new Set<() => void>();
 
@@ -83,9 +99,21 @@ export function getExportJobSnapshot(): ExportJobState {
   return state;
 }
 
-/** O viewport se anuncia quando o mapa existe, e se retira ao desmontar. */
-export function bindExportViewport(next: ViewportBinding | null): void {
-  binding = next;
+/**
+ * A superfície ativa se anuncia e recebe um lease para a própria desmontagem.
+ *
+ * O token evita que o cleanup atrasado do mapa apague o binding que o palco
+ * acabou de publicar durante uma troca de aba do dockview.
+ */
+export function bindExportViewport(next: ViewportBinding): () => void {
+  const current: BoundViewport = { ...next, token: Symbol("export-viewport") };
+  binding = current;
+  emit({});
+  return () => {
+    if (binding?.token !== current.token) return;
+    binding = null;
+    emit({});
+  };
 }
 
 export function isExportReady(): boolean {
@@ -109,6 +137,9 @@ export interface StartJobOptions {
    * quem conduz as superfícies. Ausente, 1.
    */
   readonly scale?: number;
+  /** Fator box por eixo do arquivo. Ausente, 1 (ADR-024). */
+  readonly supersampling?: number;
+  readonly motionBlur?: MotionBlurSpec;
 }
 
 /**
@@ -128,9 +159,7 @@ export async function startExportJob(options: StartJobOptions = {}): Promise<voi
 
   const format = options.format ?? "png";
   abortRequested = false;
-  emit({ ...IDLE, status: "running", format });
-  const startedAt = performance.now();
-
+  emit({ ...IDLE, status: "running", phase: "rendering", format });
   const executar =
     format === "mp4"
       ? startVideoExport
@@ -142,24 +171,32 @@ export async function startExportJob(options: StartJobOptions = {}): Promise<voi
             ? startAlphaPngSequenceExport
             : startPngSequenceExport;
   const result = await executar({
-    map: current.map,
     probe: current.probe,
+    ...(current.map === undefined ? {} : { map: current.map }),
     ...options,
     onProgress: (progress) => {
-      const elapsed = performance.now() - startedAt;
+      const msPerFrame = nextAverageMsPerFrame(state, progress);
       emit({
         done: progress.done,
         total: progress.total,
+        currentSample: progress.currentSample,
+        samplesPerFrame: progress.samplesPerFrame,
+        samplesDone: progress.samplesDone,
+        totalSamples: progress.totalSamples,
         settleMs: progress.settleMs,
-        msPerFrame: progress.done === 0 ? 0 : elapsed / progress.done,
+        msPerFrame,
       });
     },
-    shouldAbort: () => abortRequested,
+    onPhase: (phase) => emit({ phase }),
+    // Trocar de aba desmonta a fonte capturada. Continuar usaria uma sonda
+    // congelada por até N×4 s e poderia compor uma pilha diferente.
+    shouldAbort: () => abortRequested || binding?.token !== current.token,
   });
 
   const report = result.report ?? null;
   emit({
     status: report?.aborted === true ? "aborted" : result.ok ? "done" : "failed",
+    phase: "idle",
     directory: result.directory,
     report,
     videoFile: result.videoFile ?? null,
@@ -172,6 +209,19 @@ export async function startExportJob(options: StartJobOptions = {}): Promise<voi
 }
 
 /**
+ * Heartbeats de subamostra não concluem um frame e, portanto, não podem
+ * recalcular uma média por frame com tempo parcial no numerador.
+ */
+export function nextAverageMsPerFrame(
+  previous: Pick<ExportJobState, "done" | "msPerFrame">,
+  progress: Pick<ExportProgress, "done" | "elapsedMs">,
+): number {
+  return progress.done > previous.done && progress.done > 0
+    ? progress.elapsedMs / progress.done
+    : previous.msPerFrame;
+}
+
+/**
  * Segundos restantes estimados, ou `null` quando ainda não há base.
  *
  * A média é sobre o job inteiro, não sobre os últimos frames: o custo por frame
@@ -179,6 +229,14 @@ export async function startExportJob(options: StartJobOptions = {}): Promise<voi
  * curta faria a estimativa pular de trinta segundos para cinco minutos e voltar.
  */
 export function estimatedSecondsLeft(job: ExportJobState): number | null {
-  if (job.status !== "running" || job.msPerFrame <= 0 || job.total === 0) return null;
+  if (
+    job.status !== "running" ||
+    job.phase !== "rendering" ||
+    job.msPerFrame <= 0 ||
+    job.total === 0 ||
+    job.done < 2
+  ) {
+    return null;
+  }
   return ((job.total - job.done) * job.msPerFrame) / 1000;
 }

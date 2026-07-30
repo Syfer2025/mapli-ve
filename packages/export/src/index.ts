@@ -23,9 +23,29 @@ export {
   ExportResolutionError,
   DEFAULT_MAX_DIMENSION,
   EXPORT_SCALES,
+  EXPORT_SUPERSAMPLING_FACTORS,
   describeExportResolution,
   planExportResolution,
 } from "./resolution.js";
+
+export { type BoxDownsampleInput, SupersamplingError, downsampleRgbaBox } from "./supersampling.js";
+
+export {
+  type MotionBlurSpec,
+  type PlannedMotionBlur,
+  type RgbaFrame,
+  MotionBlurAccumulator,
+  MotionBlurError,
+  MOTION_BLUR_SAMPLE_COUNTS,
+  MOTION_BLUR_SHUTTER_ANGLES,
+  DEFAULT_SHUTTER_ANGLE,
+  DEFAULT_MOTION_BLUR_SAMPLES,
+  MAX_MOTION_BLUR_SAMPLES,
+  MOTION_BLUR_SETTLE_REFERENCE_MS,
+  estimateMotionBlurSettleMs,
+  motionBlurSampleFrames,
+  planMotionBlur,
+} from "./motion-blur.js";
 
 export {
   type FfmpegExportFormat,

@@ -73,6 +73,29 @@ uniform float uStrength;
 
 const int DIRECTIONS = 12;
 const int RINGS = 3;
+/**
+ * Direções literais, não sin/cos no fragmento.
+ *
+ * Medido no Electron real: com as funções transcendentais avaliadas pelo driver,
+ * duas pinturas do mesmo glow alternavam o verde em 2 níveis no canvas Pixi
+ * (1 nível depois da composição), sempre nos primeiros frames após resize.
+ * Fixar os doze vetores remove essa aproximação do caminho por pixel sem mudar
+ * a geometria do kernel.
+ */
+const vec2 DIRECTION_VECTORS[DIRECTIONS] = vec2[DIRECTIONS](
+  vec2(1.0, 0.0),
+  vec2(0.8660254037844386, 0.5),
+  vec2(0.5, 0.8660254037844386),
+  vec2(0.0, 1.0),
+  vec2(-0.5, 0.8660254037844386),
+  vec2(-0.8660254037844386, 0.5),
+  vec2(-1.0, 0.0),
+  vec2(-0.8660254037844386, -0.5),
+  vec2(-0.5, -0.8660254037844386),
+  vec2(0.0, -1.0),
+  vec2(0.5, -0.8660254037844386),
+  vec2(0.8660254037844386, -0.5)
+);
 
 void main() {
   vec4 source = texture(uTexture, vTextureCoord);
@@ -84,8 +107,7 @@ void main() {
     // Anel externo pesa menos: dá queda suave sem precisar de gaussiana.
     float weight = 1.0 - 0.75 * step;
     for (int direction = 0; direction < DIRECTIONS; direction += 1) {
-      float angle = TAU * float(direction) / float(DIRECTIONS);
-      vec2 offset = vec2(cos(angle), sin(angle)) * radius * uInputSize.zw;
+      vec2 offset = DIRECTION_VECTORS[direction] * radius * uInputSize.zw;
       halo += texture(uTexture, vTextureCoord + offset).a * weight;
       total += weight;
     }

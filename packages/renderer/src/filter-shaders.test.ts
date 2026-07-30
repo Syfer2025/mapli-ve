@@ -67,6 +67,11 @@ describe("shaders de filtro", () => {
     }
   });
 
+  it("glow usa direções literais, sem trigonometria dependente do driver", () => {
+    expect(GLOW_FRAGMENT_SHADER).toContain("const vec2 DIRECTION_VECTORS[DIRECTIONS]");
+    expect(GLOW_FRAGMENT_SHADER).not.toMatch(/\b(?:cos|sin)\s*\(/);
+  });
+
   it("hexadecimal vira componentes em 0–1, tolerando alfa e ausência de #", () => {
     expect(hexToRgbTriple("#ffffff")).toEqual([1, 1, 1]);
     expect(hexToRgbTriple("#000000ff")).toEqual([0, 0, 0]);

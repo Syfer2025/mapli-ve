@@ -125,6 +125,25 @@ describe("runWithSurfaceOverride", () => {
     }
   });
 
+  it("cancelamento solta a espera inicial para o corpo produzir o relatório", async () => {
+    const unregister = registerExportSurface("palco", () => false);
+    let checks = 0;
+    try {
+      const result = await runWithSurfaceOverride(ALVO, () => Promise.resolve("abortado"), {
+        timeoutMs: 1_000,
+        shouldAbort: () => {
+          checks += 1;
+          return checks >= 2;
+        },
+      });
+      expect(result).toBe("abortado");
+      expect(checks).toBeGreaterThanOrEqual(2);
+      expect(getSurfaceOverrideSnapshot().override).toBeNull();
+    } finally {
+      unregister();
+    }
+  });
+
   it("superfície que estoura ao se medir não mata o export", async () => {
     // Ref nula durante troca de aba não pode derrubar um export em curso.
     const explode = registerExportSurface("quebrada", () => {

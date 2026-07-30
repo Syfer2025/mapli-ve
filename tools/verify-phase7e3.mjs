@@ -484,14 +484,27 @@ async function main() {
   await client.connect();
   await activateStudioTab(client);
 
-  const baseline = await client.evaluate(
+  const baselineState = await client.evaluate(
     `(async () => {
-      session().actions.pause();
-      session().actions.clearSelection();
+      const S = session();
+      S.actions.pause();
+      S.actions.clearSelection();
       await wait(120);
-      return JSON.stringify(canonical(session().getSnapshot().document));
+      return {
+        document: JSON.stringify(canonical(S.getSnapshot().document)),
+        historyEntries: S.commandBus.history.entries().length,
+        historyCursor: S.commandBus.history.cursor(),
+      };
     })()`,
   );
+  if (baselineState.historyEntries !== 0 || baselineState.historyCursor !== -1) {
+    client.close();
+    throw new Error(
+      "verify:phase7e3 recusou uma sessão com histórico: salve/recarregue o projeto antes " +
+        "de rodar a prova; nenhum comando do documento foi executado.",
+    );
+  }
+  const baseline = baselineState.document;
 
   // Preenchidos pelos critérios. Sem inicializador: um critério que falhe cedo
   // deixa o id indefinido, e os seguintes se pulam sozinhos em vez de tentar
@@ -2607,10 +2620,14 @@ async function main() {
         session().actions.setPlayhead(0);
         session().actions.clearSelection();
         await wait(300);
+        const document = JSON.stringify(canonical(session().getSnapshot().document));
+        // A entrada foi aceita somente com histórico vazio; tudo aqui pertence
+        // à fixture e pode ser removido depois de capturar o documento restaurado.
+        bus.history.clear();
         return {
           undone,
           limiteAtingido,
-          document: JSON.stringify(canonical(session().getSnapshot().document)),
+          document,
           palcoDesligado: palcoDesligado(),
           studioActive: studio().active,
           cameraAuthoring: window.__theatrumStudio.camera()?.authoring ?? false,

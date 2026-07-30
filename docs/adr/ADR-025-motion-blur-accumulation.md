@@ -1,6 +1,6 @@
 # ADR-025 — Motion blur por acumulação de subframes no compositor
 
-**Status:** proposto · **Data:** 2026-07-29 · **Revisar em:** quando o custo por
+**Status:** aceito · **Data:** 2026-07-29 · **Revisar em:** quando o custo por
 frame passar do orçamento de 250 ms em 4K, ou quando o mapa precisar borrar junto
 
 ## Contexto
@@ -91,8 +91,8 @@ intermediária é PNG.
 
 ## Decisão
 
-**Proposta: alternativa A — acumulação no compositor — com três limites escritos
-desde já.**
+**Alternativa A — acumulação no compositor — com três limites escritos desde
+já.**
 
 1. **Só em export.** Nunca no preview, como o roteiro já manda. O preview mostra o
    frame instantâneo, e a barra de estado diz que há blur no arquivo.
@@ -106,8 +106,53 @@ desde já.**
 
 Os parâmetros são do **job**, como a escala e o `outputFps`: `shutterAngle` em
 graus (180° é o padrão de cinema, meia exposição) e `samples`. O intervalo
-amostrado é `f ± (shutterAngle / 360) / 2`, em unidades de frame, e vai para
-`subframe()` sem arredondar.
+amostrado é `f ± (shutterAngle / 360) / 2`, em unidades de frame. A integração
+usa o ponto médio de N estratos uniformes:
+
+```text
+exposure = shutterAngle / 360
+sample(i) = f - exposure/2 + exposure × (i + 0,5) / N
+```
+
+Cada resultado vai para `subframe()` **sem arredondar**. Ponto médio, e não as
+duas pontas inclusivas, evita dar peso inteiro às extremidades de uma integral
+em que cada amostra representa uma faixa de tempo.
+
+O contrato que fecha os demais graus de liberdade é:
+
+1. **Bordas:** a amostra é limitada a `0 … durationFrames - 1`, os limites da
+   composição — não ao trecho escolhido para exportar. Um trecho pode, portanto,
+   receber luz temporal dos frames vizinhos que existem no documento; só o começo
+   e o fim reais repetem a pose da borda.
+2. **Cor e alfa:** a acumulação acontece nos bytes RGBA8 sRGB que o compositor
+   entrega, em alfa pré-multiplicado. Os três canais guardam `canal × alfa` e o
+   quarto guarda alfa; a resolução desfaz a pré-multiplicação e arredonda half-up.
+   Um pixel totalmente transparente resolve para `[0,0,0,0]`. Isto evita halos de
+   RGB invisível em PNG/ProRes com alfa. Não é integração fotometricamente linear;
+   essa é uma consequência aceita em troca de repetir os mesmos bytes em todas as
+   plataformas.
+3. **Supersampling:** cada subframe percorre primeiro a composição e o box
+   determinístico do ADR-024. A acumulação temporal recebe a resolução **final**.
+   Assim, em UHD 3840×2160, o acumulador continua em 132 MB no tamanho final, em
+   vez de 528 MB com SS 2×, e nenhum kernel do navegador entra entre as duas
+   etapas.
+4. **Desligado por padrão:** ausência de configuração equivale a
+   `samples: 1, shutterAngle: 180`. Os valores admitidos são 0–360° e 1–64
+   amostras inteiras. `samples: 1` ou ângulo 0 contorna inteiramente o acumulador;
+   não é uma média de uma amostra disfarçada.
+5. **Cancelamento:** o pump consulta cancelamento antes de cada subframe. Um frame
+   parcialmente acumulado é descartado e nunca chega ao escritor.
+6. **Estado visível:** depois de acumular, o playhead volta ao frame inteiro
+   planejado. O relatório conta amostras realmente assentadas, frames resolvidos,
+   alocações e bytes do acumulador; isto torna detectável a falsa implementação
+   que pede oito amostras e captura oito vezes o mesmo frame inteiro.
+7. **Modo fixo:** a primeira pilha composta do job — mapa ou palco — fica fixada.
+   Trocar de aba no meio de uma exposição falha aquele frame em vez de misturar
+   superfícies de dois painéis num único arquivo plausível.
+8. **Taxa de saída:** o centro continua sendo o frame inteiro que `planExport`
+   escolheu. Se uma taxa de saída maior repetir esse frame, repete também a mesma
+   exposição. Preservar o instante cru entre dois frames e escalar a janela pela
+   razão de taxas seria outro contrato e não entra nesta implementação.
 
 ## Consequências
 
@@ -116,12 +161,16 @@ amostrado é `f ± (shutterAngle / 360) / 2`, em unidades de frame, e vai para
   de 300 frames sai de 30 s para 4 minutos. Isto tem de aparecer na estimativa do
   painel de fila **antes** de o usuário apertar Exportar, senão o job parece
   travado.
-- **Memória de 132 MB em 4K** para o acumulador, mais o frame composto. Aceitável,
-  e é a razão de ele ser reaproveitado entre frames em vez de alocado por frame.
-- **O mapa não borra**, e isso vai aparecer: um caça borrado sobre um mapa nítido é
-  a assinatura desta decisão. É honesto para o caso de uso — a câmera do mapa é
-  lenta e o objeto é rápido — e vira problema quando alguém animar a câmera do
-  mapa depressa. Aí entra a alternativa C, com ADR próprio.
+- **Memória de 132 MB em UHD 3840×2160** para o `Float32Array`, mais 33 MB do
+  destino RGBA8. O teto atual é por eixo, não por área: uma composição
+  4096×4096 é válida e chega a 256 MiB float + 64 MiB RGBA8 = **320 MiB** só
+  nesses dois buffers. É a razão de ambos serem reaproveitados entre frames e de
+  o relatório expor os bytes realmente alocados.
+- **O mapa não ganha um caminho de blur próprio.** Com câmera estática, as N
+  leituras do fundo são os mesmos pixels e ele fica nítido enquanto o objeto se
+  move. Como a alternativa A lê o composto final, uma troca de estado do MapLibre
+  dentro da janela do obturador também entraria na média; câmera rápida continua
+  fora do caso suportado e é o gatilho para a alternativa C, com ADR próprio.
 - **O verificador precisa de critério**, e ele tem duas metades: duas execuções com
   blur dão arquivos idênticos, **e** um objeto em movimento com blur produz frame
   diferente do mesmo objeto sem blur. A segunda existe porque a primeira passa
@@ -138,5 +187,11 @@ amostrado é `f ± (shutterAngle / 360) / 2`, em unidades de frame, e vai para
    A saída provável é reduzir `samples` por padrão, não afrouxar o `settle`.
 2. Quando alguém animar a câmera do **mapa** depressa e reclamar de nitidez errada:
    aí a alternativa C entra, com medição e ADR próprio.
-3. Se o acumulador em `Float32Array` estourar memória numa resolução maior que 4K,
-   o que só acontece se o teto de `maxCanvasSize` subir (ver ADR-022).
+3. Se os 320 MiB do pior caso 4096×4096 estourarem memória numa máquina
+   suportada. Nesse caso a revisão é adicionar um teto explícito de área ao job,
+   não alocar por faixa nem reduzir silenciosamente (ver ADR-022).
+
+## Nota de implementação
+
+Pendente nesta revisão do ADR. A aceitação acima precede a mudança de código; ao
+ligar o pump, esta seção recebe os arquivos, contadores e resultados medidos.
