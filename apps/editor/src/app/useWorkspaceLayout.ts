@@ -5,9 +5,17 @@ import { WORKSPACE_VERSION, type WorkspaceState } from "@theatrum/shell";
 import { applyDefaultLayout } from "./default-layout.js";
 import { PANEL_DEFINITIONS } from "./panels.js";
 import { bindWorkspaceContentMode } from "./workspace-content-mode.js";
+import {
+  applyWorkspacePresetSafely,
+  isWorkspacePresetSelectionId,
+  type ApplyWorkspacePresetResult,
+  type WorkspacePresetId,
+  type WorkspacePresetSelectionId,
+} from "./workspace-presets.js";
 
 const SAVE_DEBOUNCE_MS = 400;
 const MAX_LAYOUT_WAIT_FRAMES = 120;
+let lastWorkspaceSnapshotMs = 0;
 
 /**
  * Espera o container ter tamanho medido.
@@ -65,19 +73,25 @@ function adoptMissingPanels(api: DockviewApi): void {
   }
 }
 
-function snapshotWorkspace(api: DockviewApi): WorkspaceState {
+function snapshotWorkspace(
+  api: DockviewApi,
+  workspacePresetId: WorkspacePresetSelectionId,
+): WorkspaceState {
   return {
     layout: api.toJSON(),
     version: WORKSPACE_VERSION,
     // Timestamp é metadado de sessão e não entra em nada determinístico.
-    savedAtMs: Date.now(),
+    savedAtMs: nextWorkspaceSnapshotMs(),
+    workspacePresetId,
   };
 }
 
 export interface WorkspaceLayout {
   readonly onReady: (event: DockviewReadyEvent) => void;
   readonly restored: boolean;
-  readonly resetLayout: () => void;
+  readonly workspacePresetId: WorkspacePresetSelectionId;
+  readonly applyPreset: (presetId: WorkspacePresetId) => ApplyWorkspacePresetResult;
+  readonly resetLayout: () => ApplyWorkspacePresetResult;
 }
 
 /**
@@ -90,9 +104,14 @@ export interface WorkspaceLayout {
 export function useWorkspaceLayout(): WorkspaceLayout {
   const apiRef = useRef<DockviewApi | null>(null);
   const contentModeBinding = useRef<{ dispose(): void } | null>(null);
+  const layoutChangeBinding = useRef<{ dispose(): void } | null>(null);
   const saveTimer = useRef<number | null>(null);
   const pendingSave = useRef<WorkspaceState | null>(null);
+  const saveTail = useRef<Promise<void>>(Promise.resolve());
   const [restored, setRestored] = useState(false);
+  const [workspacePresetId, setWorkspacePresetId] = useState<WorkspacePresetSelectionId>("editing");
+  const workspacePresetRef = useRef<WorkspacePresetSelectionId>("editing");
+  const programmaticLayoutChanges = useRef(0);
 
   /**
    * Contador de geração para descartar montagens obsoletas.
@@ -107,6 +126,11 @@ export function useWorkspaceLayout(): WorkspaceLayout {
    */
   const generation = useRef(0);
 
+  const enqueueSave = useCallback((state: WorkspaceState): void => {
+    const operation = (): Promise<void> => bridge.workspace.save(state);
+    saveTail.current = saveTail.current.then(operation, operation);
+  }, []);
+
   const flushPendingSave = useCallback(() => {
     if (saveTimer.current !== null) {
       window.clearTimeout(saveTimer.current);
@@ -115,14 +139,14 @@ export function useWorkspaceLayout(): WorkspaceLayout {
 
     const state = pendingSave.current;
     pendingSave.current = null;
-    if (state !== null) void bridge.workspace.save(state);
-  }, []);
+    if (state !== null) enqueueSave(state);
+  }, [enqueueSave]);
 
   const persist = useCallback(
     (api: DockviewApi) => {
       // Captura o snapshot agora: quando o debounce terminar, a instância pode
       // já ter sido desmontada pelo StrictMode ou pelo fechamento da janela.
-      pendingSave.current = snapshotWorkspace(api);
+      pendingSave.current = snapshotWorkspace(api, workspacePresetRef.current);
 
       if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
       saveTimer.current = window.setTimeout(flushPendingSave, SAVE_DEBOUNCE_MS);
@@ -138,7 +162,9 @@ export function useWorkspaceLayout(): WorkspaceLayout {
     pendingSave.current = null;
 
     const api = apiRef.current;
-    if (api !== null) bridge.workspace.flush(snapshotWorkspace(api));
+    if (api !== null) {
+      bridge.workspace.flush(snapshotWorkspace(api, workspacePresetRef.current));
+    }
   }, []);
 
   const onReady = useCallback(
@@ -148,6 +174,8 @@ export function useWorkspaceLayout(): WorkspaceLayout {
 
       contentModeBinding.current?.dispose();
       contentModeBinding.current = null;
+      layoutChangeBinding.current?.dispose();
+      layoutChangeBinding.current = null;
       apiRef.current = event.api;
 
       void (async () => {
@@ -179,6 +207,14 @@ export function useWorkspaceLayout(): WorkspaceLayout {
 
           if (usedSaved) adoptMissingPanels(event.api);
           else applyDefaultLayout(event.api);
+
+          const initialPreset: WorkspacePresetSelectionId = usedSaved
+            ? isWorkspacePresetSelectionId(saved?.workspacePresetId)
+              ? saved.workspacePresetId
+              : "custom"
+            : "editing";
+          workspacePresetRef.current = initialPreset;
+          setWorkspacePresetId(initialPreset);
         } catch (error: unknown) {
           // Última linha de defesa: nunca deixar a janela sem painel algum.
           if (isStale()) return;
@@ -191,8 +227,12 @@ export function useWorkspaceLayout(): WorkspaceLayout {
 
         // Só assina DEPOIS de restaurar, senão a própria restauração
         // dispararia um save e sobrescreveria o layout com o padrão.
-        event.api.onDidLayoutChange(() => {
+        layoutChangeBinding.current = event.api.onDidLayoutChange(() => {
           if (isStale()) return;
+          if (programmaticLayoutChanges.current === 0) {
+            workspacePresetRef.current = "custom";
+            setWorkspacePresetId("custom");
+          }
           persist(event.api);
         });
       })();
@@ -200,15 +240,38 @@ export function useWorkspaceLayout(): WorkspaceLayout {
     [persist],
   );
 
-  const resetLayout = useCallback(() => {
-    const api = apiRef.current;
-    if (api === null) return;
-    api.clear();
-    applyDefaultLayout(api);
-    contentModeBinding.current?.dispose();
-    contentModeBinding.current = bindWorkspaceContentMode(api);
-    persist(api);
-  }, [persist]);
+  const applyPreset = useCallback(
+    (presetId: WorkspacePresetId): ApplyWorkspacePresetResult => {
+      const api = apiRef.current;
+      if (api === null) {
+        return Object.freeze({
+          ok: false,
+          presetId,
+          recoveredWith: "none" as const,
+          message: "workspace ainda não está pronto",
+        });
+      }
+      programmaticLayoutChanges.current += 1;
+      const result = applyWorkspacePresetSafely(api, presetId);
+      if (result.ok) {
+        workspacePresetRef.current = presetId;
+        setWorkspacePresetId(presetId);
+        contentModeBinding.current?.dispose();
+        contentModeBinding.current = bindWorkspaceContentMode(api);
+        persist(api);
+      }
+      queueMicrotask(() => {
+        programmaticLayoutChanges.current = Math.max(0, programmaticLayoutChanges.current - 1);
+      });
+      return result;
+    },
+    [persist],
+  );
+
+  const resetLayout = useCallback(
+    (): ApplyWorkspacePresetResult => applyPreset("editing"),
+    [applyPreset],
+  );
 
   useEffect(() => {
     // Electron dispara `beforeunload` ao fechar a janela; `pagehide` cobre
@@ -228,9 +291,16 @@ export function useWorkspaceLayout(): WorkspaceLayout {
       window.removeEventListener("pagehide", flushForExit);
       contentModeBinding.current?.dispose();
       contentModeBinding.current = null;
+      layoutChangeBinding.current?.dispose();
+      layoutChangeBinding.current = null;
       flushPendingSave();
     };
   }, [flushCurrentWorkspace, flushPendingSave]);
 
-  return { onReady, restored, resetLayout };
+  return { onReady, restored, workspacePresetId, applyPreset, resetLayout };
+}
+
+function nextWorkspaceSnapshotMs(): number {
+  lastWorkspaceSnapshotMs = Math.max(Date.now(), lastWorkspaceSnapshotMs + 1);
+  return lastWorkspaceSnapshotMs;
 }

@@ -12,17 +12,13 @@
  * keyframes de qualquer outra propriedade do nó.
  */
 
-import {
-  createBuiltinEffectRegistry,
-  presetsFor,
-  type EffectPreset,
-  type EffectRegistry,
-} from "@theatrum/effects";
+import { presetsFor, type EffectPreset, type EffectRegistry } from "@theatrum/effects";
 import type { PropertyDescriptor } from "@theatrum/scene-graph";
 import type { EffectInstanceData, Node } from "@theatrum/schema";
 import { useEffect, useState, type ReactNode } from "react";
 import { editorActions } from "../../document/editor-session.js";
 import { useEditorSession } from "../../document/useEditorSession.js";
+import { editorEffectRegistry } from "../../plugins/editor-plugin-runtime.js";
 import { Button, Field, NumberDrag, Panel } from "../../ui/index.js";
 import {
   controlNumberToStoredValue,
@@ -32,13 +28,11 @@ import {
 import { readAnimatableProperty } from "../timeline/timeline-model.js";
 import "./EffectsPanel.css";
 
-const BUILTIN_EFFECT_REGISTRY = createBuiltinEffectRegistry();
-
 export interface EffectsPanelProps {
   readonly registry?: EffectRegistry;
 }
 
-export function EffectsPanel({ registry = BUILTIN_EFFECT_REGISTRY }: EffectsPanelProps): ReactNode {
+export function EffectsPanel({ registry = editorEffectRegistry }: EffectsPanelProps): ReactNode {
   const session = useEditorSession();
   const composition =
     session.document.compositions.find(

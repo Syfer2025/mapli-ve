@@ -11,10 +11,12 @@ import {
   MENU_ACTION_CHANNEL,
   WORKSPACE_FLUSH_CHANNEL,
   type AppInfo,
+  type AppProcessMetric,
   type IpcChannel,
   type IpcRequest,
   type IpcResponse,
   type MenuAction,
+  type ShortcutPreferences,
   type TheatrumBridge,
   type WorkspaceState,
 } from "../ipc/contracts.js";
@@ -36,6 +38,7 @@ function invoke<C extends IpcChannel>(
 const bridge = {
   app: {
     info: (): Promise<AppInfo> => invoke("app:info"),
+    metrics: (): Promise<readonly AppProcessMetric[]> => invoke("app:metrics"),
   },
   workspace: {
     load: (): Promise<WorkspaceState | null> => invoke("workspace:load"),
@@ -45,13 +48,25 @@ const bridge = {
     },
     reset: (): Promise<void> => invoke("workspace:reset"),
   },
+  preferences: {
+    load: (): Promise<ShortcutPreferences | null> => invoke("preferences:load"),
+    save: (preferences: ShortcutPreferences): Promise<void> =>
+      invoke("preferences:save", preferences),
+    reset: (): Promise<void> => invoke("preferences:reset"),
+  },
+  plugins: {
+    scan: () => invoke("plugins:scan"),
+    module: (pluginId) => invoke("plugins:module", pluginId),
+  },
   window: {
     setTitle: (title: string): Promise<void> => invoke("window:set-title", title),
   },
   export: {
     begin: (request) => invoke("export:begin", request),
     frame: (request) => invoke("export:frame", request),
+    verifyFrames: (request) => invoke("export:verify-frames", request),
     append: (request) => invoke("export:append", request),
+    finalize: (request) => invoke("export:finalize", request),
     encode: (request) => invoke("export:encode", request),
   },
   project: {

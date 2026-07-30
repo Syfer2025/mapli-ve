@@ -12,6 +12,8 @@
   "dependencies": {
     "@theatrum/document": "workspace:*",
     "@theatrum/schema": "workspace:*",
+    "@theatrum/gis": "workspace:*",
+    "@theatrum/scene-graph": "workspace:*",
     "@theatrum/core-time": "workspace:*",
     "@theatrum/core-utils": "workspace:*"
   }

@@ -1219,11 +1219,13 @@ async function main() {
       // Agora, antes de o critério de filtros reutilizar SAIDA e substituir o
       // 1080p sem SS, preserva a comparação de pixel low/high/SS.
       const pixelsSs2 = measureSupersamplingPixels(segunda4k, segundoSs2, segunda);
-      const recusadoSs2 = await client.evaluate(
+      // 8K direto agora é válido. A recusa estrutural passa a exercitar 8K+SS2,
+      // cujo backing de 15360×8640 ultrapassa o teto configurado de 8192.
+      const recusadoAcimaTeto = await client.evaluate(
         `(async () => {
           const r = await overlay().exportPngSequence({
             range: { first: 0, last: 0 },
-            scale: 2,
+            scale: 4,
             supersampling: 2,
             directory: ${JSON.stringify(SAIDA_RECUSA_SS)},
           });
@@ -1792,11 +1794,11 @@ async function main() {
         ssPlan.output?.[0] === 1920 &&
         ssPlan.output?.[1] === 1080;
       const refusalCorrect =
-        recusadoSs2.ok === false &&
-        recusadoSs2.written === 0 &&
-        recusadoSs2.directory === "" &&
+        recusadoAcimaTeto.ok === false &&
+        recusadoAcimaTeto.written === 0 &&
+        recusadoAcimaTeto.directory === "" &&
         !refusalDirectoryCreated &&
-        /teto|4096/i.test(recusadoSs2.message ?? "");
+        /teto|8192/i.test(recusadoAcimaTeto.message ?? "");
       const sizesCorrect =
         pixelsSs2.highSize?.[0] === 3840 &&
         pixelsSs2.highSize?.[1] === 2160 &&

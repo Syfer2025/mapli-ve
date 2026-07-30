@@ -135,6 +135,51 @@ describe("validação relacional", () => {
     expect(validateDocument(document).ok).toBe(true);
   });
 
+  it("valida o src persistido do áudio de referência", () => {
+    const document = createEmptyProjectDocument();
+    document.assets = [
+      {
+        id: "ast_audio",
+        kind: "audio",
+        src: "assets/ab/narracao.wav",
+        meta: { name: "Narração" },
+      },
+    ];
+    document.compositions[0]!.referenceAudio = {
+      assetSrc: "assets/ab/narracao.wav",
+      startFrame: 12,
+    };
+    expect(validateDocument(document).ok).toBe(true);
+
+    document.assets[0]!.kind = "image";
+    const wrongKind = validateDocument(document);
+    expect(wrongKind.ok).toBe(false);
+    if (!wrongKind.ok) {
+      expect(wrongKind.error).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: "invalid-asset-kind",
+            pointer: "/compositions/0/referenceAudio/assetSrc",
+          }),
+        ]),
+      );
+    }
+    document.assets[0]!.kind = "audio";
+
+    document.compositions[0]!.referenceAudio.assetSrc = "assets/ab/ausente.wav";
+    const result = validateDocument(document);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "missing-asset",
+          pointer: "/compositions/0/referenceAudio/assetSrc",
+        }),
+      ]),
+    );
+  });
+
   it("assertValidDocument relata o primeiro ponteiro", () => {
     const raw = { ...createEmptyProjectDocument(), name: 42 };
     expect(() => assertValidDocument(raw)).toThrow(/\/name/);

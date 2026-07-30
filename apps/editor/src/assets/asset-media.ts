@@ -43,9 +43,10 @@ export async function registerAssetMedia(
 ): Promise<void> {
   const previous = mediaBySrc.get(src);
   if (previous?.objectUrl != null) URL.revokeObjectURL(previous.objectUrl);
-  const objectUrl = kind === "model" ? null : URL.createObjectURL(blobFromBytes(bytes));
+  const visual = kind === "image" || kind === "svg";
+  const objectUrl = visual ? URL.createObjectURL(blobFromBytes(bytes)) : null;
   mediaBySrc.set(src, { bytes, objectUrl });
-  if (kind === "model") return;
+  if (!visual) return;
   // Src é hash de conteúdo: textura já aquecida para o mesmo src é a mesma
   // imagem, e `warmImageTexture` no-ops nesse caso.
   const resolved = bitmap === undefined ? await createTextureBitmap(bytes, kind) : bitmap;

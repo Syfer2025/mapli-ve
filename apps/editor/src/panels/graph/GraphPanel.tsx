@@ -1,7 +1,6 @@
-import { createBuiltinNodeTypeRegistry } from "@theatrum/scene-graph";
 import type { AnimatableProperty } from "@theatrum/schema";
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
-import { editorActions } from "../../document/editor-session.js";
+import { editorActions, nodeTypeRegistry } from "../../document/editor-session.js";
 import { useEditorSession } from "../../document/useEditorSession.js";
 import { Button, Panel } from "../../ui/index.js";
 import { readAnimatableProperty } from "../timeline/timeline-model.js";
@@ -14,7 +13,6 @@ import {
 } from "./graph-model.js";
 import "./GraphPanel.css";
 
-const REGISTRY = createBuiltinNodeTypeRegistry();
 const PADDING = 18;
 
 /**
@@ -87,7 +85,7 @@ export function GraphPanel(): ReactNode {
   const choices = useMemo<readonly PropertyChoice[]>(() => {
     if (node === undefined) return [];
     const found: PropertyChoice[] = [];
-    for (const descriptor of REGISTRY.get(node.type)?.properties ?? []) {
+    for (const descriptor of nodeTypeRegistry.get(node.type)?.properties ?? []) {
       if (!descriptor.animatable) continue;
       const property = readAnimatableProperty(node, descriptor.path);
       if (property === undefined || property.keyframes.length === 0) continue;

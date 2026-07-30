@@ -96,6 +96,15 @@ export interface ExportProgress {
 export interface ExportOptions {
   readonly plan: ExportPlanInput;
   readonly host: ExportHost;
+  /**
+   * O que fazer quando o frame não estabiliza dentro do orçamento.
+   *
+   * Ausente significa `fail`: um export final nunca grava silenciosamente o
+   * estado parcial que estava na tela no instante do timeout. `continue` existe
+   * para diagnóstico e compatibilidade com bancadas que querem inspecionar o
+   * frame duvidoso; precisa ser pedido de forma explícita.
+   */
+  readonly settlePolicy?: SettlePolicy;
   readonly onProgress?: (progress: ExportProgress) => void;
   /**
    * Consultado antes de frames/amostras e durante o settle temporal. Deve ser
@@ -104,7 +113,24 @@ export interface ExportOptions {
   readonly shouldAbort?: () => boolean;
   /** Ausente, ângulo zero ou uma amostra preserva o caminho anterior. */
   readonly motionBlur?: MotionBlurSpec;
+  /**
+   * Quantos frames iniciais já estão confirmados no destino. O pump preserva os
+   * nomes/índices do plano e começa no próximo, permitindo retomar sequências.
+   */
+  readonly resumeFromOutputIndex?: number;
+  /** Total registrado junto ao checkpoint; precisa continuar idêntico ao plano. */
+  readonly resumeExpectedTotalFrames?: number;
+  /** Manifesto SHA-256 do prefixo já confirmado, exatamente na ordem do plano. */
+  readonly resumeFrameHashes?: readonly ExportFrameHash[];
+  /** Persistência durável do progresso; chamada a cada 300 frames por padrão. */
+  readonly onCheckpoint?: (checkpoint: ExportCheckpointProgress) => void | Promise<void>;
+  readonly checkpointEvery?: number;
 }
+
+export type SettlePolicy = "fail" | "continue";
+
+export type SettleFailureReason =
+  "map-busy" | "assets-busy" | "surfaces-busy" | "frame-mismatch" | "repaint-timeout";
 
 export interface MotionBlurSampleTrace {
   readonly outputFrame: number;
@@ -120,6 +146,7 @@ export interface SettleFailureTrace {
   readonly outputFrame: number;
   readonly sampleIndex: number;
   readonly sampleFrame: number;
+  readonly reason: SettleFailureReason;
 }
 
 export interface MotionBlurReport extends PlannedMotionBlur {
@@ -134,7 +161,7 @@ export interface MotionBlurReport extends PlannedMotionBlur {
   readonly accumulatorAllocations: number;
   /** Float32Array + destino RGBA8 reaproveitados pelo job. */
   readonly accumulatorBytes: number;
-  /** Só o Float32Array; em UHD são 132 MB e no teto 4096², 256 MiB (ADR-025). */
+  /** Só o Float32Array; em UHD são 132 MB e no teto 8192², 1 GiB (ADR-025/034). */
   readonly accumulatorFloatBytes: number;
   /** Limitado para diagnóstico; os contadores acima continuam completos. */
   readonly sampleTrace: readonly MotionBlurSampleTrace[];
@@ -142,9 +169,12 @@ export interface MotionBlurReport extends PlannedMotionBlur {
 
 export interface ExportReport {
   readonly plan: ExportPlan;
+  readonly settlePolicy: SettlePolicy;
   readonly written: number;
+  /** Frames confirmados por um checkpoint anterior e não renderizados de novo. */
+  readonly reused: number;
   /** SHA-256 por nome de arquivo, na ordem de escrita. */
-  readonly hashes: readonly { readonly filename: string; readonly sha256: string }[];
+  readonly hashes: readonly ExportFrameHash[];
   /** Amostras em que a quietude não chegou dentro do teto. Tem de ser zero. */
   readonly settleFailed: number;
   /** Quantos frames de saída contêm ao menos uma amostra sem quietude. */
@@ -164,13 +194,29 @@ export interface ExportReport {
   readonly settleP99Ms: number;
   readonly motionBlur: MotionBlurReport;
   readonly aborted: boolean;
+  /** O pump parou antes de compor o frame cujo settle falhou. */
+  readonly terminatedBySettle: boolean;
   readonly errors: readonly string[];
+}
+
+export interface ExportCheckpointProgress {
+  readonly completedFrames: number;
+  readonly totalFrames: number;
+  readonly lastFilename: string | null;
+  readonly complete: boolean;
+  /** Manifesto cumulativo do prefixo contíguo, incluindo frames retomados. */
+  readonly hashes: readonly ExportFrameHash[];
+}
+
+export interface ExportFrameHash {
+  readonly filename: string;
+  readonly sha256: string;
 }
 
 /** Quietude exigida antes de capturar. Três frames a 60 Hz, com folga. */
 const QUIET_MS = 60;
 
-/** Teto por frame. Estourar conta em `settleFailed` e não interrompe o job. */
+/** Teto por frame. Estourar obedece à política explícita do job. */
 const SETTLE_TIMEOUT_MS = 4_000;
 
 /**
@@ -185,10 +231,48 @@ const MAX_SAMPLE_TRACE = 256;
 
 export async function runExport(options: ExportOptions): Promise<ExportReport> {
   const plan = planExport(options.plan);
+  const settlePolicy = options.settlePolicy ?? "fail";
+  const reused = options.resumeFromOutputIndex ?? 0;
+  const checkpointEvery = options.checkpointEvery ?? 300;
+  if (!Number.isInteger(reused) || reused < 0 || reused > plan.frames.length) {
+    throw new Error(
+      `checkpoint inválido: ${String(reused)} de ${String(plan.frames.length)} frames`,
+    );
+  }
+  if (
+    options.resumeExpectedTotalFrames !== undefined &&
+    options.resumeExpectedTotalFrames !== plan.frames.length
+  ) {
+    throw new Error(
+      `checkpoint pertence a um plano de ${String(options.resumeExpectedTotalFrames)} frames, mas o plano atual tem ${String(plan.frames.length)}`,
+    );
+  }
+  if (!Number.isInteger(checkpointEvery) || checkpointEvery <= 0) {
+    throw new Error(`intervalo de checkpoint inválido: ${String(checkpointEvery)}`);
+  }
+  const resumeFrameHashes = options.resumeFrameHashes ?? [];
+  if (resumeFrameHashes.length !== reused) {
+    throw new Error(
+      `manifesto do checkpoint inválido: ${String(resumeFrameHashes.length)} hashes para ${String(reused)} frames`,
+    );
+  }
+  for (let index = 0; index < resumeFrameHashes.length; index += 1) {
+    const frame = resumeFrameHashes[index];
+    const expected = plan.frames[index];
+    if (
+      frame === undefined ||
+      expected === undefined ||
+      frame.filename !== expected.filename ||
+      !/^[a-f0-9]{64}$/u.test(frame.sha256)
+    ) {
+      throw new Error(`manifesto do checkpoint inválido no frame ${String(index)}`);
+    }
+  }
   // Validação antes do primeiro seek, compose ou write. O serviço faz a mesma
   // validação antes de abrir a pasta; esta fronteira continua segura sozinha.
   const motionBlur = planMotionBlur(options.motionBlur);
-  const hashes: { filename: string; sha256: string }[] = [];
+  const hashes: ExportFrameHash[] = [];
+  const contiguousHashes: ExportFrameHash[] = [...resumeFrameHashes];
   const errors: string[] = [];
   const settleTimes: number[] = [];
   const settleFailedFrames: number[] = [];
@@ -196,19 +280,50 @@ export async function runExport(options: ExportOptions): Promise<ExportReport> {
   const settleFailedOutputIndices = new Set<number>();
   const sampleTrace: MotionBlurSampleTrace[] = [];
   const accumulator = motionBlur.enabled ? new MotionBlurAccumulator() : null;
-  const totalSamples = plan.frames.length * motionBlur.effectiveSamples;
+  const totalSamples = (plan.frames.length - reused) * motionBlur.effectiveSamples;
   const startedAt = performance.now();
   let settleFailed = 0;
   let processedSamples = 0;
   let settledSamples = 0;
   let accumulatedSamples = 0;
   let aborted = false;
+  let terminatedBySettle = false;
+  let contiguousCompleted = reused;
+  let lastCheckpoint = reused;
+  let checkpointFailed = false;
+
+  const persistCheckpoint = async (
+    lastFilename: string | null,
+    complete: boolean,
+  ): Promise<boolean> => {
+    if (options.onCheckpoint === undefined || contiguousCompleted === lastCheckpoint) return true;
+    try {
+      await options.onCheckpoint({
+        completedFrames: contiguousCompleted,
+        totalFrames: plan.frames.length,
+        lastFilename,
+        complete,
+        hashes: Object.freeze([...contiguousHashes]),
+      });
+      lastCheckpoint = contiguousCompleted;
+      return true;
+    } catch (error: unknown) {
+      checkpointFailed = true;
+      errors.push(
+        `checkpoint ${String(contiguousCompleted)}/${String(plan.frames.length)} falhou: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return false;
+    }
+  };
 
   const recordSettleFailure = (
     outputIndex: number,
     outputFrame: number,
     sampleIndex: number,
     sampleFrame: number,
+    reason: SettleFailureReason,
   ): void => {
     settleFailed += 1;
     if (!settleFailedOutputIndices.has(outputIndex)) {
@@ -216,11 +331,28 @@ export async function runExport(options: ExportOptions): Promise<ExportReport> {
       if (settleFailedFrames.length < 64) settleFailedFrames.push(outputFrame);
     }
     if (settleFailures.length < 64) {
-      settleFailures.push({ outputIndex, outputFrame, sampleIndex, sampleFrame });
+      settleFailures.push({ outputIndex, outputFrame, sampleIndex, sampleFrame, reason });
     }
   };
 
-  outputFrames: for (const planned of plan.frames) {
+  const failClosed = (
+    filename: string,
+    outputIndex: number,
+    outputFrame: number,
+    sampleIndex: number,
+    sampleFrame: number,
+    reason: SettleFailureReason,
+  ): boolean => {
+    recordSettleFailure(outputIndex, outputFrame, sampleIndex, sampleFrame, reason);
+    if (settlePolicy === "continue") return false;
+    terminatedBySettle = true;
+    errors.push(
+      `${filename}: settle falhou (${reason}) no frame ${String(outputFrame)}, amostra ${String(sampleIndex + 1)}; nenhum pixel desse frame foi escrito`,
+    );
+    return true;
+  };
+
+  outputFrames: for (const planned of plan.frames.slice(reused)) {
     if (options.shouldAbort?.() === true) {
       aborted = true;
       break;
@@ -244,7 +376,18 @@ export async function runExport(options: ExportOptions): Promise<ExportReport> {
       settleTimes.push(settle.elapsedMs);
       processedSamples += 1;
       if (!settle.quiet) {
-        recordSettleFailure(planned.index, planned.frame, 0, planned.frame);
+        if (
+          failClosed(
+            planned.filename,
+            planned.index,
+            planned.frame,
+            0,
+            planned.frame,
+            settle.reason ?? "repaint-timeout",
+          )
+        ) {
+          break;
+        }
       } else {
         settledSamples += 1;
       }
@@ -274,7 +417,18 @@ export async function runExport(options: ExportOptions): Promise<ExportReport> {
           settleTimes.push(settle.elapsedMs);
           processedSamples += 1;
           if (!settle.quiet) {
-            recordSettleFailure(planned.index, planned.frame, sampleIndex, sampleFrame);
+            if (
+              failClosed(
+                planned.filename,
+                planned.index,
+                planned.frame,
+                sampleIndex,
+                sampleFrame,
+                settle.reason ?? "repaint-timeout",
+              )
+            ) {
+              break outputFrames;
+            }
           } else {
             settledSamples += 1;
           }
@@ -291,7 +445,7 @@ export async function runExport(options: ExportOptions): Promise<ExportReport> {
 
           // Heartbeat por subframe: oito settles não podem parecer um travamento.
           options.onProgress?.({
-            done: hashes.length,
+            done: reused + hashes.length,
             total: plan.frames.length,
             settleMs: frameSettleMs,
             lastSampleSettleMs,
@@ -326,14 +480,29 @@ export async function runExport(options: ExportOptions): Promise<ExportReport> {
       continue;
     }
 
-    const result = await options.host.writeFrame(planned.filename, composed);
+    let result: Awaited<ReturnType<ExportHost["writeFrame"]>>;
+    try {
+      result = await options.host.writeFrame(planned.filename, composed);
+    } catch (error: unknown) {
+      errors.push(
+        `${planned.filename}: falha inesperada ao escrever: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      break;
+    }
     if (!result.ok) {
       errors.push(`${planned.filename}: ${result.message ?? "falha ao escrever"}`);
-      continue;
+      break;
     }
-    hashes.push({ filename: planned.filename, sha256: result.sha256 });
+    const frameHash = { filename: planned.filename, sha256: result.sha256 };
+    hashes.push(frameHash);
+    if (planned.index === contiguousCompleted) {
+      contiguousCompleted += 1;
+      contiguousHashes.push(frameHash);
+    }
     options.onProgress?.({
-      done: hashes.length,
+      done: reused + hashes.length,
       total: plan.frames.length,
       settleMs: frameSettleMs,
       lastSampleSettleMs,
@@ -343,11 +512,26 @@ export async function runExport(options: ExportOptions): Promise<ExportReport> {
       totalSamples,
       elapsedMs: performance.now() - startedAt,
     });
+    if (
+      (contiguousCompleted % checkpointEvery === 0 || contiguousCompleted === plan.frames.length) &&
+      !(await persistCheckpoint(planned.filename, contiguousCompleted === plan.frames.length))
+    ) {
+      break;
+    }
+  }
+
+  if (!checkpointFailed && contiguousCompleted > lastCheckpoint && (aborted || errors.length > 0)) {
+    await persistCheckpoint(
+      contiguousCompleted === 0 ? null : (plan.frames[contiguousCompleted - 1]?.filename ?? null),
+      false,
+    );
   }
 
   return {
     plan,
+    settlePolicy,
     written: hashes.length,
+    reused,
     hashes: Object.freeze(hashes),
     settleFailed,
     settleFailedOutputFrames: settleFailedOutputIndices.size,
@@ -367,6 +551,7 @@ export async function runExport(options: ExportOptions): Promise<ExportReport> {
       sampleTrace: Object.freeze(sampleTrace),
     }),
     aborted,
+    terminatedBySettle,
     errors: Object.freeze(errors),
   };
 }
@@ -393,12 +578,14 @@ async function waitForQuiet(
   readonly elapsedMs: number;
   readonly observedFrame: number;
   readonly aborted: boolean;
+  readonly reason: SettleFailureReason | null;
 }> {
   const startedAt = performance.now();
   let ordinaryDeadline = startedAt + SETTLE_TIMEOUT_MS;
   let quietSince: number | null = null;
   let lastRenders = -1;
   let lastObservedFrame = -1;
+  let lastReason: SettleFailureReason;
 
   while (true) {
     if (shouldAbort?.() === true) {
@@ -407,6 +594,7 @@ async function waitForQuiet(
         elapsedMs: performance.now() - startedAt,
         observedFrame: lastObservedFrame,
         aborted: true,
+        reason: null,
       };
     }
     const now = performance.now();
@@ -414,8 +602,18 @@ async function waitForQuiet(
     lastObservedFrame = observed.frame;
     // Superfície fora de medida entra junto com o mapa: as duas significam "o
     // que eu capturaria agora não é o frame final".
-    const mapBusy = host.mapBusy() || host.surfacesBusy();
+    const mapBusy = host.mapBusy();
+    const surfacesBusy = host.surfacesBusy();
     const assetsBusy = host.assetsBusy();
+    lastReason = assetsBusy
+      ? "assets-busy"
+      : surfacesBusy
+        ? "surfaces-busy"
+        : mapBusy
+          ? "map-busy"
+          : observed.frame !== frame
+            ? "frame-mismatch"
+            : "repaint-timeout";
     if (assetsBusy) {
       if (now - startedAt >= ASSET_SETTLE_TIMEOUT_MS) {
         return {
@@ -423,6 +621,7 @@ async function waitForQuiet(
           elapsedMs: now - startedAt,
           observedFrame: observed.frame,
           aborted: false,
+          reason: lastReason,
         };
       }
       // O orçamento curto mede mapa/quietude, não tempo legítimo de parse.
@@ -433,10 +632,11 @@ async function waitForQuiet(
         elapsedMs: now - startedAt,
         observedFrame: observed.frame,
         aborted: false,
+        reason: lastReason,
       };
     }
 
-    if (observed.frame === frame && !mapBusy && !assetsBusy) {
+    if (observed.frame === frame && !mapBusy && !surfacesBusy && !assetsBusy) {
       if (observed.renders !== lastRenders || quietSince === null) {
         lastRenders = observed.renders;
         // `quietSince === null` cobre a transição ocupado → livre mesmo quando
@@ -449,6 +649,7 @@ async function waitForQuiet(
           elapsedMs: now - startedAt,
           observedFrame: observed.frame,
           aborted: false,
+          reason: null,
         };
       }
     } else {

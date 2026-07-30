@@ -12,6 +12,18 @@ export interface WorkspaceState {
   readonly layout: unknown;
   readonly version: number;
   readonly savedAtMs: number;
+  /** Id do preset que originou o layout, ou `custom` após uma edição manual. */
+  readonly workspacePresetId?: string;
+}
+
+/** Preferências pessoais independentes do documento e do layout Dockview. */
+export interface ShortcutPreferences {
+  readonly version: number;
+  /**
+   * Ausente usa o default do comando; `null` desabilita; string substitui todas
+   * as combinações default daquele comando.
+   */
+  readonly shortcutOverrides: Readonly<Record<string, string | null>>;
 }
 
 export interface AppInfo {
@@ -23,6 +35,62 @@ export interface AppInfo {
   readonly userDataPath: string;
   readonly isPackaged: boolean;
 }
+
+/** Memória residente reportada pelo Electron para cada processo do aplicativo. */
+export interface AppProcessMetric {
+  readonly pid: number;
+  readonly type: string;
+  readonly workingSetKb: number;
+  readonly peakWorkingSetKb: number;
+  readonly privateBytesKb: number;
+}
+
+/** Manifesto serializável de um plugin local já validado pelo processo main. */
+export interface LocalPluginManifest {
+  readonly id: string;
+  readonly name: string;
+  readonly version: string;
+  readonly apiVersion: 1;
+  readonly entry: string;
+  readonly description?: string;
+  readonly contributes: Readonly<
+    Partial<
+      Record<
+        | "nodeTypes"
+        | "effects"
+        | "actions"
+        | "verbs"
+        | "exporters"
+        | "panels"
+        | "mapStyles"
+        | "commands",
+        readonly string[]
+      >
+    >
+  >;
+}
+
+export interface LocalPluginInfo {
+  /** Nome da pasta sob `userData/plugins`; não é uma capacidade de leitura. */
+  readonly directory: string;
+  readonly manifest: LocalPluginManifest;
+}
+
+export interface LocalPluginDiagnostic {
+  readonly directory: string;
+  readonly message: string;
+  readonly details?: readonly { readonly path: string; readonly message: string }[];
+}
+
+export interface LocalPluginScanResult {
+  readonly root: string;
+  readonly plugins: readonly LocalPluginInfo[];
+  readonly diagnostics: readonly LocalPluginDiagnostic[];
+}
+
+export type LocalPluginModuleResult =
+  | { readonly ok: true; readonly plugin: LocalPluginInfo; readonly source: string }
+  | { readonly ok: false; readonly message: string };
 
 /** Referência opaca a um arquivo escolhido pelo usuário no processo main. */
 export interface ProjectFileReference {
@@ -113,6 +181,7 @@ export type RecoveryDocumentResult =
 export interface TheatrumBridge {
   readonly app: {
     readonly info: () => Promise<AppInfo>;
+    readonly metrics: () => Promise<readonly AppProcessMetric[]>;
   };
   readonly workspace: {
     readonly load: () => Promise<WorkspaceState | null>;
@@ -126,6 +195,20 @@ export interface TheatrumBridge {
      */
     readonly flush: (state: WorkspaceState) => void;
     readonly reset: () => Promise<void>;
+  };
+  readonly preferences: {
+    readonly load: () => Promise<ShortcutPreferences | null>;
+    readonly save: (preferences: ShortcutPreferences) => Promise<void>;
+    readonly reset: () => Promise<void>;
+  };
+  readonly plugins: {
+    /** Reescaneia `userData/plugins` e devolve somente manifestos validados. */
+    readonly scan: () => Promise<LocalPluginScanResult>;
+    /**
+     * Lê a entrada de um ID descoberto. O main repete contenção por `realpath`;
+     * o renderer nunca envia caminhos.
+     */
+    readonly module: (pluginId: string) => Promise<LocalPluginModuleResult>;
   };
   readonly project: {
     readonly open: () => Promise<ProjectOpenResult>;
@@ -157,7 +240,11 @@ export interface TheatrumBridge {
   readonly export: {
     readonly begin: (request: ExportBeginRequest) => Promise<ExportBeginResult>;
     readonly frame: (request: ExportFrameRequest) => Promise<ExportFrameResult>;
+    readonly verifyFrames: (
+      request: ExportVerifyFramesRequest,
+    ) => Promise<ExportVerifyFramesResult>;
     readonly append: (request: ExportAppendRequest) => Promise<ExportAppendResult>;
+    readonly finalize: (request: ExportFinalizeRequest) => Promise<ExportFinalizeResult>;
     readonly encode: (request: ExportEncodeRequest) => Promise<ExportEncodeResult>;
   };
 }
@@ -173,6 +260,8 @@ export interface ExportBeginRequest {
   readonly directory?: string;
   /** Cria uma pasta privada de PNGs para GIF/ProRes. */
   readonly staging?: boolean;
+  /** Pasta de staging já criada por um checkpoint, filha direta de directory. */
+  readonly framesDirectory?: string;
 }
 
 export interface ExportBeginResult {
@@ -205,6 +294,24 @@ export interface ExportFrameResult {
   readonly message?: string;
 }
 
+export interface ExportFrameHash {
+  readonly filename: string;
+  readonly sha256: string;
+}
+
+/** Confere integralmente o prefixo já publicado antes de uma retomada. */
+export interface ExportVerifyFramesRequest {
+  readonly directory: string;
+  readonly frames: readonly ExportFrameHash[];
+}
+
+export interface ExportVerifyFramesResult {
+  readonly ok: boolean;
+  readonly verified: number;
+  readonly invalidFilename?: string;
+  readonly message?: string;
+}
+
 /**
  * Um pedaço de arquivo a anexar.
  *
@@ -223,6 +330,34 @@ export interface ExportAppendRequest {
 export interface ExportAppendResult {
   readonly ok: boolean;
   readonly bytes: number;
+  readonly message?: string;
+}
+
+/**
+ * Publica ou descarta um arquivo único escrito sob nome temporário reservado.
+ *
+ * A publicação é um `rename` no mesmo diretório. Portanto o nome final só fica
+ * visível depois de todas as escritas e da finalização do encoder.
+ */
+export type ExportFinalizeRequest =
+  | {
+      readonly action: "publish";
+      readonly directory: string;
+      readonly temporaryFilename: string;
+      readonly finalFilename: string;
+    }
+  | {
+      readonly action: "discard";
+      readonly directory: string;
+      readonly temporaryFilename: string;
+    };
+
+export interface ExportFinalizeResult {
+  readonly ok: boolean;
+  readonly filename: string;
+  readonly bytes: number;
+  readonly sha256: string;
+  readonly temporaryDisposition: "published" | "removed" | "preserved" | "missing";
   readonly message?: string;
 }
 
@@ -255,9 +390,15 @@ export interface ExportEncodeResult {
  */
 export interface IpcContracts {
   "app:info": { request: void; response: AppInfo };
+  "app:metrics": { request: void; response: readonly AppProcessMetric[] };
   "workspace:load": { request: void; response: WorkspaceState | null };
   "workspace:save": { request: WorkspaceState; response: void };
   "workspace:reset": { request: void; response: void };
+  "preferences:load": { request: void; response: ShortcutPreferences | null };
+  "preferences:save": { request: ShortcutPreferences; response: void };
+  "preferences:reset": { request: void; response: void };
+  "plugins:scan": { request: void; response: LocalPluginScanResult };
+  "plugins:module": { request: string; response: LocalPluginModuleResult };
   "project:open": { request: void; response: ProjectOpenResult };
   "project:examples": { request: void; response: readonly ProjectExampleInfo[] };
   "project:open-example": { request: string; response: ProjectOpenResult };
@@ -273,7 +414,12 @@ export interface IpcContracts {
   "window:set-title": { request: string; response: void };
   "export:begin": { request: ExportBeginRequest; response: ExportBeginResult };
   "export:frame": { request: ExportFrameRequest; response: ExportFrameResult };
+  "export:verify-frames": {
+    request: ExportVerifyFramesRequest;
+    response: ExportVerifyFramesResult;
+  };
   "export:append": { request: ExportAppendRequest; response: ExportAppendResult };
+  "export:finalize": { request: ExportFinalizeRequest; response: ExportFinalizeResult };
   "export:encode": { request: ExportEncodeRequest; response: ExportEncodeResult };
 }
 
@@ -283,9 +429,15 @@ export type IpcResponse<C extends IpcChannel> = IpcContracts[C]["response"];
 
 export const IPC_CHANNELS = [
   "app:info",
+  "app:metrics",
   "workspace:load",
   "workspace:save",
   "workspace:reset",
+  "preferences:load",
+  "preferences:save",
+  "preferences:reset",
+  "plugins:scan",
+  "plugins:module",
   "project:open",
   "project:examples",
   "project:open-example",
@@ -301,7 +453,9 @@ export const IPC_CHANNELS = [
   "window:set-title",
   "export:begin",
   "export:frame",
+  "export:verify-frames",
   "export:append",
+  "export:finalize",
   "export:encode",
 ] as const satisfies readonly IpcChannel[];
 
@@ -318,6 +472,9 @@ export const DATA_BASE_URL = `${DATA_SCHEME}://${DATA_HOST}`;
 
 /** Versão do formato de workspace. Incompatível → descarta e usa o padrão. */
 export const WORKSPACE_VERSION = 4;
+
+/** Versão das preferências de atalhos, separada do formato opaco do Dockview. */
+export const SHORTCUT_PREFERENCES_VERSION = 1;
 
 /** Nome sob o qual o preload publica a ponte em `window`. */
 export const BRIDGE_KEY = "theatrum";

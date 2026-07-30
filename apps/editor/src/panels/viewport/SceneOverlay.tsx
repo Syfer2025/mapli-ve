@@ -8,7 +8,6 @@ import {
   type ActionDiagnostic,
   type BehaviorDiagnostic,
 } from "@theatrum/behaviors";
-import { createBuiltinEffectRegistry } from "@theatrum/effects";
 import { mat2d, rect, type Mat2D, type Rect, type Vec2 } from "@theatrum/core-math";
 import {
   createPixiRenderBackend,
@@ -28,6 +27,11 @@ import type { Map as MapLibreMap } from "maplibre-gl";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { editorActions } from "../../document/editor-session.js";
 import { useEditorSession } from "../../document/useEditorSession.js";
+import { editorEffectRegistry } from "../../plugins/editor-plugin-runtime.js";
+import {
+  clearRuntimeExpressionDiagnostics,
+  publishRuntimeExpressionDiagnostics,
+} from "../../diagnostics/runtime-diagnostics.js";
 import { Button } from "../../ui/index.js";
 import { createMapLibreProjectorPort } from "./maplibre-adapters.js";
 import {
@@ -223,7 +227,7 @@ const READY_STATUS = "Pixi · WebGL2";
 
 /** Um registry por renderer: comportamentos e efeitos são puros e sem estado. */
 const behaviorRegistry = createBuiltinBehaviorRegistry();
-const effectRegistry = createBuiltinEffectRegistry();
+const effectRegistry = editorEffectRegistry;
 
 /**
  * O cache com descarte adiado torna a inicialização WebGL segura sob React
@@ -488,6 +492,12 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
           { registry: behaviorRegistry },
         );
         const evaluated = pass.scene;
+        publishRuntimeExpressionDiagnostics(
+          "map",
+          composition.id,
+          evaluated.frame,
+          evaluated.diagnostics,
+        );
         const actionCamera = activeActionCameraCenter(evaluated, actions.expansions);
         if (actionCamera !== null) {
           const current = map.getCenter();
@@ -663,6 +673,8 @@ export function SceneOverlay({ map, cameraRevision }: SceneOverlayProps): ReactN
    * no próximo movimento de câmera — parecendo que o comando falhou.
    */
   useEffect(() => onGeoLayerLoaded(() => setGeoRevision((value) => value + 1)), []);
+
+  useEffect(() => () => clearRuntimeExpressionDiagnostics("map"), []);
 
   useEffect(() => {
     if (map === null) return;

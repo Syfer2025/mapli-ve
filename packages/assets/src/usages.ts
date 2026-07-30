@@ -24,6 +24,15 @@ export function findAssetReferences(
   if (src.length === 0) return references;
 
   for (const composition of document.compositions) {
+    if (composition.referenceAudio?.assetSrc === src) {
+      references.push({
+        compositionId: composition.id,
+        compositionName: composition.name,
+        nodeId: composition.id,
+        nodeName: "Áudio de referência",
+        propertyPath: "referenceAudio.assetSrc",
+      });
+    }
     for (const node of Object.values(composition.nodes)) {
       collectFromProps(node.props, "props", src, (propertyPath) => {
         references.push({

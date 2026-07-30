@@ -1,0 +1,172 @@
+{
+  "format": "theatrum-scene",
+  "version": 1,
+  "meta": {
+    "title": "Alexandre: da Macedônia à Pérsia",
+    "fps": 60,
+    "resolution": "3840x2160",
+    "duration": "1m30s",
+    "background": "#0d1117"
+  },
+  "map": {
+    "style": "historical-parchment",
+    "projection": "mercator",
+    "terrain": {
+      "enabled": false
+    }
+  },
+  "defaults": {
+    "unitSize": 56,
+    "textFont": "Cinzel",
+    "ease": "cinematic",
+    "labelPosition": "above"
+  },
+  "factions": {
+    "macedon": {
+      "color": "#C9A227",
+      "label": "Macedônia"
+    },
+    "persia": {
+      "color": "#8B2635",
+      "label": "Império Persa"
+    }
+  },
+  "places": {
+    "pella": "Pella, Greece",
+    "granicus": [27.2, 40.2],
+    "issus": [36.2, 36.85],
+    "tyre": "Tyre, Lebanon",
+    "gaugamela": [43.25, 36.36],
+    "babylon": [44.42, 32.54]
+  },
+  "paths": {
+    "marcha-anatolia": {
+      "through": ["pella", "granicus", "issus"],
+      "smooth": true
+    },
+    "marcha-mesopotamia": {
+      "through": ["issus", "tyre", "gaugamela", "babylon"],
+      "smooth": true
+    }
+  },
+  "units": [
+    {
+      "id": "alexandre",
+      "kind": "infantry",
+      "faction": "macedon",
+      "at": "pella",
+      "label": "Alexandre — 35.000 homens",
+      "size": 64
+    },
+    {
+      "id": "dario",
+      "kind": "infantry",
+      "faction": "persia",
+      "at": "gaugamela",
+      "label": "Dario III — 100.000"
+    }
+  ],
+  "timeline": [
+    {
+      "at": "0s",
+      "do": "camera.focus",
+      "on": "pella",
+      "zoom": 5.5,
+      "duration": "3s",
+      "ease": "cinematic"
+    },
+    {
+      "at": "0.5s",
+      "do": "text.title",
+      "text": "334 a.C.",
+      "subtitle": "Alexandre cruza o Helesponto",
+      "position": "top-left",
+      "duration": "5s",
+      "reveal": "per-character"
+    },
+    {
+      "at": "3s",
+      "do": "camera.frame",
+      "on": ["pella", "issus"],
+      "padding": 0.2,
+      "duration": "4s"
+    },
+    {
+      "at": "4s",
+      "do": "unit.advance",
+      "unit": "alexandre",
+      "along": "marcha-anatolia",
+      "duration": "22s",
+      "ease": "linear",
+      "trail": true
+    },
+    {
+      "at": "11s",
+      "do": "battle",
+      "at_place": "granicus",
+      "intensity": "medium",
+      "duration": "3s",
+      "label": "Batalha do Granico"
+    },
+    {
+      "at": "24s",
+      "do": "battle",
+      "at_place": "issus",
+      "intensity": "high",
+      "duration": "4s",
+      "label": "Issos — 333 a.C."
+    },
+    {
+      "at": "30s",
+      "do": "camera.focus",
+      "on": "issus",
+      "zoom": 7,
+      "duration": "3s"
+    },
+    {
+      "at": "34s",
+      "do": "unit.advance",
+      "unit": "alexandre",
+      "along": "marcha-mesopotamia",
+      "duration": "30s",
+      "trail": true
+    },
+    {
+      "at": "50s",
+      "do": "siege",
+      "at_place": "tyre",
+      "duration": "5s",
+      "label": "Cerco de Tiro"
+    },
+    {
+      "at": "66s",
+      "do": "battle",
+      "at_place": "gaugamela",
+      "intensity": "high",
+      "duration": "5s",
+      "label": "Gaugamela — 331 a.C."
+    },
+    {
+      "at": "72s",
+      "do": "area.highlight",
+      "region": "c:IRN",
+      "faction": "macedon",
+      "duration": "8s",
+      "fade": "in"
+    },
+    {
+      "at": "74s",
+      "do": "text.caption",
+      "text": "O Império Persa cai sob domínio macedônio",
+      "position": "bottom-center",
+      "duration": "10s"
+    },
+    {
+      "at": "80s",
+      "do": "camera.frame",
+      "on": ["pella", "babylon"],
+      "padding": 0.15,
+      "duration": "6s"
+    }
+  ]
+}

@@ -1,13 +1,8 @@
-import {
-  createBuiltinNodeTypeRegistry,
-  type NodeTypeRegistry,
-  type PropertyDescriptor,
-  type PropertyKind,
-} from "@theatrum/scene-graph";
+import type { NodeTypeRegistry, PropertyDescriptor, PropertyKind } from "@theatrum/scene-graph";
 import { assetDisplayName } from "@theatrum/assets";
-import type { Anchor, AssetDescriptor, Node, SizeSpec } from "@theatrum/schema";
-import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "react";
-import { editorActions } from "../../document/editor-session.js";
+import type { AnimatableProperty, Anchor, AssetDescriptor, Node, SizeSpec } from "@theatrum/schema";
+import { Fragment, useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "react";
+import { editorActions, nodeTypeRegistry } from "../../document/editor-session.js";
 import {
   ensureSearchableLayers,
   geoLoadStatus,
@@ -23,13 +18,12 @@ import { readAnimatableProperty } from "../timeline/timeline-model.js";
 import {
   buildInspectorModel,
   controlNumberToStoredValue,
+  propertyExpressionDiagnostic,
   storedNumberToControlValue,
   unitLabel,
   type InspectorProperty,
 } from "./inspector-model.js";
 import "./InspectorPanel.css";
-
-const BUILTIN_REGISTRY = createBuiltinNodeTypeRegistry();
 
 export interface InspectorPanelProps {
   readonly registry?: NodeTypeRegistry;
@@ -51,7 +45,7 @@ interface PropertyControlProps {
 
 type PropertyControl = (props: PropertyControlProps) => ReactNode;
 
-export function InspectorPanel({ registry = BUILTIN_REGISTRY }: InspectorPanelProps): ReactNode {
+export function InspectorPanel({ registry = nodeTypeRegistry }: InspectorPanelProps): ReactNode {
   const session = useEditorSession();
   const composition =
     session.document.compositions.find(
@@ -66,6 +60,8 @@ export function InspectorPanel({ registry = BUILTIN_REGISTRY }: InspectorPanelPr
     () => (node === undefined ? null : buildInspectorModel(node, definition)),
     [definition, node],
   );
+  const [expressionPath, setExpressionPath] = useState<string | null>(null);
+  useEffect(() => setExpressionPath(null), [node?.id]);
 
   if (composition === undefined || node === undefined || model === null) {
     return (
@@ -134,52 +130,227 @@ export function InspectorPanel({ registry = BUILTIN_REGISTRY }: InspectorPanelPr
             {group.properties.map((property) => {
               const Control = PROPERTY_CONTROLS[property.descriptor.kind];
               const unit = unitLabel(property.descriptor);
+              const animatableProperty = property.animatableProperty;
+              const expression = property.expression;
+              const canEditExpression =
+                property.descriptor.binding === "animatable" &&
+                property.descriptor.animatable &&
+                animatableProperty !== undefined;
+              const expressionIssue =
+                canEditExpression && expression !== undefined && expression !== null
+                  ? propertyExpressionDiagnostic(
+                      animatableProperty,
+                      expression,
+                      session.playheadFrame,
+                      property.descriptor.path,
+                    )
+                  : undefined;
               return (
-                <Field
-                  key={property.descriptor.path}
-                  label={property.descriptor.label}
-                  animated={property.animated}
-                  disabled={!property.available}
-                  {...(unit === undefined ? {} : { unit })}
-                >
-                  {() => (
-                    <>
-                      <Control
-                        property={property}
-                        assets={session.document.assets}
-                        nodeId={node.id}
-                        nodeType={node.type}
-                        onCommit={(value) => commitProperty(property, value)}
-                      />
-                      {property.descriptor.binding === "animatable" &&
-                        property.descriptor.animatable && (
+                <Fragment key={property.descriptor.path}>
+                  <Field
+                    label={property.descriptor.label}
+                    animated={property.animated}
+                    disabled={!property.available}
+                    {...(unit === undefined ? {} : { unit })}
+                  >
+                    {() => (
+                      <>
+                        <Control
+                          property={property}
+                          assets={session.document.assets}
+                          nodeId={node.id}
+                          nodeType={node.type}
+                          onCommit={(value) => commitProperty(property, value)}
+                        />
+                        {canEditExpression && (
                           <Button
                             size="sm"
                             iconOnly
-                            aria-label={
-                              hasKeyframeAt(node, property.descriptor, session.playheadFrame)
-                                ? "Remover keyframe neste frame"
-                                : "Adicionar keyframe neste frame"
+                            aria-label={`Editar expressão de ${property.descriptor.label}`}
+                            aria-expanded={expressionPath === property.descriptor.path}
+                            title={
+                              expressionIssue === undefined
+                                ? (expression ?? "Adicionar expressão")
+                                : `${expressionIssue.code}: ${expressionIssue.message}`
                             }
-                            title={`${property.keyframeCount} keyframes`}
-                            data-keyframed={
-                              hasKeyframeAt(node, property.descriptor, session.playheadFrame) ||
-                              undefined
+                            data-expression={
+                              expressionIssue !== undefined
+                                ? "invalid"
+                                : expressionPath === property.descriptor.path
+                                  ? "active"
+                                  : expression !== null && expression !== undefined
+                                    ? "set"
+                                    : undefined
                             }
-                            onClick={() => toggleKeyframe(property)}
+                            onClick={() =>
+                              setExpressionPath((current) =>
+                                current === property.descriptor.path
+                                  ? null
+                                  : property.descriptor.path,
+                              )
+                            }
                           >
-                            ◆
+                            ƒx
                           </Button>
                         )}
-                    </>
+                        {property.descriptor.binding === "animatable" &&
+                          property.descriptor.animatable && (
+                            <Button
+                              size="sm"
+                              iconOnly
+                              aria-label={
+                                hasKeyframeAt(node, property.descriptor, session.playheadFrame)
+                                  ? "Remover keyframe neste frame"
+                                  : "Adicionar keyframe neste frame"
+                              }
+                              title={`${property.keyframeCount} keyframes`}
+                              data-keyframed={
+                                hasKeyframeAt(node, property.descriptor, session.playheadFrame) ||
+                                undefined
+                              }
+                              onClick={() => toggleKeyframe(property)}
+                            >
+                              ◆
+                            </Button>
+                          )}
+                      </>
+                    )}
+                  </Field>
+                  {canEditExpression &&
+                  animatableProperty !== undefined &&
+                  expressionPath === property.descriptor.path ? (
+                    <PropertyExpressionEditor
+                      label={property.descriptor.label}
+                      path={property.descriptor.path}
+                      property={animatableProperty}
+                      frame={session.playheadFrame}
+                      onApply={(expression) =>
+                        editorActions.setPropertyExpression(
+                          node.id,
+                          property.descriptor.path,
+                          expression,
+                        )
+                      }
+                      onRemove={() =>
+                        editorActions.setPropertyExpression(node.id, property.descriptor.path, null)
+                      }
+                      onClose={() => setExpressionPath(null)}
+                    />
+                  ) : expressionIssue === undefined ? null : (
+                    <ExpressionDiagnosticNotice
+                      code={expressionIssue.code}
+                      message={expressionIssue.message}
+                    />
                   )}
-                </Field>
+                </Fragment>
               );
             })}
           </FieldGroup>
         ))}
       </div>
     </Panel>
+  );
+}
+
+function PropertyExpressionEditor({
+  label,
+  path,
+  property,
+  frame,
+  onApply,
+  onRemove,
+  onClose,
+}: {
+  readonly label: string;
+  readonly path: string;
+  readonly property: AnimatableProperty<unknown>;
+  readonly frame: number;
+  readonly onApply: (expression: string) => void;
+  readonly onRemove: () => void;
+  readonly onClose: () => void;
+}): ReactNode {
+  const source = property.expression ?? "";
+  const [draft, setDraft] = useState(source);
+  useEffect(() => setDraft(source), [path, source]);
+  const candidate = draft === "" && property.expression === null ? null : draft;
+  const diagnostic = propertyExpressionDiagnostic(property, candidate, frame, path);
+  const dirty = draft !== source;
+
+  const applyDraft = (): void => {
+    if (draft.trim().length === 0) return;
+    onApply(draft);
+  };
+
+  return (
+    <div className="inspector-panel__expression">
+      <label>
+        <span>Expressão · {label}</span>
+        <textarea
+          className="inspector-panel__textarea inspector-panel__expression-source"
+          rows={2}
+          value={draft}
+          spellCheck={false}
+          aria-label={`Expressão de ${label}`}
+          placeholder="Ex.: value * 0.8 + sin(frame / 12)"
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") onClose();
+            if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) applyDraft();
+          }}
+        />
+      </label>
+      {diagnostic === undefined ? (
+        draft.trim().length > 0 ? (
+          <p className="inspector-panel__expression-ok" role="status">
+            Expressão válida neste frame.
+          </p>
+        ) : (
+          <p className="inspector-panel__expression-hint">
+            Use <code>value</code> e <code>frame</code>. Ctrl+Enter aplica.
+          </p>
+        )
+      ) : (
+        <ExpressionDiagnosticNotice code={diagnostic.code} message={diagnostic.message} />
+      )}
+      <div className="inspector-panel__expression-actions">
+        <Button
+          size="sm"
+          variant="primary"
+          disabled={!dirty || draft.trim().length === 0}
+          onClick={applyDraft}
+        >
+          Aplicar
+        </Button>
+        <Button
+          size="sm"
+          variant="danger"
+          disabled={property.expression === null}
+          onClick={() => {
+            setDraft("");
+            onRemove();
+          }}
+        >
+          Remover
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onClose}>
+          Fechar
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ExpressionDiagnosticNotice({
+  code,
+  message,
+}: {
+  readonly code: string;
+  readonly message: string;
+}): ReactNode {
+  return (
+    <p className="inspector-panel__expression-error" role="status">
+      <strong>{code}</strong> · {message} O valor base continua sendo usado.
+    </p>
   );
 }
 

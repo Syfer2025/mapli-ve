@@ -81,4 +81,20 @@ describe("lease do viewport de export", () => {
     cleanupA();
     expect(getExportJobSnapshot().status).toBe("failed");
   });
+
+  it("não deixa o estado preso em running quando o serviço lança", async () => {
+    const cleanup = bindExportViewport({
+      probe: () => ({ frame: 0, renders: 0, pendingAssets: 0 }),
+    });
+    vi.mocked(startPngSequenceExport).mockRejectedValueOnce(new Error("IPC encerrado"));
+
+    await startExportJob({ format: "png" });
+
+    expect(getExportJobSnapshot()).toMatchObject({
+      status: "failed",
+      phase: "idle",
+      message: expect.stringContaining("IPC encerrado"),
+    });
+    cleanup();
+  });
 });

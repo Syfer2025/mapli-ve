@@ -56,6 +56,10 @@ import { effectivePixelRatio, surfaceMatches } from "../../export/surface-overri
 import { usePreviewSupersampling } from "../../export/preview-supersampling.js";
 import { editorActions, getEditorSessionSnapshot } from "../../document/editor-session.js";
 import { useEditorSession } from "../../document/useEditorSession.js";
+import {
+  clearRuntimeExpressionDiagnostics,
+  publishRuntimeExpressionDiagnostics,
+} from "../../diagnostics/runtime-diagnostics.js";
 import { importLocalModel, loadLocalModelIndex } from "../../assets/local-models.js";
 import { assetDisplayName } from "@theatrum/assets";
 import { Button, Panel } from "../../ui/index.js";
@@ -594,6 +598,12 @@ export function StudioViewport(): ReactNode {
       composition.id,
       { registry: behaviorRegistry },
     );
+    publishRuntimeExpressionDiagnostics(
+      "studio",
+      composition.id,
+      pass.scene.frame,
+      pass.scene.diagnostics,
+    );
     const documentStage = collectStudioStage(pass.scene);
     const models = documentStage === null ? [] : collectStudioModels(pass.scene);
     /**
@@ -716,6 +726,8 @@ export function StudioViewport(): ReactNode {
     // O controle explícito de qualidade repinta as duas superfícies do preview.
     previewPixelRatio,
   ]);
+
+  useEffect(() => () => clearRuntimeExpressionDiagnostics("studio"), []);
 
   /**
    * Começo de gesto ([ADR-017](../../../../../docs/adr/ADR-017-studio-authoring-camera.md)).

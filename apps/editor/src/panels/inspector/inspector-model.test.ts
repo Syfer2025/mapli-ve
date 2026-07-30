@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildInspectorModel,
   controlNumberToStoredValue,
+  propertyExpressionDiagnostic,
   readPath,
   storedNumberToControlValue,
   unitLabel,
@@ -27,7 +28,7 @@ describe("inspector model", () => {
           out: { kind: "linear" },
         },
       ],
-      expression: null,
+      expression: "value * 2",
     };
     const definition = fakeDefinition("shape.circle", [
       descriptor("transform.opacity", "Opacidade", "number", "appearance", true),
@@ -43,7 +44,27 @@ describe("inspector model", () => {
       animated: true,
       keyframeCount: 1,
       available: true,
+      expression: "value * 2",
     });
+  });
+
+  it("expõe diagnóstico recuperável usando o mesmo avaliador da propriedade", () => {
+    const property = {
+      value: 0.75,
+      keyframes: [],
+      expression: null,
+    };
+
+    expect(
+      propertyExpressionDiagnostic(property, "value / 0", 12, "transform.opacity"),
+    ).toMatchObject({
+      code: "expression.divide-by-zero",
+      propertyPath: "transform.opacity",
+    });
+    expect(
+      propertyExpressionDiagnostic(property, "clamp(value + frame / 100, 0, 1)", 12, "opacity"),
+    ).toBeUndefined();
+    expect(propertyExpressionDiagnostic(property, null, 12, "opacity")).toBeUndefined();
   });
 
   it("mostra o tipo novo do registro real sem uma linha de UI dedicada", () => {

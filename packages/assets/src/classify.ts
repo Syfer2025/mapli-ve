@@ -4,14 +4,15 @@
  * para o viewport 3D futuro. A extensão manda; o mime só desempata arquivos
  * sem extensão reconhecida.
  */
-export type AssetKind = "image" | "svg" | "model";
+export type AssetKind = "image" | "svg" | "model" | "audio";
 
-export const ASSET_IMPORT_ACCEPT = ".png,.jpg,.jpeg,.webp,.svg,.glb,.gltf";
+export const ASSET_IMPORT_ACCEPT = ".png,.jpg,.jpeg,.webp,.svg,.glb,.gltf,.wav,.mp3,.ogg,.m4a";
 
 export const ASSET_KIND_LABELS: Readonly<Record<AssetKind, string>> = Object.freeze({
   image: "Imagem",
   svg: "SVG",
   model: "Modelo 3D",
+  audio: "Áudio",
 });
 
 const EXTENSION_KINDS: Readonly<Record<string, AssetKind>> = Object.freeze({
@@ -22,6 +23,10 @@ const EXTENSION_KINDS: Readonly<Record<string, AssetKind>> = Object.freeze({
   svg: "svg",
   glb: "model",
   gltf: "model",
+  wav: "audio",
+  mp3: "audio",
+  ogg: "audio",
+  m4a: "audio",
 });
 
 const MIME_KINDS: Readonly<Record<string, AssetKind>> = Object.freeze({
@@ -31,6 +36,12 @@ const MIME_KINDS: Readonly<Record<string, AssetKind>> = Object.freeze({
   "image/svg+xml": "svg",
   "model/gltf-binary": "model",
   "model/gltf+json": "model",
+  "audio/wav": "audio",
+  "audio/x-wav": "audio",
+  "audio/mpeg": "audio",
+  "audio/ogg": "audio",
+  "audio/mp4": "audio",
+  "audio/x-m4a": "audio",
 });
 
 export function extensionForFileName(fileName: string): string | null {

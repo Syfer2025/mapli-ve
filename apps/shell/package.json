@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@theatrum/export": "workspace:*",
+    "@theatrum/plugin-host": "workspace:*",
     "@theatrum/project-io": "workspace:*",
     "@theatrum/schema": "workspace:*"
   },

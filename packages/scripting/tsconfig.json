@@ -21,6 +21,12 @@
       "path": "../schema"
     },
     {
+      "path": "../gis"
+    },
+    {
+      "path": "../scene-graph"
+    },
+    {
       "path": "../core-time"
     },
     {

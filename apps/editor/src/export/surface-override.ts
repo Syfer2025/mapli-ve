@@ -135,8 +135,8 @@ function pending(override: SurfaceOverride | null): readonly string[] {
  * Espera as superfícies montadas **estarem** no tamanho pedido.
  *
  * O teto existe porque a alternativa é um export que nunca começa. Um caso real
- * cai aqui: o `maxCanvasSize` do MapLibre **baixa o pixel ratio em silêncio** acima
- * de 4096 px, e nesse caso o canvas nunca alcança o tamanho pedido. Estourar
+ * cai aqui: se o teto concreto da GPU ficar abaixo do `maxCanvasSize` configurado,
+ * o canvas nunca alcança o tamanho pedido. Estourar
  * nomeando a superfície é o comportamento que o ADR-022 escolheu — recusar em vez
  * de cortar calado.
  */
@@ -156,7 +156,7 @@ async function waitForConformance(
     if (Date.now() >= deadline) {
       throw new Error(
         `superfícies não chegaram ao tamanho de export em ${String(timeoutMs)} ms: ` +
-          `${faltando.join(", ")}. Teto do MapLibre (4096 px por eixo) é o suspeito ` +
+          `${faltando.join(", ")}. Teto da GPU/MapLibre (8192 px por eixo) é o suspeito ` +
           `quando a escala é alta.`,
       );
     }
@@ -222,6 +222,149 @@ export interface MeasuredSurface {
 }
 
 /**
+ * Capacidades do contexto que sustenta uma superfície composta.
+ *
+ * `probed: false` existe para os doubles puros dos testes e para consumidores
+ * sem DOM. Um canvas real possui `getContext`; nesse caso a ausência de WebGL
+ * deixa de ser "não sei" e passa a ser falha. Tamanho de backing store sozinho
+ * não prova que o framebuffer sobreviveu à alocação.
+ */
+export interface SurfaceGpuCapabilities {
+  readonly probed: boolean;
+  readonly available: boolean;
+  readonly contextLost: boolean;
+  readonly preserveDrawingBuffer: boolean | null;
+  /** Alocação real do contexto, não apenas os atributos do elemento canvas. */
+  readonly drawingBuffer: readonly [number, number] | null;
+  readonly maxTextureSize: number | null;
+  readonly maxRenderbufferSize: number | null;
+  readonly maxViewport: readonly [number, number] | null;
+}
+
+interface WebGlProbe {
+  readonly drawingBufferWidth: number;
+  readonly drawingBufferHeight: number;
+  readonly MAX_TEXTURE_SIZE: number;
+  readonly MAX_RENDERBUFFER_SIZE: number;
+  readonly MAX_VIEWPORT_DIMS: number;
+  readonly getParameter: (parameter: number) => unknown;
+  readonly getContextAttributes: () => { readonly preserveDrawingBuffer?: boolean } | null;
+  readonly isContextLost: () => boolean;
+}
+
+function isWebGlProbe(value: unknown): value is WebGlProbe {
+  if (typeof value !== "object" || value === null) return false;
+  return (
+    typeof Reflect.get(value, "getParameter") === "function" &&
+    typeof Reflect.get(value, "getContextAttributes") === "function" &&
+    typeof Reflect.get(value, "isContextLost") === "function" &&
+    typeof Reflect.get(value, "drawingBufferWidth") === "number" &&
+    typeof Reflect.get(value, "drawingBufferHeight") === "number" &&
+    typeof Reflect.get(value, "MAX_TEXTURE_SIZE") === "number" &&
+    typeof Reflect.get(value, "MAX_RENDERBUFFER_SIZE") === "number" &&
+    typeof Reflect.get(value, "MAX_VIEWPORT_DIMS") === "number"
+  );
+}
+
+function finiteLimit(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function viewportLimit(value: unknown): readonly [number, number] | null {
+  if (
+    (Array.isArray(value) || ArrayBuffer.isView(value)) &&
+    finiteLimit(Reflect.get(value, "0")) !== null &&
+    finiteLimit(Reflect.get(value, "1")) !== null
+  ) {
+    return Object.freeze([
+      finiteLimit(Reflect.get(value, "0")) as number,
+      finiteLimit(Reflect.get(value, "1")) as number,
+    ]);
+  }
+  return null;
+}
+
+/**
+ * Lê o contexto que já pertence ao canvas e as três cotas que limitam uma
+ * superfície direta. O verificador 8K relata os mesmos números.
+ */
+export function inspectSurfaceGpu(canvas: MeasuredSurface): SurfaceGpuCapabilities {
+  const getContext = Reflect.get(canvas, "getContext");
+  if (typeof getContext !== "function") {
+    return Object.freeze({
+      probed: false,
+      available: false,
+      contextLost: false,
+      preserveDrawingBuffer: null,
+      drawingBuffer: null,
+      maxTextureSize: null,
+      maxRenderbufferSize: null,
+      maxViewport: null,
+    });
+  }
+
+  let candidate: unknown = null;
+  try {
+    candidate =
+      Reflect.apply(getContext, canvas, ["webgl2"]) ?? Reflect.apply(getContext, canvas, ["webgl"]);
+  } catch {
+    // Context creation can throw on unavailable or lost GPU devices.
+  }
+  if (!isWebGlProbe(candidate)) {
+    return Object.freeze({
+      probed: true,
+      available: false,
+      contextLost: false,
+      preserveDrawingBuffer: null,
+      drawingBuffer: null,
+      maxTextureSize: null,
+      maxRenderbufferSize: null,
+      maxViewport: null,
+    });
+  }
+
+  const contextLost = candidate.isContextLost();
+  const attributes = candidate.getContextAttributes();
+  return Object.freeze({
+    probed: true,
+    available: true,
+    contextLost,
+    preserveDrawingBuffer: attributes?.preserveDrawingBuffer ?? null,
+    drawingBuffer:
+      finiteLimit(candidate.drawingBufferWidth) === null ||
+      finiteLimit(candidate.drawingBufferHeight) === null
+        ? null
+        : Object.freeze([candidate.drawingBufferWidth, candidate.drawingBufferHeight] as [
+            number,
+            number,
+          ]),
+    maxTextureSize: finiteLimit(candidate.getParameter(candidate.MAX_TEXTURE_SIZE)),
+    maxRenderbufferSize: finiteLimit(candidate.getParameter(candidate.MAX_RENDERBUFFER_SIZE)),
+    maxViewport: viewportLimit(candidate.getParameter(candidate.MAX_VIEWPORT_DIMS)),
+  });
+}
+
+function gpuSupportsSurface(
+  capabilities: SurfaceGpuCapabilities,
+  expected: { readonly width: number; readonly height: number },
+): boolean {
+  if (!capabilities.probed) return true;
+  const longest = Math.max(expected.width, expected.height);
+  return (
+    capabilities.available &&
+    !capabilities.contextLost &&
+    capabilities.preserveDrawingBuffer === true &&
+    capabilities.drawingBuffer !== null &&
+    capabilities.drawingBuffer[0] === expected.width &&
+    capabilities.drawingBuffer[1] === expected.height &&
+    (capabilities.maxTextureSize ?? 0) >= longest &&
+    (capabilities.maxRenderbufferSize ?? 0) >= longest &&
+    (capabilities.maxViewport?.[0] ?? 0) >= expected.width &&
+    (capabilities.maxViewport?.[1] ?? 0) >= expected.height
+  );
+}
+
+/**
  * A superfície está no tamanho pedido?
  *
  * Quatro respostas, e três delas são "não se aplica". Cada uma custou uma rodada:
@@ -251,7 +394,11 @@ export function surfaceMatches(
   if (canvas === null || canvas === undefined) return true;
   if (canvas.isConnected === false) return true;
   if (!isComposableSurface(canvas)) return true;
-  return canvas.width === expected.width && canvas.height === expected.height;
+  return (
+    canvas.width === expected.width &&
+    canvas.height === expected.height &&
+    gpuSupportsSurface(inspectSurfaceGpu(canvas), expected)
+  );
 }
 
 /**

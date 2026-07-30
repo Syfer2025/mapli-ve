@@ -17,6 +17,12 @@ import {
   resetWorkspace,
   saveWorkspace,
 } from "./services/workspace-store.js";
+import {
+  SHORTCUT_PREFERENCES_FILE_NAME,
+  loadShortcutPreferences,
+  resetShortcutPreferences,
+  saveShortcutPreferences,
+} from "./services/shortcut-preferences-store.js";
 import { registerDataProtocol, registerDataScheme } from "./services/data-protocol.js";
 import {
   listProjectExamples,
@@ -35,21 +41,32 @@ import {
   shouldPreserveRecoveryOnQuit,
   startRecovery,
 } from "./services/recovery.js";
-import { appendExportBytes, beginExport, writeExportFrame } from "./services/export-writer.js";
+import {
+  appendExportBytes,
+  beginExport,
+  verifyExportFrames,
+  writeExportFrame,
+} from "./services/export-writer.js";
 import { encodeExportFrames } from "./services/ffmpeg-export.js";
+import { finalizeExportFile } from "./services/export-publication.js";
+import { readLocalPluginModule, scanLocalPlugins } from "./services/plugin-files.js";
 import {
   IPC_CHANNELS,
   MENU_ACTION_CHANNEL,
   WORKSPACE_FLUSH_CHANNEL,
   type AppInfo,
+  type AppProcessMetric,
   type ExportAppendRequest,
   type ExportBeginRequest,
   type ExportEncodeRequest,
+  type ExportFinalizeRequest,
   type ExportFrameRequest,
+  type ExportVerifyFramesRequest,
   type IpcChannel,
   type ProjectSaveRequest,
   type RecoveryRecordRequest,
   type RecoveryStartRequest,
+  type ShortcutPreferences,
   type WorkspaceState,
 } from "../ipc/contracts.js";
 
@@ -93,6 +110,28 @@ function appInfo(): AppInfo {
   };
 }
 
+function appProcessMetrics(): readonly AppProcessMetric[] {
+  return Object.freeze(
+    app.getAppMetrics().map((metric) =>
+      Object.freeze({
+        pid: metric.pid,
+        type: metric.type,
+        workingSetKb: metric.memory.workingSetSize,
+        peakWorkingSetKb: metric.memory.peakWorkingSetSize,
+        privateBytesKb: metric.memory.privateBytes ?? 0,
+      }),
+    ),
+  );
+}
+
+function shortcutPreferencesPath(): string {
+  return path.join(app.getPath("userData"), SHORTCUT_PREFERENCES_FILE_NAME);
+}
+
+function pluginsRoot(): string {
+  return path.join(app.getPath("userData"), "plugins");
+}
+
 /**
  * Registra os handlers de IPC.
  *
@@ -103,9 +142,17 @@ function appInfo(): AppInfo {
 function registerIpc(): void {
   const handlers = {
     "app:info": () => appInfo(),
+    "app:metrics": () => appProcessMetrics(),
     "workspace:load": () => loadWorkspace(),
     "workspace:save": (_event: unknown, state: WorkspaceState) => saveWorkspace(state),
     "workspace:reset": () => resetWorkspace(),
+    "preferences:load": () => loadShortcutPreferences(shortcutPreferencesPath()),
+    "preferences:save": (_event: unknown, preferences: ShortcutPreferences) =>
+      saveShortcutPreferences(shortcutPreferencesPath(), preferences),
+    "preferences:reset": () => resetShortcutPreferences(shortcutPreferencesPath()),
+    "plugins:scan": () => scanLocalPlugins(pluginsRoot()),
+    "plugins:module": (_event: unknown, pluginId: string) =>
+      readLocalPluginModule(pluginsRoot(), pluginId),
     "project:open": () => {
       if (editorWindow === null) throw new Error("A janela do editor não está disponível.");
       return openProjectFile(editorWindow);
@@ -137,7 +184,11 @@ function registerIpc(): void {
     // Sem a janela como argumento: escrever um frame não abre diálogo nenhum, e
     // um export não pode morrer porque a janela foi fechada no meio.
     "export:frame": (_event: unknown, request: ExportFrameRequest) => writeExportFrame(request),
+    "export:verify-frames": (_event: unknown, request: ExportVerifyFramesRequest) =>
+      verifyExportFrames(request),
     "export:append": (_event: unknown, request: ExportAppendRequest) => appendExportBytes(request),
+    "export:finalize": (_event: unknown, request: ExportFinalizeRequest) =>
+      finalizeExportFile(request),
     "export:encode": (_event: unknown, request: ExportEncodeRequest) => encodeExportFrames(request),
   } satisfies Record<IpcChannel, unknown>;
 

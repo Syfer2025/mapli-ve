@@ -1,0 +1,753 @@
+<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <metadata>150 símbolos de unidades compatíveis com a taxonomia NATO APP-6.</metadata>
+  <symbol id="wwi.britain.armor-light" viewBox="0 0 96 64">
+    <title>Carro de combate leve — Reino Unido</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#b83b43" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwi.britain.armor-medium" viewBox="0 0 96 64">
+    <title>Carro de combate médio — Reino Unido</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#b83b43" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwi.britain.armor-heavy" viewBox="0 0 96 64">
+    <title>Mark IV</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#b83b43" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwi.britain.infantry" viewBox="0 0 96 64">
+    <title>Infantaria — Reino Unido</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#b83b43" stroke-width="4"/>
+    <path d="M28 16 68 48M68 16 28 48" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwi.britain.artillery" viewBox="0 0 96 64">
+    <title>Artilharia de campanha — Reino Unido</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#b83b43" stroke-width="4"/>
+    <circle cx="48" cy="32" r="14" fill="none" stroke="#17212b" stroke-width="4"/><circle cx="48" cy="32" r="4" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.britain.fighter" viewBox="0 0 96 64">
+    <title>Aeronave de caça — Reino Unido</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#b83b43" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.britain.bomber" viewBox="0 0 96 64">
+    <title>Bombardeiro — Reino Unido</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#b83b43" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.britain.destroyer" viewBox="0 0 96 64">
+    <title>Escolta de superfície — Reino Unido</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#b83b43" stroke-width="4"/>
+    <path d="M20 25h56L66 44H30zM38 16h20v9H38z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.britain.logistics" viewBox="0 0 96 64">
+    <title>Logística — Reino Unido</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#b83b43" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.britain.medical" viewBox="0 0 96 64">
+    <title>Apoio médico — Reino Unido</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#b83b43" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.france.armor-light" viewBox="0 0 96 64">
+    <title>Renault FT</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#3f68ad" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwi.france.armor-medium" viewBox="0 0 96 64">
+    <title>Carro de combate médio — França</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#3f68ad" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwi.france.armor-heavy" viewBox="0 0 96 64">
+    <title>Carro de combate pesado — França</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#3f68ad" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwi.france.infantry" viewBox="0 0 96 64">
+    <title>Infantaria — França</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#3f68ad" stroke-width="4"/>
+    <path d="M28 16 68 48M68 16 28 48" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwi.france.artillery" viewBox="0 0 96 64">
+    <title>Artilharia de campanha — França</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#3f68ad" stroke-width="4"/>
+    <circle cx="48" cy="32" r="14" fill="none" stroke="#17212b" stroke-width="4"/><circle cx="48" cy="32" r="4" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.france.fighter" viewBox="0 0 96 64">
+    <title>Aeronave de caça — França</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#3f68ad" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.france.bomber" viewBox="0 0 96 64">
+    <title>Bombardeiro — França</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#3f68ad" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.france.destroyer" viewBox="0 0 96 64">
+    <title>Escolta de superfície — França</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#3f68ad" stroke-width="4"/>
+    <path d="M20 25h56L66 44H30zM38 16h20v9H38z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.france.logistics" viewBox="0 0 96 64">
+    <title>Logística — França</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#3f68ad" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.france.medical" viewBox="0 0 96 64">
+    <title>Apoio médico — França</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#3f68ad" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.germany.armor-light" viewBox="0 0 96 64">
+    <title>Carro de combate leve — Império Alemão</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#3d4149" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwi.germany.armor-medium" viewBox="0 0 96 64">
+    <title>Carro de combate médio — Império Alemão</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#3d4149" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwi.germany.armor-heavy" viewBox="0 0 96 64">
+    <title>Carro de combate pesado — Império Alemão</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#3d4149" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwi.germany.infantry" viewBox="0 0 96 64">
+    <title>Infantaria — Império Alemão</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#3d4149" stroke-width="4"/>
+    <path d="M28 16 68 48M68 16 28 48" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwi.germany.artillery" viewBox="0 0 96 64">
+    <title>Artilharia de campanha — Império Alemão</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#3d4149" stroke-width="4"/>
+    <circle cx="48" cy="32" r="14" fill="none" stroke="#17212b" stroke-width="4"/><circle cx="48" cy="32" r="4" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.germany.fighter" viewBox="0 0 96 64">
+    <title>Fokker D.VII</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#3d4149" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.germany.bomber" viewBox="0 0 96 64">
+    <title>Bombardeiro — Império Alemão</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#3d4149" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.germany.destroyer" viewBox="0 0 96 64">
+    <title>Escolta de superfície — Império Alemão</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#3d4149" stroke-width="4"/>
+    <path d="M20 25h56L66 44H30zM38 16h20v9H38z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.germany.logistics" viewBox="0 0 96 64">
+    <title>Logística — Império Alemão</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#3d4149" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.germany.medical" viewBox="0 0 96 64">
+    <title>Apoio médico — Império Alemão</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#3d4149" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.russia.armor-light" viewBox="0 0 96 64">
+    <title>Carro de combate leve — Império Russo</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4478a8" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwi.russia.armor-medium" viewBox="0 0 96 64">
+    <title>Carro de combate médio — Império Russo</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4478a8" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwi.russia.armor-heavy" viewBox="0 0 96 64">
+    <title>Carro de combate pesado — Império Russo</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4478a8" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwi.russia.infantry" viewBox="0 0 96 64">
+    <title>Infantaria — Império Russo</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4478a8" stroke-width="4"/>
+    <path d="M28 16 68 48M68 16 28 48" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwi.russia.artillery" viewBox="0 0 96 64">
+    <title>Artilharia de campanha — Império Russo</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4478a8" stroke-width="4"/>
+    <circle cx="48" cy="32" r="14" fill="none" stroke="#17212b" stroke-width="4"/><circle cx="48" cy="32" r="4" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.russia.fighter" viewBox="0 0 96 64">
+    <title>Aeronave de caça — Império Russo</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4478a8" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.russia.bomber" viewBox="0 0 96 64">
+    <title>Bombardeiro — Império Russo</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4478a8" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.russia.destroyer" viewBox="0 0 96 64">
+    <title>Escolta de superfície — Império Russo</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4478a8" stroke-width="4"/>
+    <path d="M20 25h56L66 44H30zM38 16h20v9H38z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.russia.logistics" viewBox="0 0 96 64">
+    <title>Logística — Império Russo</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4478a8" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.russia.medical" viewBox="0 0 96 64">
+    <title>Apoio médico — Império Russo</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4478a8" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.ottoman.armor-light" viewBox="0 0 96 64">
+    <title>Carro de combate leve — Império Otomano</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a93636" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwi.ottoman.armor-medium" viewBox="0 0 96 64">
+    <title>Carro de combate médio — Império Otomano</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a93636" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwi.ottoman.armor-heavy" viewBox="0 0 96 64">
+    <title>Carro de combate pesado — Império Otomano</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a93636" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwi.ottoman.infantry" viewBox="0 0 96 64">
+    <title>Infantaria — Império Otomano</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a93636" stroke-width="4"/>
+    <path d="M28 16 68 48M68 16 28 48" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwi.ottoman.artillery" viewBox="0 0 96 64">
+    <title>Artilharia de campanha — Império Otomano</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a93636" stroke-width="4"/>
+    <circle cx="48" cy="32" r="14" fill="none" stroke="#17212b" stroke-width="4"/><circle cx="48" cy="32" r="4" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.ottoman.fighter" viewBox="0 0 96 64">
+    <title>Aeronave de caça — Império Otomano</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a93636" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.ottoman.bomber" viewBox="0 0 96 64">
+    <title>Bombardeiro — Império Otomano</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a93636" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.ottoman.destroyer" viewBox="0 0 96 64">
+    <title>Escolta de superfície — Império Otomano</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a93636" stroke-width="4"/>
+    <path d="M20 25h56L66 44H30zM38 16h20v9H38z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.ottoman.logistics" viewBox="0 0 96 64">
+    <title>Logística — Império Otomano</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a93636" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwi.ottoman.medical" viewBox="0 0 96 64">
+    <title>Apoio médico — Império Otomano</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a93636" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.usa.armor-light" viewBox="0 0 96 64">
+    <title>Carro de combate leve — Estados Unidos</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#496b91" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwii.usa.armor-medium" viewBox="0 0 96 64">
+    <title>M4 Sherman</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#496b91" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwii.usa.armor-heavy" viewBox="0 0 96 64">
+    <title>Carro de combate pesado — Estados Unidos</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#496b91" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwii.usa.infantry" viewBox="0 0 96 64">
+    <title>Infantaria — Estados Unidos</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#496b91" stroke-width="4"/>
+    <path d="M28 16 68 48M68 16 28 48" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwii.usa.artillery" viewBox="0 0 96 64">
+    <title>Artilharia de campanha — Estados Unidos</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#496b91" stroke-width="4"/>
+    <circle cx="48" cy="32" r="14" fill="none" stroke="#17212b" stroke-width="4"/><circle cx="48" cy="32" r="4" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.usa.fighter" viewBox="0 0 96 64">
+    <title>Aeronave de caça — Estados Unidos</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#496b91" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.usa.bomber" viewBox="0 0 96 64">
+    <title>Bombardeiro — Estados Unidos</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#496b91" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.usa.destroyer" viewBox="0 0 96 64">
+    <title>Escolta de superfície — Estados Unidos</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#496b91" stroke-width="4"/>
+    <path d="M20 25h56L66 44H30zM38 16h20v9H38z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.usa.logistics" viewBox="0 0 96 64">
+    <title>Logística — Estados Unidos</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#496b91" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.usa.medical" viewBox="0 0 96 64">
+    <title>Apoio médico — Estados Unidos</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#496b91" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.britain.armor-light" viewBox="0 0 96 64">
+    <title>Carro de combate leve — Reino Unido</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#8e414a" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwii.britain.armor-medium" viewBox="0 0 96 64">
+    <title>Carro de combate médio — Reino Unido</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#8e414a" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwii.britain.armor-heavy" viewBox="0 0 96 64">
+    <title>Churchill Mk VII</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#8e414a" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwii.britain.infantry" viewBox="0 0 96 64">
+    <title>Infantaria — Reino Unido</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#8e414a" stroke-width="4"/>
+    <path d="M28 16 68 48M68 16 28 48" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwii.britain.artillery" viewBox="0 0 96 64">
+    <title>Artilharia de campanha — Reino Unido</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#8e414a" stroke-width="4"/>
+    <circle cx="48" cy="32" r="14" fill="none" stroke="#17212b" stroke-width="4"/><circle cx="48" cy="32" r="4" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.britain.fighter" viewBox="0 0 96 64">
+    <title>Aeronave de caça — Reino Unido</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#8e414a" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.britain.bomber" viewBox="0 0 96 64">
+    <title>Bombardeiro — Reino Unido</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#8e414a" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.britain.destroyer" viewBox="0 0 96 64">
+    <title>Escolta de superfície — Reino Unido</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#8e414a" stroke-width="4"/>
+    <path d="M20 25h56L66 44H30zM38 16h20v9H38z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.britain.logistics" viewBox="0 0 96 64">
+    <title>Logística — Reino Unido</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#8e414a" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.britain.medical" viewBox="0 0 96 64">
+    <title>Apoio médico — Reino Unido</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#8e414a" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.germany.armor-light" viewBox="0 0 96 64">
+    <title>Carro de combate leve — Alemanha</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4b4b48" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwii.germany.armor-medium" viewBox="0 0 96 64">
+    <title>Panther Ausf. G</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4b4b48" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwii.germany.armor-heavy" viewBox="0 0 96 64">
+    <title>Tiger I</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4b4b48" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwii.germany.infantry" viewBox="0 0 96 64">
+    <title>Infantaria — Alemanha</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4b4b48" stroke-width="4"/>
+    <path d="M28 16 68 48M68 16 28 48" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwii.germany.artillery" viewBox="0 0 96 64">
+    <title>Artilharia de campanha — Alemanha</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4b4b48" stroke-width="4"/>
+    <circle cx="48" cy="32" r="14" fill="none" stroke="#17212b" stroke-width="4"/><circle cx="48" cy="32" r="4" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.germany.fighter" viewBox="0 0 96 64">
+    <title>Aeronave de caça — Alemanha</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4b4b48" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.germany.bomber" viewBox="0 0 96 64">
+    <title>Bombardeiro — Alemanha</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4b4b48" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.germany.destroyer" viewBox="0 0 96 64">
+    <title>Escolta de superfície — Alemanha</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4b4b48" stroke-width="4"/>
+    <path d="M20 25h56L66 44H30zM38 16h20v9H38z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.germany.logistics" viewBox="0 0 96 64">
+    <title>Logística — Alemanha</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4b4b48" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.germany.medical" viewBox="0 0 96 64">
+    <title>Apoio médico — Alemanha</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4b4b48" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.ussr.armor-light" viewBox="0 0 96 64">
+    <title>Carro de combate leve — União Soviética</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a63a31" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwii.ussr.armor-medium" viewBox="0 0 96 64">
+    <title>T-34/76</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a63a31" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwii.ussr.armor-heavy" viewBox="0 0 96 64">
+    <title>IS-2</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a63a31" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwii.ussr.infantry" viewBox="0 0 96 64">
+    <title>Infantaria — União Soviética</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a63a31" stroke-width="4"/>
+    <path d="M28 16 68 48M68 16 28 48" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwii.ussr.artillery" viewBox="0 0 96 64">
+    <title>Artilharia de campanha — União Soviética</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a63a31" stroke-width="4"/>
+    <circle cx="48" cy="32" r="14" fill="none" stroke="#17212b" stroke-width="4"/><circle cx="48" cy="32" r="4" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.ussr.fighter" viewBox="0 0 96 64">
+    <title>Aeronave de caça — União Soviética</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a63a31" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.ussr.bomber" viewBox="0 0 96 64">
+    <title>Bombardeiro — União Soviética</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a63a31" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.ussr.destroyer" viewBox="0 0 96 64">
+    <title>Escolta de superfície — União Soviética</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a63a31" stroke-width="4"/>
+    <path d="M20 25h56L66 44H30zM38 16h20v9H38z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.ussr.logistics" viewBox="0 0 96 64">
+    <title>Logística — União Soviética</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a63a31" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.ussr.medical" viewBox="0 0 96 64">
+    <title>Apoio médico — União Soviética</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a63a31" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.japan.armor-light" viewBox="0 0 96 64">
+    <title>Carro de combate leve — Japão</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#b84b4b" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwii.japan.armor-medium" viewBox="0 0 96 64">
+    <title>Carro de combate médio — Japão</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#b84b4b" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwii.japan.armor-heavy" viewBox="0 0 96 64">
+    <title>Carro de combate pesado — Japão</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#b84b4b" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwii.japan.infantry" viewBox="0 0 96 64">
+    <title>Infantaria — Japão</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#b84b4b" stroke-width="4"/>
+    <path d="M28 16 68 48M68 16 28 48" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="wwii.japan.artillery" viewBox="0 0 96 64">
+    <title>Artilharia de campanha — Japão</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#b84b4b" stroke-width="4"/>
+    <circle cx="48" cy="32" r="14" fill="none" stroke="#17212b" stroke-width="4"/><circle cx="48" cy="32" r="4" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.japan.fighter" viewBox="0 0 96 64">
+    <title>Mitsubishi A6M Zero</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#b84b4b" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.japan.bomber" viewBox="0 0 96 64">
+    <title>Bombardeiro — Japão</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#b84b4b" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.japan.destroyer" viewBox="0 0 96 64">
+    <title>Escolta de superfície — Japão</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#b84b4b" stroke-width="4"/>
+    <path d="M20 25h56L66 44H30zM38 16h20v9H38z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.japan.logistics" viewBox="0 0 96 64">
+    <title>Logística — Japão</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#b84b4b" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="wwii.japan.medical" viewBox="0 0 96 64">
+    <title>Apoio médico — Japão</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#b84b4b" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.usa.armor-light" viewBox="0 0 96 64">
+    <title>Carro de combate leve — Estados Unidos</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#486d95" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="modern.usa.armor-medium" viewBox="0 0 96 64">
+    <title>Carro de combate médio — Estados Unidos</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#486d95" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="modern.usa.armor-heavy" viewBox="0 0 96 64">
+    <title>M1A2 Abrams</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#486d95" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="modern.usa.infantry" viewBox="0 0 96 64">
+    <title>Infantaria — Estados Unidos</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#486d95" stroke-width="4"/>
+    <path d="M28 16 68 48M68 16 28 48" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="modern.usa.artillery" viewBox="0 0 96 64">
+    <title>Artilharia de campanha — Estados Unidos</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#486d95" stroke-width="4"/>
+    <circle cx="48" cy="32" r="14" fill="none" stroke="#17212b" stroke-width="4"/><circle cx="48" cy="32" r="4" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.usa.fighter" viewBox="0 0 96 64">
+    <title>Aeronave de caça — Estados Unidos</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#486d95" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.usa.bomber" viewBox="0 0 96 64">
+    <title>Bombardeiro — Estados Unidos</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#486d95" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.usa.destroyer" viewBox="0 0 96 64">
+    <title>Escolta de superfície — Estados Unidos</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#486d95" stroke-width="4"/>
+    <path d="M20 25h56L66 44H30zM38 16h20v9H38z" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.usa.logistics" viewBox="0 0 96 64">
+    <title>Logística — Estados Unidos</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#486d95" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.usa.medical" viewBox="0 0 96 64">
+    <title>Apoio médico — Estados Unidos</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#486d95" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.britain.armor-light" viewBox="0 0 96 64">
+    <title>Carro de combate leve — Reino Unido</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#8f414c" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="modern.britain.armor-medium" viewBox="0 0 96 64">
+    <title>Carro de combate médio — Reino Unido</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#8f414c" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="modern.britain.armor-heavy" viewBox="0 0 96 64">
+    <title>Challenger 2</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#8f414c" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="modern.britain.infantry" viewBox="0 0 96 64">
+    <title>Infantaria — Reino Unido</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#8f414c" stroke-width="4"/>
+    <path d="M28 16 68 48M68 16 28 48" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="modern.britain.artillery" viewBox="0 0 96 64">
+    <title>Artilharia de campanha — Reino Unido</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#8f414c" stroke-width="4"/>
+    <circle cx="48" cy="32" r="14" fill="none" stroke="#17212b" stroke-width="4"/><circle cx="48" cy="32" r="4" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.britain.fighter" viewBox="0 0 96 64">
+    <title>Aeronave de caça — Reino Unido</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#8f414c" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.britain.bomber" viewBox="0 0 96 64">
+    <title>Bombardeiro — Reino Unido</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#8f414c" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.britain.destroyer" viewBox="0 0 96 64">
+    <title>Escolta de superfície — Reino Unido</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#8f414c" stroke-width="4"/>
+    <path d="M20 25h56L66 44H30zM38 16h20v9H38z" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.britain.logistics" viewBox="0 0 96 64">
+    <title>Logística — Reino Unido</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#8f414c" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.britain.medical" viewBox="0 0 96 64">
+    <title>Apoio médico — Reino Unido</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#8f414c" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.russia.armor-light" viewBox="0 0 96 64">
+    <title>Carro de combate leve — Rússia</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#456f98" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="modern.russia.armor-medium" viewBox="0 0 96 64">
+    <title>Carro de combate médio — Rússia</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#456f98" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="modern.russia.armor-heavy" viewBox="0 0 96 64">
+    <title>T-90M</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#456f98" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="modern.russia.infantry" viewBox="0 0 96 64">
+    <title>Infantaria — Rússia</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#456f98" stroke-width="4"/>
+    <path d="M28 16 68 48M68 16 28 48" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="modern.russia.artillery" viewBox="0 0 96 64">
+    <title>Artilharia de campanha — Rússia</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#456f98" stroke-width="4"/>
+    <circle cx="48" cy="32" r="14" fill="none" stroke="#17212b" stroke-width="4"/><circle cx="48" cy="32" r="4" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.russia.fighter" viewBox="0 0 96 64">
+    <title>Aeronave de caça — Rússia</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#456f98" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.russia.bomber" viewBox="0 0 96 64">
+    <title>Bombardeiro — Rússia</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#456f98" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.russia.destroyer" viewBox="0 0 96 64">
+    <title>Escolta de superfície — Rússia</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#456f98" stroke-width="4"/>
+    <path d="M20 25h56L66 44H30zM38 16h20v9H38z" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.russia.logistics" viewBox="0 0 96 64">
+    <title>Logística — Rússia</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#456f98" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.russia.medical" viewBox="0 0 96 64">
+    <title>Apoio médico — Rússia</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#456f98" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.china.armor-light" viewBox="0 0 96 64">
+    <title>Carro de combate leve — China</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a94138" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="modern.china.armor-medium" viewBox="0 0 96 64">
+    <title>Carro de combate médio — China</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a94138" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="modern.china.armor-heavy" viewBox="0 0 96 64">
+    <title>Type 99A</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a94138" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="modern.china.infantry" viewBox="0 0 96 64">
+    <title>Infantaria — China</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a94138" stroke-width="4"/>
+    <path d="M28 16 68 48M68 16 28 48" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="modern.china.artillery" viewBox="0 0 96 64">
+    <title>Artilharia de campanha — China</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a94138" stroke-width="4"/>
+    <circle cx="48" cy="32" r="14" fill="none" stroke="#17212b" stroke-width="4"/><circle cx="48" cy="32" r="4" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.china.fighter" viewBox="0 0 96 64">
+    <title>Aeronave de caça — China</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a94138" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.china.bomber" viewBox="0 0 96 64">
+    <title>Bombardeiro — China</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a94138" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.china.destroyer" viewBox="0 0 96 64">
+    <title>Escolta de superfície — China</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a94138" stroke-width="4"/>
+    <path d="M20 25h56L66 44H30zM38 16h20v9H38z" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.china.logistics" viewBox="0 0 96 64">
+    <title>Logística — China</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a94138" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.china.medical" viewBox="0 0 96 64">
+    <title>Apoio médico — China</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#a94138" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.iran.armor-light" viewBox="0 0 96 64">
+    <title>Carro de combate leve — Irã</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4c8a5e" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="modern.iran.armor-medium" viewBox="0 0 96 64">
+    <title>Carro de combate médio — Irã</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4c8a5e" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="modern.iran.armor-heavy" viewBox="0 0 96 64">
+    <title>Karrar</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4c8a5e" stroke-width="4"/>
+    <ellipse cx="48" cy="32" rx="21" ry="11" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="modern.iran.infantry" viewBox="0 0 96 64">
+    <title>Infantaria — Irã</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4c8a5e" stroke-width="4"/>
+    <path d="M28 16 68 48M68 16 28 48" fill="none" stroke="#17212b" stroke-width="4"/>
+  </symbol>
+  <symbol id="modern.iran.artillery" viewBox="0 0 96 64">
+    <title>Artilharia de campanha — Irã</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4c8a5e" stroke-width="4"/>
+    <circle cx="48" cy="32" r="14" fill="none" stroke="#17212b" stroke-width="4"/><circle cx="48" cy="32" r="4" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.iran.fighter" viewBox="0 0 96 64">
+    <title>Aeronave de caça — Irã</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4c8a5e" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.iran.bomber" viewBox="0 0 96 64">
+    <title>Bombardeiro — Irã</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4c8a5e" stroke-width="4"/>
+    <path d="m22 39 26-23 26 23-26-9z" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.iran.destroyer" viewBox="0 0 96 64">
+    <title>Classe Moudge</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4c8a5e" stroke-width="4"/>
+    <path d="M20 25h56L66 44H30zM38 16h20v9H38z" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.iran.logistics" viewBox="0 0 96 64">
+    <title>Logística — Irã</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4c8a5e" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+  <symbol id="modern.iran.medical" viewBox="0 0 96 64">
+    <title>Apoio médico — Irã</title>
+    <rect x="4" y="8" width="88" height="48" rx="5" fill="#f7f3e8" stroke="#4c8a5e" stroke-width="4"/>
+    <path d="M42 17h12v10h10v12H54v10H42V39H32V27h10z" fill="#17212b"/>
+  </symbol>
+</svg>

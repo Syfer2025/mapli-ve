@@ -184,8 +184,86 @@
   background: var(--accent-subtle);
 }
 
+.inspector-panel .ui-button[data-expression] {
+  font-family: var(--font-mono);
+  letter-spacing: -0.06em;
+}
+
+.inspector-panel .ui-button[data-expression="set"],
+.inspector-panel .ui-button[data-expression="active"] {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.inspector-panel .ui-button[data-expression="invalid"] {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 9%, var(--bg-panel));
+}
+
 .inspector-panel .ui-field__control {
   align-items: flex-start;
+}
+
+.inspector-panel__expression {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0 var(--space-4) var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  background: var(--bg-panel-raised);
+}
+
+.inspector-panel__expression label {
+  display: grid;
+  gap: var(--space-2);
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+}
+
+.inspector-panel__expression-source {
+  font-family: var(--font-mono);
+  line-height: var(--leading-normal);
+}
+
+.inspector-panel__expression-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.inspector-panel__expression-error,
+.inspector-panel__expression-ok,
+.inspector-panel__expression-hint {
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-3);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+}
+
+.inspector-panel__expression .inspector-panel__expression-error,
+.inspector-panel__expression .inspector-panel__expression-ok,
+.inspector-panel__expression .inspector-panel__expression-hint {
+  padding: 0;
+}
+
+.inspector-panel__expression-error {
+  color: var(--danger);
+}
+
+.inspector-panel__expression-error strong,
+.inspector-panel__expression-hint code {
+  font-family: var(--font-mono);
+}
+
+.inspector-panel__expression-ok {
+  color: var(--success);
+}
+
+.inspector-panel__expression-hint {
+  color: var(--fg-faint);
 }
 
 /* Seletor de território: campo de busca com resultados abaixo. Não é `select`

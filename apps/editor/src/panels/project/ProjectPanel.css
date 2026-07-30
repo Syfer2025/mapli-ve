@@ -56,6 +56,14 @@
   color: var(--fg);
 }
 
+.project-tree__node[data-unresolved] {
+  box-shadow: inset 2px 0 0 var(--danger, #ef6a6a);
+}
+
+.project-tree__node[data-unresolved] .project-tree__meta {
+  color: var(--danger, #ef6a6a);
+}
+
 .project-tree__disclosure {
   width: 10px;
   flex: none;
@@ -104,6 +112,21 @@
 
 .project-tree__label[data-label="violet"] {
   background: var(--label-purple);
+}
+
+.project-tree__unresolved-icon {
+  display: inline-flex;
+  width: 12px;
+  height: 12px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--danger, #ef6a6a);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .project-tree__name {

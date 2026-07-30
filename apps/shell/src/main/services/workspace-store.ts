@@ -15,6 +15,9 @@ import path from "node:path";
 import { WORKSPACE_VERSION, type WorkspaceState } from "../../ipc/contracts.js";
 
 const FILE_NAME = "workspace.json";
+let workspaceGeneration = 0;
+let latestSavedAtMs = Number.NEGATIVE_INFINITY;
+let saveTail: Promise<void> = Promise.resolve();
 
 function filePath(): string {
   return path.join(app.getPath("userData"), FILE_NAME);
@@ -36,24 +39,46 @@ export async function loadWorkspace(): Promise<WorkspaceState | null> {
       return null;
     }
 
-    return parsed as WorkspaceState;
+    const state = parsed as WorkspaceState;
+    if (Number.isFinite(state.savedAtMs)) {
+      latestSavedAtMs = Math.max(latestSavedAtMs, state.savedAtMs);
+    }
+    return state;
   } catch {
     return null;
   }
 }
 
 export async function saveWorkspace(state: WorkspaceState): Promise<void> {
-  const target = filePath();
-  const temporary = `${target}.${randomUUID()}.tmp`;
-
-  await mkdir(path.dirname(target), { recursive: true });
-  try {
-    await writeFile(temporary, JSON.stringify(state, null, 2), "utf8");
-    await rename(temporary, target);
-  } catch (error: unknown) {
-    await unlink(temporary).catch(() => {});
-    throw error;
+  if (!Number.isFinite(state.savedAtMs)) {
+    throw new RangeError("workspace precisa de savedAtMs finito");
   }
+  const generation = ++workspaceGeneration;
+  const target = filePath();
+  const serialized = JSON.stringify(state, null, 2);
+  const operation = async (): Promise<void> => {
+    if (generation !== workspaceGeneration || state.savedAtMs <= latestSavedAtMs) return;
+    const temporary = `${target}.${randomUUID()}.tmp`;
+    await mkdir(path.dirname(target), { recursive: true });
+    try {
+      await writeFile(temporary, serialized, "utf8");
+      if (generation !== workspaceGeneration || state.savedAtMs <= latestSavedAtMs) {
+        await unlink(temporary).catch(() => {});
+        return;
+      }
+      await rename(temporary, target);
+      latestSavedAtMs = state.savedAtMs;
+    } catch (error: unknown) {
+      await unlink(temporary).catch(() => {});
+      throw error;
+    }
+  };
+  const execution = saveTail.then(operation, operation);
+  saveTail = execution.then(
+    () => undefined,
+    () => undefined,
+  );
+  return execution;
 }
 
 /**
@@ -63,6 +88,11 @@ export async function saveWorkspace(state: WorkspaceState): Promise<void> {
  * síncrono com esta escrita pequena garante que o último arraste não se perca.
  */
 export function flushWorkspace(state: WorkspaceState): void {
+  if (!Number.isFinite(state.savedAtMs)) {
+    throw new RangeError("workspace precisa de savedAtMs finito");
+  }
+  workspaceGeneration += 1;
+  if (state.savedAtMs <= latestSavedAtMs) return;
   const target = filePath();
   const temporary = `${target}.${randomUUID()}.tmp`;
 
@@ -70,6 +100,7 @@ export function flushWorkspace(state: WorkspaceState): void {
   try {
     writeFileSync(temporary, JSON.stringify(state, null, 2), "utf8");
     renameSync(temporary, target);
+    latestSavedAtMs = state.savedAtMs;
   } catch (error: unknown) {
     try {
       unlinkSync(temporary);
@@ -81,5 +112,16 @@ export function flushWorkspace(state: WorkspaceState): void {
 }
 
 export async function resetWorkspace(): Promise<void> {
-  await unlink(filePath()).catch(() => {});
+  const generation = ++workspaceGeneration;
+  latestSavedAtMs = Math.max(latestSavedAtMs, Date.now());
+  const operation = async (): Promise<void> => {
+    if (generation !== workspaceGeneration) return;
+    await unlink(filePath()).catch(() => {});
+  };
+  const execution = saveTail.then(operation, operation);
+  saveTail = execution.then(
+    () => undefined,
+    () => undefined,
+  );
+  return execution;
 }

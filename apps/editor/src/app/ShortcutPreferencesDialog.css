@@ -1,0 +1,128 @@
+.shortcut-settings {
+  position: fixed;
+  z-index: 1100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--space-6);
+  background: rgb(3 7 12 / 76%);
+  backdrop-filter: blur(4px);
+}
+
+.shortcut-settings__dialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(820px, calc(100vw - 48px));
+  max-height: min(760px, calc(100vh - 48px));
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-panel-raised);
+  box-shadow: var(--shadow-popover);
+}
+
+.shortcut-settings__header,
+.shortcut-settings__footer,
+.shortcut-settings__message {
+  display: flex;
+  align-items: center;
+}
+
+.shortcut-settings__header {
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border);
+}
+
+.shortcut-settings__header strong,
+.shortcut-settings__header span {
+  display: block;
+}
+
+.shortcut-settings__header span,
+.shortcut-settings__footer {
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+
+.shortcut-settings__body {
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-4);
+}
+
+.shortcut-settings__message {
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+
+.shortcut-settings__message[data-kind="error"] {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.shortcut-settings__table {
+  display: grid;
+}
+
+.shortcut-settings__row {
+  display: grid;
+  grid-template-columns: 72px minmax(150px, 1fr) minmax(170px, 0.9fr) auto auto;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 36px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.shortcut-settings__category {
+  color: var(--fg-faint);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+}
+
+.shortcut-settings__label {
+  color: var(--fg);
+  font-size: var(--text-sm);
+}
+
+.shortcut-settings__binding {
+  height: var(--control-height);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shortcut-settings__binding[data-capturing] {
+  border-color: var(--accent);
+  color: var(--accent-hover);
+  box-shadow: var(--focus-ring);
+}
+
+.shortcut-settings__footer {
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 720px) {
+  .shortcut-settings__row {
+    grid-template-columns: minmax(120px, 1fr) minmax(150px, 1fr) auto auto;
+  }
+
+  .shortcut-settings__category {
+    display: none;
+  }
+}

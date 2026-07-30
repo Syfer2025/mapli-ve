@@ -14,3 +14,10 @@ Abra pelo botão **Abrir** na barra superior do Theatrum.
 
 Os três arquivos são gerados deterministicamente por
 `pnpm examples:build` e não precisam de rede.
+
+## Scene Script
+
+`alexandre.scene.json` é o exemplo de autoria declarativa de
+`docs/05-SCENE-SCRIPT.md`. Na barra superior, abra **Scene Script…**, escolha
+**Abrir JSON…** e então **Compilar e importar**. A cena resultante dura 1m30s e
+um único `Ctrl+Z` desfaz toda a importação.

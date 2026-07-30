@@ -35,10 +35,9 @@ export interface ExportResolutionInput {
    */
   readonly supersampling?: number;
   /**
-   * Teto por eixo, em pixels. Padrão medido: o `maxCanvasSize` do MapLibre, que é
-   * **[4096, 4096]** na construção e **baixa o pixel ratio em silêncio** quando
-   * estourado — pedir 7680×4320 devolveu 4096×2304 sem erro nenhum. Estourar em
-   * silêncio é pior que recusar, então aqui o estouro é recusado e nomeado.
+   * Teto por eixo, em pixels. A construção do MapLibre usa o mesmo teto de 8192,
+   * suficiente para UHD-2/8K (7680×4320) sem redução silenciosa. O predicado de
+   * conformidade ainda recusa a saída caso a GPU concreta não alcance o tamanho.
    */
   readonly maxDimension?: number;
 }
@@ -86,8 +85,8 @@ export class ExportResolutionError extends Error {
   }
 }
 
-/** Teto medido nesta base: `maxCanvasSize` do MapLibre na construção. */
-export const DEFAULT_MAX_DIMENSION = 4096;
+/** Teto configurado no MapLibre: cobre 8K e continua abaixo de 16K. */
+export const DEFAULT_MAX_DIMENSION = 8192;
 
 /**
  * Escalas oferecidas na interface.
@@ -98,7 +97,7 @@ export const DEFAULT_MAX_DIMENSION = 4096;
  * abriria a porta para uma proporção que não é a da composição, e aí o
  * enquadramento muda sem ninguém pedir.
  */
-export const EXPORT_SCALES: readonly number[] = Object.freeze([0.5, 1, 2]);
+export const EXPORT_SCALES: readonly number[] = Object.freeze([0.5, 1, 2, 4]);
 
 /** Fatores oferecidos na interface. A API aceita qualquer inteiro que caiba. */
 export const EXPORT_SUPERSAMPLING_FACTORS: readonly number[] = Object.freeze([1, 2]);
@@ -159,7 +158,7 @@ export function planExportResolution(input: ExportResolutionInput): ExportResolu
       `${renderWidth}×${renderHeight} de render (saída ${rawWidth}×${rawHeight}, ` +
         `supersampling ${supersampling}×) passa do teto de ${maxDimension} px por eixo. ` +
         `O teto é o maxCanvasSize do MapLibre, fixado na construção do mapa ` +
-        `(ADR-022); subi-lo exige medir o efeito no mapa ao vivo em tela HiDPI.`,
+        `(ADR-034); tamanhos maiores exigem render em ladrilhos.`,
     );
   }
   if (

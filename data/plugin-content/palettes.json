@@ -1,0 +1,68 @@
+[
+  {
+    "id": "wwi-western-front",
+    "name": "Frente Ocidental 1914–18",
+    "colors": [
+      "#5c6652",
+      "#9c8b66",
+      "#494b48",
+      "#b8aa87",
+      "#7b5546"
+    ]
+  },
+  {
+    "id": "wwii-europe",
+    "name": "Europa 1939–45",
+    "colors": [
+      "#4d5842",
+      "#82775a",
+      "#303842",
+      "#b0a47f",
+      "#7e3e35"
+    ]
+  },
+  {
+    "id": "wwii-pacific",
+    "name": "Pacífico 1941–45",
+    "colors": [
+      "#37505a",
+      "#6e7950",
+      "#b3a777",
+      "#5d493b",
+      "#a34b43"
+    ]
+  },
+  {
+    "id": "cold-war",
+    "name": "Guerra Fria",
+    "colors": [
+      "#3e5b78",
+      "#a23f3a",
+      "#6f7764",
+      "#d0c19b",
+      "#2f353d"
+    ]
+  },
+  {
+    "id": "modern-desert",
+    "name": "Deserto moderno",
+    "colors": [
+      "#b79d6b",
+      "#70654e",
+      "#55626a",
+      "#d0bd92",
+      "#72463c"
+    ]
+  },
+  {
+    "id": "hormuz",
+    "name": "Estreito de Hormuz",
+    "colors": [
+      "#1f5268",
+      "#5f8b89",
+      "#b99c68",
+      "#d3c39e",
+      "#8c493f"
+    ]
+  }
+]

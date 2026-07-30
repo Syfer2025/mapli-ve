@@ -1,0 +1,102 @@
+{
+  "scenes": [
+    {
+      "id": "hormuz-blockade",
+      "name": "Bloqueio no Estreito de Hormuz",
+      "mapStyle": "detail:iran-hormuz",
+      "palette": "hormuz",
+      "camera": {
+        "center": [
+          56.3,
+          26.5
+        ],
+        "zoom": 7.2,
+        "pitch": 42,
+        "bearing": -18
+      }
+    },
+    {
+      "id": "wwii-eastern-front",
+      "name": "Frente Oriental 1943",
+      "mapStyle": "minimal-political",
+      "palette": "wwii-europe",
+      "camera": {
+        "center": [
+          35.2,
+          49.9
+        ],
+        "zoom": 4.8,
+        "pitch": 22,
+        "bearing": 0
+      }
+    },
+    {
+      "id": "wwi-western-front",
+      "name": "Frente Ocidental 1916",
+      "mapStyle": "minimal-political",
+      "palette": "wwi-western-front",
+      "camera": {
+        "center": [
+          2.8,
+          49.8
+        ],
+        "zoom": 6,
+        "pitch": 18,
+        "bearing": 0
+      }
+    }
+  ],
+  "effects": [
+    {
+      "id": "battle-smoke",
+      "name": "Fumaça de batalha",
+      "effect": "smoke",
+      "intensity": 0.72,
+      "params": {
+        "intensity": 0.72
+      }
+    },
+    {
+      "id": "artillery-impact",
+      "name": "Impacto de artilharia",
+      "effect": "explosion",
+      "intensity": 0.86,
+      "params": {
+        "intensity": 0.86
+      }
+    },
+    {
+      "id": "naval-wake",
+      "name": "Esteira naval",
+      "effect": "water",
+      "intensity": 0.58,
+      "params": {
+        "intensity": 0.58
+      }
+    },
+    {
+      "id": "night-vision",
+      "name": "Visão noturna",
+      "effect": "color-grade",
+      "intensity": 1,
+      "params": {
+        "exposure": 0.08,
+        "contrast": 0.4,
+        "saturation": -0.9,
+        "temperature": -0.25
+      }
+    },
+    {
+      "id": "archival-film",
+      "name": "Filme de arquivo",
+      "effect": "color-grade",
+      "intensity": 0.66,
+      "params": {
+        "exposure": -0.08,
+        "contrast": 0.22,
+        "saturation": -0.55,
+        "temperature": 0.18
+      }
+    }
+  ]
+}

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyEasingPreset,
   evaluateProperty,
+  evaluatePropertyResult,
   keyframeSegment,
   moveKeyframe,
   removeKeyframe,
@@ -98,6 +99,43 @@ describe("avaliação de propriedades", () => {
       progress: 0.5,
     });
     expect(keyframeSegment(value, 20)).toBeNull();
+  });
+
+  it("aplica a expressão depois da interpolação de keyframes", () => {
+    const animated = property(0, [keyframe("kf_a", 0, 10), keyframe("kf_b", 10, 30)]);
+    animated.expression = "value * 2 + frame";
+    expect(evaluateProperty(animated, 5)).toBe(45);
+
+    const vector = property<[number, number]>([2, 4]);
+    vector.expression = "value + [frame, -frame]";
+    expect(evaluateProperty(vector, 3)).toEqual([5, 1]);
+  });
+
+  it("preserva expression null e devolve diagnósticos vazios", () => {
+    const plain = property(7);
+    const result = evaluatePropertyResult(plain, 20, "nodes.a.opacity");
+    expect(result.value).toBe(7);
+    expect(result.diagnostics).toEqual([]);
+    expect(Object.isFrozen(result.diagnostics)).toBe(true);
+  });
+
+  it("recupera expressão inválida com o valor base e caminho estável", () => {
+    const invalid = property(9);
+    invalid.expression = "sqrt(-1)";
+    expect(evaluatePropertyResult(invalid, 12, "nodes.a.rotation")).toEqual({
+      value: 9,
+      diagnostics: [
+        expect.objectContaining({
+          code: "expression.non-finite",
+          propertyPath: "nodes.a.rotation",
+        }),
+      ],
+    });
+
+    const wrongShape = property<[number, number]>([1, 2]);
+    wrongShape.expression = "42";
+    expect(evaluatePropertyResult(wrongShape, 0).value).toEqual([1, 2]);
+    expect(evaluatePropertyResult(wrongShape, 0).diagnostics[0]?.code).toBe("expression.type");
   });
 });
 

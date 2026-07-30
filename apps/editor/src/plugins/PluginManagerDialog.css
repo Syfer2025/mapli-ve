@@ -1,0 +1,117 @@
+.plugin-manager__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: rgb(2 7 12 / 72%);
+  backdrop-filter: blur(5px);
+}
+
+.plugin-manager {
+  width: min(760px, 94vw);
+  max-height: min(780px, 88vh);
+  overflow: auto;
+  border: 1px solid rgb(125 174 205 / 28%);
+  border-radius: 10px;
+  background: #111b23;
+  box-shadow: 0 22px 80px rgb(0 0 0 / 48%);
+}
+
+.plugin-manager > header,
+.plugin-manager__toolbar,
+.plugin-manager__commands {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px 18px;
+}
+
+.plugin-manager > header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  border-bottom: 1px solid rgb(125 174 205 / 16%);
+  background: rgb(17 27 35 / 96%);
+}
+
+.plugin-manager h2,
+.plugin-manager h3,
+.plugin-manager p {
+  margin: 0;
+}
+
+.plugin-manager header p,
+.plugin-manager article p,
+.plugin-manager article small {
+  color: #93a9b8;
+}
+
+.plugin-manager__toolbar {
+  justify-content: flex-start;
+}
+
+.plugin-manager__toolbar code {
+  min-width: 0;
+  overflow: hidden;
+  color: #8cc9e8;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plugin-manager__diagnostic {
+  margin: 0 18px 8px !important;
+  padding: 9px 11px;
+  border: 1px solid rgb(245 158 11 / 32%);
+  border-radius: 6px;
+  color: #f6c66f;
+  background: rgb(120 53 15 / 18%);
+}
+
+.plugin-manager__list {
+  display: grid;
+  gap: 8px;
+  padding: 0 18px 18px;
+}
+
+.plugin-manager__list article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 13px;
+  border: 1px solid rgb(125 174 205 / 16%);
+  border-radius: 7px;
+  background: rgb(5 12 18 / 42%);
+}
+
+.plugin-manager__list article > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.plugin-manager__list article [role="alert"] {
+  color: #ff9b9b;
+}
+
+.plugin-manager__empty {
+  padding: 24px;
+  border: 1px dashed rgb(125 174 205 / 22%);
+  border-radius: 7px;
+  text-align: center;
+}
+
+.plugin-manager__commands {
+  align-items: flex-start;
+  border-top: 1px solid rgb(125 174 205 / 16%);
+}
+
+.plugin-manager__commands > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}

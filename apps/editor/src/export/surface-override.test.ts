@@ -14,6 +14,7 @@ import {
   effectivePixelRatio,
   expectedSurfacePixels,
   getSurfaceOverrideSnapshot,
+  inspectSurfaceGpu,
   registerExportSurface,
   resetSurfaceOverrideForTest,
   runWithSurfaceOverride,
@@ -104,7 +105,8 @@ describe("runWithSurfaceOverride", () => {
 
   it("estoura nomeando a superfície que nunca chega ao tamanho", async () => {
     // É o caso do `maxCanvasSize` do MapLibre, que baixa o pixel ratio em silêncio
-    // acima de 4096 px: o canvas nunca alcança o pedido. Travar calado seria pior.
+    // acima do teto configurado: o canvas nunca alcança o pedido. Travar calado
+    // seria pior.
     const unregister = registerExportSurface("palco", () => false);
     try {
       let corpoRodou = false;
@@ -223,11 +225,80 @@ describe("surfaceMatches", () => {
     expect(surfaceMatches(null, null)).toBe(true);
   });
 
+  it("recusa contexto perdido mesmo quando o backing tem o tamanho exato", () => {
+    const alvo: SurfaceOverride = { width: 1920, height: 1080, pixelRatio: 4 };
+    const canvas = gpuSurface(7680, 4320, { contextLost: true });
+    expect(surfaceMatches(alvo, canvas)).toBe(false);
+    expect(inspectSurfaceGpu(canvas).contextLost).toBe(true);
+  });
+
+  it("exige textura, renderbuffer, viewport e buffer preservado para 8K", () => {
+    const alvo: SurfaceOverride = { width: 1920, height: 1080, pixelRatio: 4 };
+    expect(surfaceMatches(alvo, gpuSurface(7680, 4320))).toBe(true);
+    expect(surfaceMatches(alvo, gpuSurface(7680, 4320, { maxTextureSize: 4096 }))).toBe(false);
+    expect(surfaceMatches(alvo, gpuSurface(7680, 4320, { maxRenderbufferSize: 4096 }))).toBe(false);
+    expect(surfaceMatches(alvo, gpuSurface(7680, 4320, { maxViewport: [4096, 4096] }))).toBe(false);
+    expect(surfaceMatches(alvo, gpuSurface(7680, 4320, { preserveDrawingBuffer: false }))).toBe(
+      false,
+    );
+    expect(surfaceMatches(alvo, gpuSurface(7680, 4320, { drawingBuffer: [4096, 2304] }))).toBe(
+      false,
+    );
+  });
+
+  it("recusa canvas real sem contexto WebGL em vez de confiar só nas dimensões", () => {
+    const alvo: SurfaceOverride = { width: 1920, height: 1080, pixelRatio: 4 };
+    const canvas = {
+      width: 7680,
+      height: 4320,
+      getContext: () => null,
+    };
+    expect(surfaceMatches(alvo, canvas)).toBe(false);
+  });
+
   it("a escala multiplica o tamanho de CSS", () => {
     expect(expectedSurfacePixels(ALVO)).toEqual({ width: 3840, height: 2160 });
     expect(expectedSurfacePixels(null)).toBeNull();
   });
 });
+
+interface FakeGpuOptions {
+  readonly contextLost?: boolean;
+  readonly preserveDrawingBuffer?: boolean;
+  readonly maxTextureSize?: number;
+  readonly maxRenderbufferSize?: number;
+  readonly maxViewport?: readonly [number, number];
+  readonly drawingBuffer?: readonly [number, number];
+}
+
+function gpuSurface(width: number, height: number, options: FakeGpuOptions = {}) {
+  const constants = {
+    MAX_TEXTURE_SIZE: 1,
+    MAX_RENDERBUFFER_SIZE: 2,
+    MAX_VIEWPORT_DIMS: 3,
+  };
+  const context = {
+    ...constants,
+    drawingBufferWidth: options.drawingBuffer?.[0] ?? width,
+    drawingBufferHeight: options.drawingBuffer?.[1] ?? height,
+    isContextLost: () => options.contextLost ?? false,
+    getContextAttributes: () => ({
+      preserveDrawingBuffer: options.preserveDrawingBuffer ?? true,
+    }),
+    getParameter: (parameter: number) => {
+      if (parameter === constants.MAX_TEXTURE_SIZE) return options.maxTextureSize ?? 8192;
+      if (parameter === constants.MAX_RENDERBUFFER_SIZE) {
+        return options.maxRenderbufferSize ?? 8192;
+      }
+      return options.maxViewport ?? [8192, 8192];
+    },
+  };
+  return {
+    width,
+    height,
+    getContext: (kind: string) => (kind === "webgl2" ? context : null),
+  };
+}
 
 describe("effectivePixelRatio", () => {
   it("a escala do job ganha do teto da tela durante o export", () => {

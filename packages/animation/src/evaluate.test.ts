@@ -59,6 +59,41 @@ describe("evaluate", () => {
     expect(evaluate(document, "cmp_main", -10, { clampFrame: false }).frame).toBe(-10);
     expect(() => evaluate(document, "inexistente", 0)).toThrow(EvaluationError);
   });
+
+  it("integra expressões na câmera, transform, props e diagnósticos da cena", () => {
+    const document = documentWithAnimatedNode();
+    const composition = document.compositions[0];
+    if (composition === undefined) throw new Error("fixture inválida");
+    const title = composition.nodes["nd_title"];
+    if (title === undefined) throw new Error("fixture inválida");
+
+    composition.camera.zoom.expression = "value + frame / 30";
+    title.transform.scale.expression = "value * 2";
+    title.props["offset"] = {
+      value: [1, 2],
+      keyframes: [],
+      expression: "value + [frame, -frame]",
+    };
+    title.props["broken"] = {
+      value: 5,
+      keyframes: [],
+      expression: "sqrt(-1)",
+    };
+
+    const scene = evaluate(document, "cmp_main", 30);
+    const node = scene.nodes.get("nd_title");
+    expect(scene.camera.zoom).toBe(4);
+    expect(node?.transform.scale).toEqual([3, 3]);
+    expect(node?.props["offset"]).toEqual([31, -28]);
+    expect(node?.props["broken"]).toBe(5);
+    expect(scene.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "expression.non-finite",
+        propertyPath: "compositions.cmp_main.nodes.nd_title.props.broken",
+      }),
+    ]);
+    expect(Object.isFrozen(scene.diagnostics)).toBe(true);
+  });
 });
 
 function documentWithAnimatedNode(): ProjectDocument {

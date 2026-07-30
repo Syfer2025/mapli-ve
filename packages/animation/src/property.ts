@@ -1,5 +1,10 @@
 import { EASE_PRESETS, evaluateBezierEase, lerp, lerpOklabHex } from "@theatrum/core-math";
 import type { AnimatableProperty, EasingHandle, Keyframe } from "@theatrum/schema";
+import {
+  evaluateExpressionSource,
+  type ExpressionDiagnostic,
+  type ExpressionValue,
+} from "./expression.js";
 import { hasSpatialCurvature, interpolateSpatial, isVec2Value } from "./spatial.js";
 
 export interface KeyframeSegment<T> {
@@ -46,8 +51,47 @@ export function keyframeSegment<T>(
   return null;
 }
 
-/** Avalia uma propriedade sem depender da ordem em que os frames são pedidos. */
+export interface PropertyExpressionDiagnostic extends ExpressionDiagnostic {
+  /** Caminho estável no documento, quando a avaliação veio de uma cena. */
+  readonly propertyPath: string | null;
+}
+
+export interface EvaluatedPropertyResult<T> {
+  readonly value: T;
+  readonly diagnostics: readonly PropertyExpressionDiagnostic[];
+}
+
+const EMPTY_EXPRESSION_DIAGNOSTICS = Object.freeze([]) as readonly PropertyExpressionDiagnostic[];
+
+/**
+ * Avalia uma propriedade sem depender da ordem em que os frames são pedidos.
+ *
+ * A expressão, quando existe, recebe como `value` o resultado desta interpolação.
+ * `expression: null` percorre exatamente o caminho histórico, sem parser.
+ */
 export function evaluateProperty<T>(property: AnimatableProperty<T>, frame: number): T {
+  const baseValue = evaluateKeyframedProperty(property, frame);
+  if (property.expression === null) return baseValue;
+  return applyPropertyExpression(property.expression, baseValue, frame, null).value;
+}
+
+/**
+ * Variante que também devolve diagnósticos estruturados. Uma expressão inválida
+ * nunca torna o frame inválido: o valor base é devolvido junto do diagnóstico.
+ */
+export function evaluatePropertyResult<T>(
+  property: AnimatableProperty<T>,
+  frame: number,
+  propertyPath: string | null = null,
+): EvaluatedPropertyResult<T> {
+  const baseValue = evaluateKeyframedProperty(property, frame);
+  if (property.expression === null) {
+    return Object.freeze({ value: baseValue, diagnostics: EMPTY_EXPRESSION_DIAGNOSTICS });
+  }
+  return applyPropertyExpression(property.expression, baseValue, frame, propertyPath);
+}
+
+function evaluateKeyframedProperty<T>(property: AnimatableProperty<T>, frame: number): T {
   const keyframes = property.keyframes;
   const first = keyframes[0];
   if (first === undefined) return evaluatedValue(property, property.value);
@@ -64,6 +108,92 @@ export function evaluateProperty<T>(property: AnimatableProperty<T>, frame: numb
   if (segment === null) return cloneValue(property.value);
   const progress = easedProgress(segment.left.out, segment.right.in, segment.progress);
   return interpolateKeyframes(segment.left, segment.right, progress);
+}
+
+function applyPropertyExpression<T>(
+  source: string,
+  baseValue: T,
+  frame: number,
+  propertyPath: string | null,
+): EvaluatedPropertyResult<T> {
+  if (!isExpressionValue(baseValue)) {
+    return expressionFallback(
+      baseValue,
+      {
+        code: "expression.type",
+        message:
+          "Expressões aceitam propriedades escalares ou vetores; o valor base tem outro formato.",
+        start: 0,
+        end: source.length,
+      },
+      propertyPath,
+    );
+  }
+
+  const evaluated = evaluateExpressionSource(source, { frame, value: baseValue });
+  if (!evaluated.ok) {
+    return Object.freeze({
+      value: baseValue,
+      diagnostics: Object.freeze(
+        evaluated.diagnostics.map((entry) => Object.freeze({ ...entry, propertyPath })),
+      ),
+    });
+  }
+
+  if (!hasCompatibleExpressionShape(baseValue, evaluated.value)) {
+    return expressionFallback(
+      baseValue,
+      {
+        code: "expression.type",
+        message: "O resultado da expressão não tem o tipo e o formato da propriedade.",
+        start: 0,
+        end: source.length,
+      },
+      propertyPath,
+    );
+  }
+
+  return Object.freeze({
+    value: evaluated.value as T,
+    diagnostics: EMPTY_EXPRESSION_DIAGNOSTICS,
+  });
+}
+
+function expressionFallback<T>(
+  value: T,
+  issue: ExpressionDiagnostic,
+  propertyPath: string | null,
+): EvaluatedPropertyResult<T> {
+  return Object.freeze({
+    value,
+    diagnostics: Object.freeze([Object.freeze({ ...issue, propertyPath })]),
+  });
+}
+
+function isExpressionValue(value: unknown): value is ExpressionValue {
+  if (typeof value === "number" || typeof value === "string" || typeof value === "boolean") {
+    return typeof value !== "number" || Number.isFinite(value);
+  }
+  return Array.isArray(value) && value.every(isExpressionValue);
+}
+
+function hasCompatibleExpressionShape(
+  baseValue: ExpressionValue,
+  expressionValue: ExpressionValue,
+): boolean {
+  if (Array.isArray(baseValue)) {
+    return (
+      Array.isArray(expressionValue) &&
+      baseValue.length === expressionValue.length &&
+      baseValue.every((entry, index) => {
+        const expressionEntry = expressionValue[index];
+        return (
+          expressionEntry !== undefined && hasCompatibleExpressionShape(entry, expressionEntry)
+        );
+      })
+    );
+  }
+  return !Array.isArray(expressionValue) && typeof baseValue === typeof expressionValue;
 }
 
 /**

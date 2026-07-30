@@ -1,13 +1,4 @@
-import {
-  apply,
-  cameraKeyframe,
-  createCameraTrack,
-  evaluateCamera,
-  settle,
-  type CameraState,
-  type SettleResult,
-} from "@theatrum/camera";
-import { frame } from "@theatrum/core-time";
+import { apply, settle, type CameraState, type SettleResult } from "@theatrum/camera";
 import { DEFAULT_MAX_DIMENSION } from "@theatrum/export";
 import {
   BUILTIN_GAZETTEER_PLACES,
@@ -27,13 +18,16 @@ import {
   type ReactNode,
 } from "react";
 import { Button } from "../../ui/index.js";
-import { createMapLibreCameraPort } from "./maplibre-adapters.js";
+import {
+  createMapLibreCameraPort,
+  isUserInitiatedMapMove,
+  type MapLibreMoveEventLike,
+} from "./maplibre-adapters.js";
 import {
   createDetailedMapStyle,
   createMapStyle,
   createSatelliteStyle,
   MAP_STYLE_OPTIONS,
-  type MapStyleId,
 } from "./map-styles.js";
 import {
   detailedBasemapById,
@@ -51,34 +45,32 @@ import {
 import { attachScene3dLayer, detachScene3dLayer } from "./scene3d-layer.js";
 import { loadNaturalEarthGazetteer } from "./natural-earth-gazetteer.js";
 import { SceneOverlay } from "./SceneOverlay.js";
+import { bindMapExportReadiness } from "../../export/map-export-readiness.js";
 import { applyOverrideToElement, useExportSurface } from "../../export/useExportSurface.js";
 import { effectivePixelRatio, surfaceMatches } from "../../export/surface-override.js";
 import {
   previewPixelRatioForSize,
   usePreviewSupersampling,
 } from "../../export/preview-supersampling.js";
+import { editorActions } from "../../document/editor-session.js";
+import { useEditorSession } from "../../document/useEditorSession.js";
+import {
+  DocumentCameraApplyGuard,
+  documentMapStyleExportBlockReason,
+  evaluatedDocumentMapCamera,
+  resolveDocumentMapStyle,
+  sameDocumentMapCamera,
+  type ResolvedDocumentMapStyle,
+} from "./map-document-state.js";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./MapViewport.css";
 
-const DEMO_FPS = 60;
-const DEMO_DURATION_FRAMES = 360;
-const WARSAW: CameraState = {
-  center: [21.0122, 52.2297],
-  zoom: 6.15,
-  bearing: 350,
-  pitch: 18,
+const DEFAULT_CAMERA: CameraState = {
+  center: [0, 20],
+  zoom: 2,
+  bearing: 0,
+  pitch: 0,
 };
-const LENINGRAD: CameraState = {
-  center: [30.3158, 59.9391],
-  zoom: 7.05,
-  bearing: 18,
-  pitch: 56,
-};
-
-const DEMO_TRACK = createCameraTrack(WARSAW, [
-  cameraKeyframe(frame(0), WARSAW),
-  cameraKeyframe(frame(DEMO_DURATION_FRAMES), LENINGRAD),
-]);
 
 const protocol = new Protocol();
 let isPmtilesProtocolRegistered = false;
@@ -100,13 +92,7 @@ function ensurePmtilesProtocol(): void {
 }
 
 function cameraFromMap(map: MapLibreMap): CameraState {
-  const center = map.getCenter();
-  return {
-    center: [center.lng, center.lat],
-    zoom: map.getZoom(),
-    bearing: map.getBearing(),
-    pitch: map.getPitch(),
-  };
+  return createMapLibreCameraPort(map).current();
 }
 
 function formatCamera(camera: CameraState): string {
@@ -117,53 +103,52 @@ function formatCamera(camera: CameraState): string {
   )}° · pitch ${camera.pitch.toFixed(0)}°`;
 }
 
-function formatTime(currentFrame: number): string {
-  const seconds = currentFrame / DEMO_FPS;
+function formatTime(currentFrame: number, fps: number): string {
+  const seconds = currentFrame / fps;
   const wholeSeconds = Math.floor(seconds);
-  const subframe = Math.floor((seconds - wholeSeconds) * DEMO_FPS);
+  const subframe = Math.floor((seconds - wholeSeconds) * fps);
   return `00:${String(wholeSeconds).padStart(2, "0")}:${String(subframe).padStart(2, "0")}`;
 }
 
 /**
- * Resolve a escolha do seletor no estilo concreto.
+ * Materializa a resolução já feita contra os recursos desta máquina.
  *
- * Satélite cujo id sumiu — imagem removida do disco entre sessões — volta ao
- * relevo escuro em vez de deixar o mapa em branco. Perder o estilo é chato;
- * perder o mapa é pior.
+ * No fallback o documento continua intocado; só os pixels usam relevo escuro
+ * enquanto a UI explica qual recurso está ausente (ADR-026).
  */
-function styleSpecFor(choice: StyleChoice) {
-  const parsed = parseStyleChoice(choice);
-  if (parsed.kind === "detailed") {
-    const basemap = detailedBasemapById(parsed.id);
-    if (basemap !== undefined) return createDetailedMapStyle(basemap);
-  }
-  if (parsed.kind === "satellite") {
-    const basemap = rasterBasemapById(parsed.id);
-    if (basemap !== undefined) {
-      const labelsBasemap = parsed.labels ? knownDetailedBasemaps()[0] : undefined;
-      return createSatelliteStyle(basemap, {
-        labels: parsed.labels,
-        ...(labelsBasemap === undefined ? {} : { labelsBasemap }),
-      });
-    }
-  }
-  return createMapStyle((parsed.kind === "vector" ? parsed.id : "dark-relief") as MapStyleId);
+function styleSpecFor(resolved: ResolvedDocumentMapStyle) {
+  if (!resolved.available) return createMapStyle(resolved.fallbackStyleId);
+  if (resolved.kind === "vector") return createMapStyle(resolved.styleId);
+  if (resolved.kind === "detailed") return createDetailedMapStyle(resolved.basemap);
+  const labelsBasemap = resolved.labels ? knownDetailedBasemaps()[0] : undefined;
+  return createSatelliteStyle(resolved.basemap, {
+    labels: resolved.labels,
+    ...(labelsBasemap === undefined ? {} : { labelsBasemap }),
+  });
 }
 
-function readyStatus(choice: StyleChoice): string {
-  const parsed = parseStyleChoice(choice);
-  if (parsed.kind === "detailed") {
-    const basemap = detailedBasemapById(parsed.id);
-    if (basemap !== undefined)
-      return `offline detalhado · ruas e edifícios até z${basemap.maxZoom}`;
+function readyStatus(resolved: ResolvedDocumentMapStyle): string {
+  if (!resolved.available) {
+    return `fallback visual · ${resolved.reason} · projeto preservado`;
   }
-  if (parsed.kind === "satellite") {
+  if (resolved.kind === "detailed") {
+    return `offline detalhado · ruas e edifícios até z${resolved.basemap.maxZoom}`;
+  }
+  if (resolved.kind === "satellite") {
     const labels =
-      parsed.labels && knownDetailedBasemaps().length > 0 ? " · híbrido detalhado" : "";
+      resolved.labels && knownDetailedBasemaps().length > 0 ? " · híbrido detalhado" : "";
     return `satélite local pronto${labels}`;
   }
   return "offline pronto · mapa mundial z0–6";
 }
+
+function styleRenderKey(resolved: ResolvedDocumentMapStyle): string {
+  return `${resolved.available ? "available" : "fallback"}:${resolved.documentStyleId}`;
+}
+
+const USER_CAMERA_EVENT_DATA = Object.freeze({
+  originalEvent: Object.freeze({ type: "theatrum-user-command" }),
+});
 
 function focusDetailedBasemap(map: MapLibreMap, basemap: DetailedBasemap): void {
   const [west, south, east, north] = basemap.focusBounds;
@@ -173,36 +158,56 @@ function focusDetailedBasemap(map: MapLibreMap, basemap: DetailedBasemap): void 
       [east, north],
     ],
     { padding: 56, duration: 900, essential: true },
+    USER_CAMERA_EVENT_DATA,
   );
 }
 
 export function MapViewport(): ReactNode {
+  const session = useEditorSession();
+  const composition =
+    session.document.compositions.find(
+      (candidate) => candidate.id === session.selectedCompositionId,
+    ) ?? session.document.compositions[0];
+  const documentStyleId = composition?.map.styleId ?? "dark-relief";
+  const documentCamera = useMemo(
+    () =>
+      composition === undefined
+        ? DEFAULT_CAMERA
+        : evaluatedDocumentMapCamera(composition, session.playheadFrame),
+    [
+      composition?.camera.bearing,
+      composition?.camera.center,
+      composition?.camera.pitch,
+      composition?.camera.zoom,
+      session.playheadFrame,
+    ],
+  );
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
-  const animationRef = useRef<number | null>(null);
-  const playbackStartRef = useRef(0);
-  const playbackFrameRef = useRef(0);
-  const loopRef = useRef(false);
-  const fpsRef = useRef({ startedAt: 0, frames: 0 });
-
-  const [styleId, setStyleId] = useState<StyleChoice>("dark-relief");
-  const selectedStyleRef = useRef<StyleChoice>("dark-relief");
+  const cameraApplyGuardRef = useRef(new DocumentCameraApplyGuard());
+  const documentCameraRef = useRef(documentCamera);
   /** Pacotes regionais de alta resolução realmente presentes no disco. */
   const [detailedBasemaps, setDetailedBasemaps] = useState<readonly DetailedBasemap[]>([]);
   /** Imagens de satélite achadas nesta máquina; vazio esconde as opções. */
   const [rasters, setRasters] = useState<readonly RasterBasemap[]>([]);
+  const resolvedStyle = useMemo(
+    () => resolveDocumentMapStyle(documentStyleId, detailedBasemaps, rasters),
+    [detailedBasemaps, documentStyleId, rasters],
+  );
+  const resolvedStyleRef = useRef(resolvedStyle);
+  const mapResourceErrorRef = useRef<string | null>(null);
+  const appliedStyleKeyRef = useRef<string | null>(null);
   const [mapInstance, setMapInstance] = useState<MapLibreMap | null>(null);
   const [cameraRevision, setCameraRevision] = useState(0);
   const [mapStatus, setMapStatus] = useState("iniciando mapa local…");
-  const [camera, setCamera] = useState<CameraState>(WARSAW);
-  const [currentFrame, setCurrentFrame] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isLooping, setIsLooping] = useState(false);
-  const [fps, setFps] = useState<number | null>(null);
+  const [camera, setCamera] = useState<CameraState>(documentCamera);
   const [query, setQuery] = useState("");
   const [resolution, setResolution] = useState<GazetteerResolution | null>(null);
   const gazetteerRef = useRef(new OfflineGazetteer(BUILTIN_GAZETTEER_PLACES));
   const previewSupersampling = usePreviewSupersampling();
+
+  documentCameraRef.current = documentCamera;
+  resolvedStyleRef.current = resolvedStyle;
 
   /**
    * Durante um export o mapa vai ao tamanho da composição ([ADR-022](../../../../../docs/adr/ADR-022-export-resolution-from-composition.md)).
@@ -232,7 +237,7 @@ export function MapViewport(): ReactNode {
       map.resize();
     },
     // O canvas de verdade, não o container: é ele que o compositor lê, e é ele que
-    // o `maxCanvasSize` do MapLibre encolhe em silêncio acima de 4096 px.
+    // o `maxCanvasSize` do MapLibre encolhe em silêncio acima do teto configurado.
     (override) => surfaceMatches(override, mapRef.current?.getCanvas() ?? null),
   );
 
@@ -253,76 +258,6 @@ export function MapViewport(): ReactNode {
     map.resize();
   }, [exportOverride, mapInstance, previewSupersampling]);
 
-  const stopAnimation = useCallback(() => {
-    if (animationRef.current !== null) {
-      cancelAnimationFrame(animationRef.current);
-      animationRef.current = null;
-    }
-    setIsPlaying(false);
-    setFps(null);
-  }, []);
-
-  const applyFrame = useCallback((nextFrame: number) => {
-    const map = mapRef.current;
-    if (map === null) return;
-    const boundedFrame = Math.max(0, Math.min(DEMO_DURATION_FRAMES, Math.round(nextFrame)));
-    playbackFrameRef.current = boundedFrame;
-    setCurrentFrame(boundedFrame);
-    apply(createMapLibreCameraPort(map), evaluateCamera(DEMO_TRACK, frame(boundedFrame)));
-  }, []);
-
-  const animate = useCallback(
-    (now: number) => {
-      const elapsedFrames = ((now - playbackStartRef.current) / 1000) * DEMO_FPS;
-      const nextFrame = Math.floor(elapsedFrames);
-
-      if (fpsRef.current.startedAt === 0) fpsRef.current = { startedAt: now, frames: 0 };
-      fpsRef.current.frames++;
-      const fpsElapsed = now - fpsRef.current.startedAt;
-      if (fpsElapsed >= 500) {
-        setFps((fpsRef.current.frames * 1000) / fpsElapsed);
-        fpsRef.current = { startedAt: now, frames: 0 };
-      }
-
-      if (nextFrame >= DEMO_DURATION_FRAMES) {
-        applyFrame(DEMO_DURATION_FRAMES);
-        if (loopRef.current) {
-          playbackStartRef.current = now;
-          fpsRef.current = { startedAt: now, frames: 0 };
-          animationRef.current = requestAnimationFrame(animate);
-        } else {
-          animationRef.current = null;
-          setIsPlaying(false);
-        }
-        return;
-      }
-
-      applyFrame(nextFrame);
-      animationRef.current = requestAnimationFrame(animate);
-    },
-    [applyFrame],
-  );
-
-  const play = useCallback(() => {
-    if (animationRef.current !== null) return;
-    const initialFrame =
-      playbackFrameRef.current >= DEMO_DURATION_FRAMES ? 0 : playbackFrameRef.current;
-    if (initialFrame === 0) applyFrame(0);
-    playbackStartRef.current = performance.now() - (initialFrame / DEMO_FPS) * 1000;
-    fpsRef.current = { startedAt: 0, frames: 0 };
-    setIsPlaying(true);
-    animationRef.current = requestAnimationFrame(animate);
-  }, [animate, applyFrame]);
-
-  const pause = useCallback(() => {
-    stopAnimation();
-  }, [stopAnimation]);
-
-  const stop = useCallback(() => {
-    stopAnimation();
-    applyFrame(0);
-  }, [applyFrame, stopAnimation]);
-
   useEffect(() => {
     ensurePmtilesProtocol();
     const container = containerRef.current;
@@ -330,14 +265,16 @@ export function MapViewport(): ReactNode {
 
     const map = new maplibregl.Map({
       container,
-      style: styleSpecFor(styleId),
-      center: [WARSAW.center[0], WARSAW.center[1]],
-      zoom: WARSAW.zoom,
-      bearing: WARSAW.bearing,
-      pitch: WARSAW.pitch,
+      style: styleSpecFor(resolvedStyleRef.current),
+      center: [documentCameraRef.current.center[0], documentCameraRef.current.center[1]],
+      zoom: documentCameraRef.current.zoom,
+      bearing: documentCameraRef.current.bearing,
+      pitch: documentCameraRef.current.pitch,
       minZoom: 0,
-      maxZoom: 18,
-      maxPitch: 70,
+      // Mesmos limites do motor @theatrum/camera: documento e runtime não
+      // podem discordar silenciosamente depois de aplicar um frame.
+      maxZoom: 24,
+      maxPitch: 85,
       // O plano de export usa este mesmo número. Fixá-lo aqui impede uma
       // atualização do MapLibre de mudar o teto físico sem mudar a recusa do job.
       maxCanvasSize: [DEFAULT_MAX_DIMENSION, DEFAULT_MAX_DIMENSION],
@@ -384,8 +321,13 @@ export function MapViewport(): ReactNode {
        */
       canvasContextAttributes: { preserveDrawingBuffer: true, antialias: false },
     });
+    appliedStyleKeyRef.current = styleRenderKey(resolvedStyleRef.current);
     mapRef.current = map;
     setMapInstance(map);
+    const releaseMapExportReadiness = bindMapExportReadiness(map, () => {
+      const currentStyle = resolvedStyleRef.current;
+      return documentMapStyleExportBlockReason(currentStyle) ?? mapResourceErrorRef.current;
+    });
     if (import.meta.env.DEV || import.meta.env.VITE_THEATRUM_VERIFY === "1") {
       const debugCameraPort = createMapLibreCameraPort(map);
       Object.defineProperty(window, "__theatrumPhase2", {
@@ -403,17 +345,33 @@ export function MapViewport(): ReactNode {
     );
     map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
 
+    let userMoveInProgress = false;
     const updateCamera = (): void => {
       setCamera(cameraFromMap(map));
       setCameraRevision((revision) => revision + 1);
+    };
+    const onMoveStart = (event: MapLibreMoveEventLike): void => {
+      userMoveInProgress = isUserInitiatedMapMove(event);
+      if (!cameraApplyGuardRef.current.applying && userMoveInProgress) editorActions.pause();
+    };
+    const onMoveEnd = (event: MapLibreMoveEventLike): void => {
+      const shouldAuthor = userMoveInProgress || isUserInitiatedMapMove(event);
+      userMoveInProgress = false;
+      updateCamera();
+      if (cameraApplyGuardRef.current.applying || !shouldAuthor) return;
+      const nextCamera = cameraFromMap(map);
+      if (!sameDocumentMapCamera(nextCamera, documentCameraRef.current)) {
+        editorActions.setMapCamera(nextCamera);
+      }
     };
     const onLoad = (): void => {
       updateCamera();
       const startedAt = performance.now();
       void settle(createMapLibreCameraPort(map), 2_000).then((result) => {
+        if (mapResourceErrorRef.current !== null) return;
         if (result.settled) {
           setMapStatus(
-            `${readyStatus(selectedStyleRef.current)} · settle ${(
+            `${readyStatus(resolvedStyleRef.current)} · settle ${(
               performance.now() - startedAt
             ).toFixed(0)} ms`,
           );
@@ -423,7 +381,9 @@ export function MapViewport(): ReactNode {
       });
     };
     const onStyleData = (): void => {
-      if (map.isStyleLoaded()) setMapStatus(readyStatus(selectedStyleRef.current));
+      if (map.isStyleLoaded() && mapResourceErrorRef.current === null) {
+        setMapStatus(readyStatus(resolvedStyleRef.current));
+      }
     };
     // Camada 3D volta a cada setStyle: trocar de estilo descarta custom layers.
     const onStyleLoad = (): void => {
@@ -431,11 +391,14 @@ export function MapViewport(): ReactNode {
     };
     const onError = (event: { readonly error?: Error }): void => {
       const message = event.error?.message ?? "falha desconhecida";
+      mapResourceErrorRef.current = `falha em recurso do mapa local: ${message}`;
       setMapStatus(`erro local · ${message}`);
     };
 
     map.on("load", onLoad);
+    map.on("movestart", onMoveStart);
     map.on("move", updateCamera);
+    map.on("moveend", onMoveEnd);
     map.on("styledata", onStyleData);
     map.on("style.load", onStyleLoad);
     map.on("error", onError);
@@ -444,13 +407,15 @@ export function MapViewport(): ReactNode {
     resizeObserver.observe(container);
 
     return () => {
-      stopAnimation();
       resizeObserver.disconnect();
       map.off("load", onLoad);
+      map.off("movestart", onMoveStart);
       map.off("move", updateCamera);
+      map.off("moveend", onMoveEnd);
       map.off("styledata", onStyleData);
       map.off("style.load", onStyleLoad);
       map.off("error", onError);
+      releaseMapExportReadiness();
       detachScene3dLayer(map);
       map.remove();
       mapRef.current = null;
@@ -459,7 +424,7 @@ export function MapViewport(): ReactNode {
         Reflect.deleteProperty(window as Phase2DebugWindow, "__theatrumPhase2");
       }
     };
-  }, [stopAnimation]);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -475,12 +440,8 @@ export function MapViewport(): ReactNode {
     return () => controller.abort();
   }, []);
 
-  useEffect(() => {
-    loopRef.current = isLooping;
-  }, [isLooping]);
-
   // Pacotes regionais e imagens de satélite são opcionais e locais: a ausência
-  // simplesmente não acrescenta opções ao seletor.
+  // não acrescenta opções, mas o id persistido continua visível como indisponível.
   useEffect(() => {
     let active = true;
     void Promise.all([loadDetailedBasemaps(), loadRasterBasemaps()]).then(
@@ -488,19 +449,6 @@ export function MapViewport(): ReactNode {
         if (!active) return;
         setDetailedBasemaps(foundDetailed);
         setRasters(foundRasters);
-
-        // Esta instalação já traz o recorte Irã–Hormuz: abre diretamente nele,
-        // sem obrigar o usuário a descobrir a opção antes de ver o ganho.
-        const initial = foundDetailed[0];
-        const map = mapRef.current;
-        if (initial !== undefined && map !== null && selectedStyleRef.current === "dark-relief") {
-          const choice = `detail:${initial.id}`;
-          selectedStyleRef.current = choice;
-          setStyleId(choice);
-          setMapStatus("abrindo Irã e Estreito de Hormuz…");
-          map.setStyle(createDetailedMapStyle(initial), { diff: false });
-          focusDetailedBasemap(map, initial);
-        }
       },
     );
     return () => {
@@ -508,53 +456,79 @@ export function MapViewport(): ReactNode {
     };
   }, []);
 
+  /** Documento → MapLibre. Aplicações programáticas não voltam como comando. */
+  useEffect(() => {
+    const map = mapRef.current;
+    if (map === null || sameDocumentMapCamera(cameraFromMap(map), documentCamera)) return;
+    const release = cameraApplyGuardRef.current.begin();
+    try {
+      apply(createMapLibreCameraPort(map), documentCamera);
+    } finally {
+      queueMicrotask(release);
+    }
+  }, [documentCamera, mapInstance]);
+
+  /** Estilo persistido → recurso local, com fallback visual explícito. */
+  useEffect(() => {
+    const map = mapRef.current;
+    if (map === null) return;
+    const nextKey = styleRenderKey(resolvedStyle);
+    if (appliedStyleKeyRef.current === nextKey) {
+      if (mapResourceErrorRef.current === null) setMapStatus(readyStatus(resolvedStyle));
+      return;
+    }
+    appliedStyleKeyRef.current = nextKey;
+    mapResourceErrorRef.current = null;
+    setMapStatus(resolvedStyle.available ? "aplicando estilo local…" : readyStatus(resolvedStyle));
+    map.setStyle(styleSpecFor(resolvedStyle), { diff: false });
+  }, [mapInstance, resolvedStyle]);
+
   const selectStyle = (nextStyle: StyleChoice): void => {
-    selectedStyleRef.current = nextStyle;
-    setStyleId(nextStyle);
+    if (!editorActions.setMapStyle(nextStyle)) return;
     setMapStatus("aplicando estilo local…");
     const map = mapRef.current;
     if (map === null) return;
-    map.setStyle(styleSpecFor(nextStyle), { diff: false });
 
     const parsed = parseStyleChoice(nextStyle);
     if (parsed.kind === "detailed") {
       const basemap = detailedBasemapById(parsed.id);
       if (basemap !== undefined) {
-        stopAnimation();
+        editorActions.pause();
         focusDetailedBasemap(map, basemap);
       }
     } else if (parsed.kind === "satellite") {
       const basemap = rasterBasemapById(parsed.id);
       if (basemap?.bounds !== undefined) {
         const [west, south, east, north] = basemap.bounds;
-        stopAnimation();
+        editorActions.pause();
         map.fitBounds(
           [
             [west, south],
             [east, north],
           ],
           { padding: 56, duration: 900, essential: true },
+          USER_CAMERA_EVENT_DATA,
         );
       }
     }
   };
 
-  const goToHit = useCallback(
-    (hit: GazetteerHit) => {
-      const map = mapRef.current;
-      if (map === null) return;
-      stopAnimation();
-      map.easeTo({
+  const goToHit = useCallback((hit: GazetteerHit) => {
+    const map = mapRef.current;
+    if (map === null) return;
+    editorActions.pause();
+    map.easeTo(
+      {
         center: [hit.lngLat[0], hit.lngLat[1]],
         zoom: Math.max(map.getZoom(), 6.4),
         pitch: Math.min(map.getPitch(), 45),
         duration: 850,
         essential: true,
-      });
-      setResolution({ status: "resolved", query: hit.name, hit });
-    },
-    [stopAnimation],
-  );
+      },
+      USER_CAMERA_EVENT_DATA,
+    );
+    setResolution({ status: "resolved", query: hit.name, hit });
+  }, []);
 
   const submitSearch = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
@@ -572,11 +546,17 @@ export function MapViewport(): ReactNode {
     const admin = resolution.hit.admin1 === undefined ? "" : ` · ${resolution.hit.admin1}`;
     return `${resolution.hit.name}${admin} · ${resolution.hit.country}`;
   }, [resolution]);
+  const styleSelectValue =
+    resolvedStyle.available && resolvedStyle.kind === "vector"
+      ? resolvedStyle.styleId
+      : documentStyleId;
+  const timelineMax = Math.max(0, (composition?.duration ?? 1) - 1);
+  const timelineFps = composition?.fps ?? 60;
 
   return (
     <section
       className="map-viewport"
-      data-map-status={mapStatus.startsWith("erro") ? "error" : "ok"}
+      data-map-status={!resolvedStyle.available || mapStatus.startsWith("erro") ? "error" : "ok"}
     >
       <div className="map-viewport__stage">
         <div
@@ -591,10 +571,13 @@ export function MapViewport(): ReactNode {
         <label className="map-viewport__field">
           <span>Estilo</span>
           <select
-            value={styleId}
+            value={styleSelectValue}
             onChange={(event) => selectStyle(event.target.value as StyleChoice)}
             aria-label="Estilo do mapa"
           >
+            {!resolvedStyle.available && (
+              <option value={documentStyleId}>Indisponível: {documentStyleId}</option>
+            )}
             {MAP_STYLE_OPTIONS.map((option) => (
               <option key={option.id} value={option.id}>
                 {option.label}
@@ -659,53 +642,49 @@ export function MapViewport(): ReactNode {
         <span>{mapStatus}</span>
         <span className="map-viewport__readout-divider" />
         <span>{formatCamera(camera)}</span>
-        {fps !== null && (
-          <>
-            <span className="map-viewport__readout-divider" />
-            <span>{fps.toFixed(0)} fps</span>
-          </>
-        )}
       </div>
 
       <div className="map-viewport__transport">
         <div className="map-viewport__transport-buttons">
-          <Button size="sm" iconOnly aria-label="Parar" onClick={stop}>
+          <Button size="sm" iconOnly aria-label="Parar" onClick={() => editorActions.stop()}>
             ■
           </Button>
           <Button
             size="sm"
             iconOnly
-            variant={isPlaying ? "primary" : "default"}
-            aria-label={isPlaying ? "Pausar" : "Reproduzir"}
-            onClick={isPlaying ? pause : play}
+            variant={session.isPlaying ? "primary" : "default"}
+            aria-label={session.isPlaying ? "Pausar" : "Reproduzir"}
+            onClick={() => (session.isPlaying ? editorActions.pause() : editorActions.play())}
           >
-            {isPlaying ? "Ⅱ" : "▶"}
+            {session.isPlaying ? "Ⅱ" : "▶"}
           </Button>
           <label className="map-viewport__loop">
             <input
               type="checkbox"
-              checked={isLooping}
-              onChange={(event) => setIsLooping(event.target.checked)}
+              checked={session.loopPlayback}
+              onChange={(event) => editorActions.setLoop(event.target.checked)}
             />
             Loop
           </label>
         </div>
 
-        <span className="map-viewport__time">{formatTime(currentFrame)}</span>
+        <span className="map-viewport__time">{formatTime(session.playheadFrame, timelineFps)}</span>
         <input
           className="map-viewport__scrub"
           type="range"
           min={0}
-          max={DEMO_DURATION_FRAMES}
+          max={timelineMax}
           step={1}
-          value={currentFrame}
-          aria-label="Tempo da animação de câmera"
+          value={session.playheadFrame}
+          aria-label="Tempo da composição"
           onChange={(event) => {
-            stopAnimation();
-            applyFrame(Number(event.target.value));
+            editorActions.pause();
+            editorActions.setPlayhead(Number(event.target.value));
           }}
         />
-        <span className="map-viewport__route">Varsóvia → Leningrado</span>
+        <span className="map-viewport__route">
+          {composition?.name ?? "Composição"} · câmera do projeto
+        </span>
       </div>
     </section>
   );

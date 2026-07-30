@@ -829,6 +829,14 @@ bandeiras e paletas. Fases 8, 9 e 11 não mudam.
 
 **Estado: concluída em 2026-07-26.**
 
+**Emenda de 2026-07-30 — verdade do documento.** O viewport não mantém mais uma
+câmera/estilo demo paralelos. `composition.map.styleId` e
+`composition.camera` são persistidos, avaliados no playhead e alterados pelo
+Command Bus. Gestos consolidados criam valor ou keyframe conforme a propriedade;
+salvar, reabrir, undo e redo preservam a vista. Recurso regional/satélite ausente
+produz fallback visual explícito sem reescrever a escolha salva
+([ADR-026](adr/ADR-026-map-view-is-document-state.md)).
+
 Escopo:
 
 - pnpm workspace com todos os pacotes vazios (só `index.ts` e `package.json`)
@@ -1297,127 +1305,43 @@ Escopo:
 
 ## Fase 8 — Exportação
 
-**Estado: formatos principais entregues e provados; infraestrutura avançada
-pendente.**
+**Estado: implementação principal presente; aceite integrado final pendente
+(2026-07-30).**
 
-O editor **produz MP4 H.264**. WebCodecs codifica, um muxer próprio
-(`packages/export/src/mp4-muxer.ts`, 25 testes) empacota em MP4 fragmentado, e o
-Chromium decodifica o resultado. Provado por `pnpm verify:phase8-video`, **6/6**:
-o arquivo sai, a estrutura é fMP4 com `avcC` no lugar, duas execuções dão o mesmo
-SHA-256, e o player abre. Ver [ADR-013](adr/ADR-013-export-frame-composition.md).
+O editor oferece MP4 H.264, GIF, ProRes 4444 e sequências PNG normal/alfa.
+Motion blur temporal, supersampling determinístico, seleção de escala, fila
+persistente e checkpoints também estão implementados. Isso não substitui os
+ensaios longos listados nos critérios de saída.
 
-O critério 2 — **exportar o mesmo projeto duas vezes produz arquivos byte a byte
-idênticos** — está **provado no Electron real**. É o critério mais importante do
-projeto, e ele não depende de codec: depende de o frame ser função pura de
-(documento, frame) e de o pump esperar a coisa certa.
+Decisões vigentes:
 
-GIF, ProRes 4444 com alfa e sequência PNG com alfa também estão entregues. O
-verificador `pnpm verify:phase8-formats` passa **5/5**: codifica GIF e ProRes duas
-vezes com hashes iguais, confirma seis frames no GIF, perfil ProRes 4444 e um
-plano alfa decodificado que não foi achatado. O FFmpeg 8.1.2 entra no instalador
-como sidecar com hash fixado; a aplicação empacotada nunca cai para o `PATH`.
-
-O que existe hoje (`pnpm verify:phase8`, **7/7**):
-
-| Critério                             | Medido                                              |
-| ------------------------------------ | --------------------------------------------------- |
-| Mapa e overlay legíveis para compor  | somas 95 124 e 126 833 (antes: zero)                |
-| **Duas execuções, hashes idênticos** | 9/9 arquivos, e 9 hashes **distintos** entre frames |
-| Gizmo de seleção não vaza            | hashes idênticos com nó selecionado                 |
-| `settleFailed` e p99 de settle       | **0** falhas, p99 de **82 ms**                      |
-| Dois nós geo com filtros             | 9/9 hashes idênticos entre execuções                |
-| GLB frio com `model3d` + `route3d`   | 9/9 hashes idênticos; `settleFailed=0`              |
-
-As peças, e por que estão onde estão:
-
-- **`packages/export/src/frame-plan.ts`** — plano de frames, função pura, 22
-  testes. O passo entre frames de saída é aplicado por **multiplicação sobre o
-  índice**, nunca por acumulação: somar 1/3 três mil vezes desvia, e o desvio
-  depende de quantos frames vieram antes — não-determinismo pela porta dos fundos.
-  Os nomes são zero-padded pelo total, porque `frame_9` antes de `frame_10` é como
-  um glob monta o vídeo fora de ordem.
-- **`apps/editor/src/export/run-export.ts`** — o pump, com política de `settle` por
-  **quietude**, não por tempo fixo: o frame só é capturado depois de N ms sem
-  repintura nova, com o mapa sem tiles pendentes e sem asset que ainda possa
-  aparecer. Câmera/tiles têm teto de 4 s; GLB em parse tem teto próprio de 30 s,
-  sem afrouxar o caminho comum. Timeout fixo grava frame errado em máquina lenta
-  e desperdiça tempo em máquina rápida. O motor recebe `compose` por injeção, e é
-  isso que permitiu provar a política em teste unitário sem GPU.
-- **`apps/shell/src/main/services/export-writer.ts`** — PNG escrito por nós, com o
-  `zlib` do Node, **nível de compressão, estratégia e janela fixados** e filtro 0
-  em toda linha. `canvas.toBlob` depende do codificador do Chromium, e filtro
-  adaptativo é heurística — nenhum dos dois pode entrar num arquivo que precisa
-  sair igual daqui a um ano.
-- **`frame-composer.ts`** — a ordem de composição é contrato: mapa, palco, overlay.
-  O canvas de gizmos não está na lista, e é assim que o critério 8 é estrutural em
-  vez de disciplinar.
-
-Duas armadilhas que a medição encontrou, ambas silenciosas:
-
-1. **O canvas do MapLibre não podia ser lido.** `drawImage` devolvia zero em todos
-   os canais com o mapa ocioso — a condição exata do export. A flag existe, mas o
-   MapLibre 5 a moveu para `canvasContextAttributes`, e a chave antiga é ignorada
-   **sem aviso**. O mesmo valia para o canvas do Pixi.
-2. **O `map` foi capturado nulo numa closure.** A superfície de depuração é montada
-   num efeito de dependências vazias, e naquele instante o mapa ainda não existe.
-   O export respondia "mapa indisponível" para sempre. Agora vem de uma ref.
-
-**Resolução escolhida: decidida, medida, parcialmente entregue.** O gatilho do
-ADR-013 disparou em 2026-07-29 e a resposta **não** foi a janela oculta — ver
-[ADR-022](adr/ADR-022-export-resolution-from-composition.md), que tira o tamanho do
-frame da janela e o põe na composição, e
-[ADR-023](adr/ADR-023-no-msaa-on-composed-surfaces.md). Entregues:
-`packages/export/src/resolution.ts` (conta pura, 14 testes) e `antialias: false` no
-mapa e no palco. Falta a ligação dos painéis, o seletor de escala e os critérios de
-verificação acima de 2 MP. Inventário em
-[09-CONTINUIDADE § 3.1](09-CONTINUIDADE.md#31-a-resolução-do-export-decidida-e-medida-ligação-pendente).
-
-**Uma ameaça real ao determinismo foi encontrada e fechada nesse caminho.** Acima
-de ~2 MP, repintar o mesmo estado não devolvia os mesmos bytes — MSAA. Ficou
-invisível porque o frame de export saía do tamanho do painel, 0,71 MP nesta
-máquina. O `verify:phase8` está 7/7 porque nunca exportou grande, e é por isso que
-o critério novo que exporta acima de 2 MP não é opcional.
-
-**Limite conhecido, medido em 2026-07-29 numa segunda máquina: o limiar é da placa
-de vídeo.** Com `antialias: true` restaurado só para medir, uma RTX **4090** repete
-bit a bit até 8,29 MP no mapa, no palco e no Pixi — 0 pixel de diferença, delta
-máximo 0, com guarda de conteúdo de 331 a 1604 cores distintas. Os ~2 MP são da
-RTX **3060 Ti**. Isso não reabilita o MSAA: prova que a bit-exatidão dele depende
-do hardware, e determinismo que muda com a placa não é determinismo. A consequência
-operacional é que **comparar hashes não pega a regressão nesta máquina** — quem
-reintroduzir `antialias: true` aqui vê dois exports idênticos e um arquivo
-divergente na máquina de quem recebe. Por isso o critério acima de 2 MP tem de
-afirmar `SAMPLES === 0` estruturalmente, e não só comparar bytes. Detalhe na seção
-"Segunda máquina" do
-[ADR-023](adr/ADR-023-no-msaa-on-composed-surfaces.md).
-
-**Regressão aberta, declarada em 2026-07-29.** Com a ligação do ADR-022 as
-superfícies passam a ser redimensionadas no começo de todo export, e **com filtro
-do Pixi na cena** duas execuções divergem nos primeiros frames em cerca de metade
-das rodadas. Sem filtro, zero divergência em catorze rodadas entre escala 1 e
-escala 2. O critério 5 do `verify:phase8` é o que acusa. Três hipóteses foram
-testadas e derrubadas por medição — viewport do Three, aquecimento de primeira
-pintura e reciclagem de alvo de filtro — e o caminho de investigação está descrito
-em [09-CONTINUIDADE](09-CONTINUIDADE.md). **Isto é limite conhecido, não critério
-afrouxado:** o critério 7, que exporta acima de 2 MP, mede a cena sem filtro
-porque é o que está provado, e a cena com filtro continua sendo cobrada pelo
-critério 5.
-
-**Falta ainda**: fechar a regressão acima, motion blur por sampling temporal,
-checkpoint e retomada. O painel de fila já existe, com seletor dos cinco formatos,
-seletor de escala com a resolução de saída na tela, progresso, ETA e relatório de
-settle.
+- a saída deriva de `composition.width/height`, não do tamanho do painel
+  ([ADR-022](adr/ADR-022-export-resolution-from-composition.md));
+- escala de saída e supersampling são independentes. O render interno deve caber
+  no teto de 8192 px por dimensão e na superfície real da GPU; nada é reduzido
+  silenciosamente
+  ([ADR-034](adr/ADR-034-direct-8k-with-conformance-guard.md));
+- o export usa o viewport vivo e restaura a composição anterior. Não há Render
+  Window oculta;
+- settle observa frame, repaints, mapa, assets e redimensionamento de superfícies.
+  A política padrão `fail` não compõe nem escreve o frame contaminado;
+- MP4, GIF e MOV só ganham o nome final por `rename` depois da conclusão
+  ([ADR-027](adr/ADR-027-fail-closed-and-atomic-export.md));
+- a fila persiste no renderer e volta com jobs interrompidos como `paused`.
+  Ela referencia a composição corrente e ainda não congela snapshot imutável;
+- checkpoints preservam/reutilizam sequências de PNG, GIF e ProRes. MP4 H.264
+  direto reinicia o stream ao retomar
+  ([ADR-033](adr/ADR-033-durable-render-queue-checkpoints.md)).
 
 **Objetivo original.** Arquivo de vídeo. A fase que prova o determinismo.
 
 Escopo:
 
-- Render Window (BrowserWindow oculta) com `engine` em `mode: "render"`
-- `export`: fila, frame pump, settle com política, checkpointing
+- `export`: fila, frame pump, settle fail-closed e checkpointing
 - `WebCodecsEncoder` com detecção de capacidade
 - `FFmpegPipeEncoder` com sidecar empacotado
 - PNG sequence, GIF (2 passos)
-- 4K direto, 8K via `pixelRatio: 2`
+- 4K direto; 8K quando escala, SS, teto e hardware permitirem
 - Alpha channel (modo matte) com ProRes 4444 e PNG
 - Motion blur por sampling temporal
 - Painel de fila de render com progresso, ETA, relatório
@@ -1425,44 +1349,59 @@ Escopo:
 
 **Critério de saída.**
 
-1. Exportar 90 s / 4K / 60 fps em H.264 — arquivo abre e toca corretamente.
-2. **Exportar o mesmo projeto duas vezes → arquivos idênticos byte a byte.**
-   Este é o critério mais importante do projeto inteiro.
-3. Exportar 8K sem estourar limite de textura.
-4. ProRes 4444 com alpha → importa no NLE com transparência correta.
-5. Remover um PMTiles no meio do export → `settlePolicy: fail` aborta com
-   mensagem clara, sem produzir arquivo corrompido.
-6. Interromper um job e retomar do checkpoint.
-7. Relatório mostra `settleFailed: 0` e p99 de settle dentro do orçamento.
-8. Nenhum gizmo, guia ou elemento de UI aparece em nenhum frame.
+1. ⏳ Exportar 90 s / 4K / 60 fps em H.264 — ensaio ainda não executado nesta
+   árvore.
+2. ⏳ **Exportar o mesmo projeto duas vezes → arquivos idênticos byte a byte.**
+   O caminho determinístico existe; repetir a prova integrada final.
+3. ⏳ Exportar 8K sem estourar limite de textura — planejamento/preflight
+   implementados; falta validar na máquina-alvo.
+4. ⏳ ProRes 4444 com alpha → implementação presente; repetir importação no NLE.
+5. ⏳ Remover um PMTiles no meio do export → comportamento fail-closed
+   implementado; falta a prova integrada com a fonte real.
+6. ⏳ Interromper e retomar → implementação presente para sequências; provar
+   reinício do aplicativo e registrar que MP4 recomeça.
+7. ⏳ Relatório e p99 existem; orçamento depende do ensaio final.
+8. ⏳ Gizmos são excluídos estruturalmente; confirmar na captura integrada final.
 
 ---
 
 ## Fase 9 — Scene Script (autoria por IA)
 
+**Estado: compilador/importador v1 implementado; aceite final pendente
+(2026-07-30).**
+
 **Objetivo.** JSON de LLM → animação completa.
 
-Escopo:
+Entregue:
 
-- `scripting`: compilador, registry de verbos, parser de tempo relativo
-- Resolução de lugares pelo gazetteer com detecção de ambiguidade
-- Diagnósticos com JSON pointer e `didYouMean`
-- Validações semânticas (velocidade implausível, entrada fora da duração, etc.)
-- `tools/gen-schema.ts` gera `LLM_AUTHORING.md` a partir do registry
-- UI de importação com painel de diagnósticos e "copiar erros"
-- Exportação parcial Document → Scene Script
+- compilador assíncrono, determinístico e offline;
+- estrutura estrita, registro de verbos, tempo absoluto/relativo e gazetteer com
+  ausência/ambiguidade explícitas;
+- diagnósticos estáveis com severidade, código, JSON Pointer, hint e
+  `didYouMean`;
+- validações de referências, bounds, sobreposição de movimentos, grupos e
+  velocidade plausível;
+- emissor de câmera, unidades, paths, ações, texto, geografia e visuais
+  determinísticos;
+- modal **Scene Script…** e importação como um único
+  `project.replace-document`, desfeita por um `Ctrl+Z`;
+- `LLM_AUTHORING.md` gerado do registro e verificado por
+  `pnpm scene:authoring:verify`;
+- exemplo `examples/alexandre.scene.json`;
+- exportação inversa parcial baseada na fonte normalizada preservada. Edições
+  posteriores são omitidas com warning; não existe bloco `raw`.
+
+Alguns verbos compartilham visuais/actions genéricos em vez de terem arte final
+especializada própria.
 
 **Critério de saída.**
 
-1. O exemplo de Alexandre em [05-SCENE-SCRIPT.md](05-SCENE-SCRIPT.md) compila e
-   produz animação de 1m30s correta.
-2. Um JSON com 5 erros propositais gera 5 diagnósticos com pointer correto e
-   sugestões úteis.
-3. Um Scene Script real, escrito por um LLM a partir apenas de
-   `LLM_AUTHORING.md`, compila (com no máximo uma rodada de correção).
-4. `LLM_AUTHORING.md` é gerado, não escrito à mão — adicionar um verbo o atualiza.
-5. Importar Scene Script é **um único comando** no histórico, desfeito por `Ctrl+Z`.
-6. Compilação de uma cena com 200 entradas em < 500 ms.
+1. ⏳ Confirmar visualmente a animação produzida pelo exemplo de Alexandre.
+2. ⏳ Repetir a prova integrada do conjunto de diagnósticos propositais.
+3. ⏳ Fazer a prova externa com um LLM usando apenas `LLM_AUTHORING.md`.
+4. ✅ A autoria é gerada do registro e possui verificador de divergência.
+5. ✅ A importação usa um único comando reversível.
+6. ⏳ Medir a cena de 200 entradas no ambiente final.
 
 ---
 
@@ -1473,48 +1412,70 @@ Escopo:
 
 **Objetivo.** Extensível sem tocar no núcleo.
 
-Escopo:
+**Estado: integração funcional concluída (2026-07-30).**
 
-- `plugin-host`: descoberta, manifest, carga, `unload` completo
+Entregue:
+
+- manifest v1 estrito, descoberta por porta de filesystem, registries nomeados,
+  host com carga injetada e `unload` completo;
 - Pontos de extensão: tipos de nó, efeitos, ações, verbos, exporters, painéis,
-  estilos de mapa, comandos
-- Biblioteca de unidades empacotada: taxonomia por era/nação/categoria, filtro,
-  busca (sobre o AssetStore da 7A)
-- ~150 unidades iniciais (SVG + sprite sheets) cobrindo WWI, WWII, moderno
-- Símbolos NATO APP-6
-- Bandeiras (histórico e atual)
-- Paletas por conflito
-- Presets de cena e de efeito
+  estilos de mapa e comandos;
+- placeholder que preserva o payload validado de nó desconhecido;
+- catálogo de 150 unidades com era, nação, categoria, anos de serviço, aliases,
+  tags e código APP-6, além de sprite SVG;
+- bandeiras, paletas e presets de cena/efeito gerados em
+  `data/plugin-content`;
+- busca do catálogo e inserção de unidades pela Biblioteca do editor.
+- adapter seguro de filesystem e loader ESM no shell;
+- tela de descoberta, ativação e descarregamento de plugins;
+- placeholder `unresolved` preservado no fluxo de projeto;
+- unidades, bandeiras, paletas e presets ligados à Biblioteca; presets de cena
+  são um único comando reversível.
 
 **Critério de saída.**
 
-1. Um plugin local adiciona um tipo de unidade + uma Action + um verbo de Scene
-   Script, sem alterar nenhum arquivo do núcleo.
-2. `unload` remove tudo — recarregar em dev não deixa resíduo (verificado por
-   contagem de registros).
-3. Abrir projeto que usa um plugin ausente → nós preservados como `unresolved`,
-   placeholder visível, e salvar **não perde dados**.
-4. Buscar "tanque soviético 1943" na biblioteca devolve resultados relevantes.
-5. Adicionar uma unidade nova é editar JSON + soltar um SVG. Zero código.
+1. ✅ Host, leitura local e UI de ativação estão integrados.
+2. ✅ O escopo de registro e o `unload` estão implementados.
+3. ✅ Payload desconhecido é preservado e representado por placeholder visível.
+4. ✅ A busca por texto, sinônimos e ano está implementada no catálogo.
+5. ✅ O gerador produz catálogo e sprites sem editar o núcleo; validar a inclusão
+   de uma unidade nova no fluxo de conteúdo antes do aceite final.
 
 ---
 
 ## Fase 11 — Polimento e performance
 
-**Estado: primeiro passe utilizável entregue em 2026-07-28.**
+**Estado: integração funcional concluída (2026-07-30); não há soak de quatro
+horas executado.**
 
-O aplicativo instalado oferece três projetos de exemplo pela barra superior,
-guia de uso separado da arquitetura e instalador assistido com todos os dados
-offline. `pnpm test:perf` trava três orçamentos reais: `evaluate` de 500 nós/5.000
-keyframes abaixo de 2 ms na mediana, layout de 500 nós abaixo de 1 ms e timeline
-com 200 trilhas/3.000 keyframes abaixo de 4 ms no p95. Para atingir o primeiro
-alvo sem afrouxá-lo, a ordem topológica passou a ser cacheada somente em
-composições profundamente congeladas; fixtures mutáveis continuam sempre
-revalidadas. O layout reutiliza a `drawOrder` já validada, evitando uma segunda
-ordenação de todos os nós a cada frame.
+Entregue no núcleo:
 
-Ainda pertencem à fase completa: cache de preview, áudio de referência,
-expressões, atalhos configuráveis e a prova de sessão contínua de quatro horas.
+- expressões de propriedades com parser/AST/intérprete próprios, contexto fechado
+  `value`/`frame`, limites de recursos e fallback com diagnóstico
+  ([ADR-030](adr/ADR-030-safe-property-expressions.md));
+- autoria de expressões pelo botão **ƒx** do Inspector, com aplicar/remover via
+  Command Bus, undo/redo e diagnóstico recuperável;
+- cache de preview em RAM e disco com orçamento por bytes, LRU, chave canônica e
+  CRC32;
+- análise PCM determinística para uma amostra de waveform por frame
+  ([ADR-031](adr/ADR-031-preview-cache-and-reference-audio.md));
+- quatro presets de workspace e atalhos configuráveis persistidos como
+  preferências locais fail-safe
+  ([ADR-032](adr/ADR-032-shortcuts-and-workspace-presets.md));
+- faixas de frames em cache e waveform de referência visíveis na Timeline, com
+  cache limitado e invalidação;
+- diagnóstico de expressão publicado pelo viewport e mostrado na barra de
+  status;
+- modo satélite local, entregue anteriormente no bloco 7E.
+
+Pendente:
+
+- onboarding completo;
+- validação atual de todos os orçamentos e sessão contínua de quatro horas.
+
+Áudio continua somente referência: sem reprodução, scrub sonoro, ganho, fades,
+mixagem ou inclusão no export. O instalador foi excluído deste ciclo e não é
+critério de conclusão desta fase.
 
 **Objetivo.** Ferramenta que se usa por 8 horas sem irritar.
 
@@ -1532,10 +1493,11 @@ Escopo:
 
 **Critério de saída.**
 
-1. Todos os orçamentos de performance atendidos, medidos por `pnpm test:perf`.
-2. Sessão de 4 horas sem crescimento de memória (perfil de heap estável).
-3. Waveform de áudio sincroniza com precisão de frame.
-4. Três projetos de exemplo completos, prontos para estudo.
+1. ⏳ Todos os orçamentos de performance atendidos em validação atual.
+2. ⏳ Sessão de 4 horas sem crescimento de memória — **não executada**.
+3. ⏳ Waveform ligada à timeline e sincronizada com precisão de frame; a análise
+   de domínio existe, a UI não.
+4. ⏳ Projetos de exemplo completos e revisados para estudo.
 
 ---
 

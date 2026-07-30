@@ -7,6 +7,7 @@
 export {
   applyEasingPreset,
   evaluateProperty,
+  evaluatePropertyResult,
   interpolateKeyframes,
   interpolateValue,
   keyframeSegment,
@@ -14,8 +15,24 @@ export {
   removeKeyframe,
   setKeyframeEasing,
   upsertKeyframe,
+  type EvaluatedPropertyResult,
   type KeyframeSegment,
+  type PropertyExpressionDiagnostic,
 } from "./property.js";
+
+export {
+  compileExpression,
+  evaluateExpression,
+  evaluateExpressionSource,
+  type CompileExpressionResult,
+  type EvaluateExpressionResult,
+  type ExpressionContext,
+  type ExpressionDiagnostic,
+  type ExpressionDiagnosticCode,
+  type ExpressionProgram,
+  type ExpressionScalar,
+  type ExpressionValue,
+} from "./expression.js";
 
 export {
   hasSpatialCurvature,
@@ -37,10 +54,12 @@ export {
 export {
   evaluate,
   evaluateValue,
+  evaluateValueResult,
   EvaluationError,
   type EvaluateOptions,
   type EvaluatedCamera,
   type EvaluatedEffect,
   type EvaluatedNode,
   type EvaluatedScene,
+  type EvaluatedValueResult,
 } from "./evaluate.js";

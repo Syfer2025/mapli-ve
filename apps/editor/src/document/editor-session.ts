@@ -8,8 +8,10 @@ import {
   findAssetReferences,
   type AssetReference,
 } from "@theatrum/assets";
+import { evaluateProperty } from "@theatrum/animation";
 import { createCommandBus, type HistorySnapshot } from "@theatrum/commands";
 import { createBuiltinActionRegistry } from "@theatrum/behaviors";
+import type { CameraState } from "@theatrum/camera";
 import { subframe } from "@theatrum/core-time";
 import { createIdFactory } from "@theatrum/core-utils";
 import { createDocumentStore } from "@theatrum/document";
@@ -30,6 +32,7 @@ import {
   type Anchor,
   type EasingHandle,
   type Node,
+  type Palette,
   type PathData,
   type PathVertex,
   type ProjectDocument,
@@ -84,6 +87,13 @@ type ContainerExtras = Omit<ProjectContainerInput, "document">;
 interface NodeClipboard {
   readonly roots: readonly string[];
   readonly nodes: Readonly<Record<string, Node>>;
+}
+
+export interface ScenePresetInput {
+  readonly name: string;
+  readonly mapStyle: string;
+  readonly palette: Palette;
+  readonly camera: CameraState;
 }
 
 const EMPTY_CONTAINER_EXTRAS: ContainerExtras = Object.freeze({});
@@ -145,6 +155,18 @@ export const editorActions = Object.freeze({
     }
     update({ error: null, status: result.label });
     return true;
+  },
+
+  /**
+   * O compilador não toca o estado do editor. Só depois de uma compilação sem
+   * erros o documento inteiro cruza esta fronteira como um comando único.
+   */
+  applySceneScript(document: ProjectDocument): boolean {
+    return this.dispatch({
+      type: "project.replace-document",
+      payload: { document },
+      source: "script",
+    });
   },
 
   undo(): void {
@@ -259,6 +281,147 @@ export const editorActions = Object.freeze({
     update({ loopPlayback });
   },
 
+  /**
+   * Persiste a escolha do mapa no documento.
+   *
+   * O viewport não mantém uma preferência paralela: save, autosave e undo
+   * recebem esta alteração pelo mesmo Command Bus de toda autoria (ADR-026).
+   */
+  setMapStyle(styleId: string): boolean {
+    const composition = selectedComposition();
+    if (composition === undefined || composition.map.styleId === styleId) return true;
+    return this.dispatch({
+      type: "composition.set-map",
+      payload: {
+        compositionId: composition.id,
+        map: { ...structuredClone(composition.map), styleId },
+      },
+      source: "user",
+    });
+  },
+
+  /**
+   * Consolida um gesto do MapLibre em uma única entrada de histórico.
+   *
+   * Propriedades já animadas ganham/atualizam o keyframe do playhead; as demais
+   * mudam o valor base. Assim navegar não apaga animação existente.
+   */
+  setMapCamera(camera: CameraState): boolean {
+    const composition = selectedComposition();
+    if (composition === undefined) return false;
+    const current = {
+      center: evaluateProperty(composition.camera.center, snapshot.playheadFrame),
+      zoom: evaluateProperty(composition.camera.zoom, snapshot.playheadFrame),
+      bearing: evaluateProperty(composition.camera.bearing, snapshot.playheadFrame),
+      pitch: evaluateProperty(composition.camera.pitch, snapshot.playheadFrame),
+    } satisfies CameraState;
+    if (sameMapCamera(current, camera)) return true;
+
+    const authoredFrame = Math.round(snapshot.playheadFrame);
+    return runTransaction("Alterar câmera do mapa", () => {
+      dispatchCameraProperty(
+        composition.id,
+        "center",
+        composition.camera.center as AnimatableProperty<unknown>,
+        [...camera.center],
+        authoredFrame,
+      );
+      dispatchCameraProperty(
+        composition.id,
+        "zoom",
+        composition.camera.zoom as AnimatableProperty<unknown>,
+        camera.zoom,
+        authoredFrame,
+      );
+      dispatchCameraProperty(
+        composition.id,
+        "bearing",
+        composition.camera.bearing as AnimatableProperty<unknown>,
+        camera.bearing,
+        authoredFrame,
+      );
+      dispatchCameraProperty(
+        composition.id,
+        "pitch",
+        composition.camera.pitch as AnimatableProperty<unknown>,
+        camera.pitch,
+        authoredFrame,
+      );
+    });
+  },
+
+  /**
+   * Aplica mapa, câmera e paleta como um único gesto reversível.
+   *
+   * A paleta já existente é preservada; a câmera continua respeitando trilhas
+   * animadas, gravando keyframes no playhead quando necessário.
+   */
+  applyScenePreset(preset: ScenePresetInput): boolean {
+    const composition = selectedComposition();
+    if (composition === undefined) return false;
+    const hasPalette = snapshot.document.palettes.some(({ id }) => id === preset.palette.id);
+    const currentCamera = {
+      center: evaluateProperty(composition.camera.center, snapshot.playheadFrame),
+      zoom: evaluateProperty(composition.camera.zoom, snapshot.playheadFrame),
+      bearing: evaluateProperty(composition.camera.bearing, snapshot.playheadFrame),
+      pitch: evaluateProperty(composition.camera.pitch, snapshot.playheadFrame),
+    } satisfies CameraState;
+    const sameStyle = composition.map.styleId === preset.mapStyle;
+    const sameCamera = sameMapCamera(currentCamera, preset.camera);
+    if (hasPalette && sameStyle && sameCamera) return true;
+
+    const authoredFrame = Math.round(snapshot.playheadFrame);
+    return runTransaction(`Aplicar preset ${preset.name}`, () => {
+      if (!hasPalette) {
+        commandBus.dispatch({
+          type: "palette.add",
+          payload: { palette: structuredClone(preset.palette) },
+          source: "user",
+        });
+      }
+      if (!sameStyle) {
+        commandBus.dispatch({
+          type: "composition.set-map",
+          payload: {
+            compositionId: composition.id,
+            map: { ...structuredClone(composition.map), styleId: preset.mapStyle },
+          },
+          source: "user",
+        });
+      }
+      if (!sameCamera) {
+        dispatchCameraProperty(
+          composition.id,
+          "center",
+          composition.camera.center as AnimatableProperty<unknown>,
+          [...preset.camera.center],
+          authoredFrame,
+        );
+        dispatchCameraProperty(
+          composition.id,
+          "zoom",
+          composition.camera.zoom as AnimatableProperty<unknown>,
+          preset.camera.zoom,
+          authoredFrame,
+        );
+        dispatchCameraProperty(
+          composition.id,
+          "bearing",
+          composition.camera.bearing as AnimatableProperty<unknown>,
+          preset.camera.bearing,
+          authoredFrame,
+        );
+        dispatchCameraProperty(
+          composition.id,
+          "pitch",
+          composition.camera.pitch as AnimatableProperty<unknown>,
+          preset.camera.pitch,
+          authoredFrame,
+        );
+      }
+    });
+  },
+
   setPropertyValue(
     nodeId: string,
     path: string,
@@ -313,6 +476,25 @@ export const editorActions = Object.freeze({
       payload: { ...propertyLocation(nodeId, path), value },
       source: "user",
     });
+  },
+
+  setPropertyExpression(nodeId: string, path: string, expression: string | null): boolean {
+    const resolved = selectedEditableProperty(nodeId, path);
+    if (resolved === undefined || !resolved.descriptor.animatable) return false;
+    const command = {
+      type: "property.set-expression",
+      payload: { ...propertyLocation(nodeId, path), expression },
+      source: "user",
+    } as const;
+    return resolved.initializationRequired
+      ? initializePropertyAndDispatch(
+          expression === null ? "Remover expressão" : "Alterar expressão",
+          nodeId,
+          path,
+          resolved.property,
+          command,
+        )
+      : this.dispatch(command);
   },
 
   togglePropertyKeyframe(nodeId: string, path: string): boolean {
@@ -1154,10 +1336,11 @@ export const editorActions = Object.freeze({
    * `containerExtras`, e seguem para dentro do `.theatrum` no próximo save.
    * Textura GPU e thumbnail sobem pelo `asset-media` (cache de runtime).
    */
-  async importAssetFiles(files: readonly File[]): Promise<void> {
-    if (files.length === 0) return;
+  async importAssetFiles(files: readonly File[]): Promise<readonly string[]> {
+    if (files.length === 0) return Object.freeze([]);
     let imported = 0;
     let skipped = 0;
+    const availableSrcs: string[] = [];
     for (const file of files) {
       const kind = assetKindForFile(file.name, file.type);
       const extension = extensionForFileName(file.name);
@@ -1173,10 +1356,12 @@ export const editorActions = Object.freeze({
       }
       // O src é o hash do conteúdo: importar o mesmo arquivo duas vezes é no-op.
       if (snapshot.document.assets.some((asset) => asset.src === embedded.value.path)) {
+        availableSrcs.push(embedded.value.path);
         skipped += 1;
         continue;
       }
-      const bitmap = kind === "model" ? null : await createTextureBitmap(bytes, kind);
+      const bitmap =
+        kind === "image" || kind === "svg" ? await createTextureBitmap(bytes, kind) : null;
       const descriptor = buildAssetDescriptor({
         id: ids("ast"),
         kind,
@@ -1197,6 +1382,7 @@ export const editorActions = Object.freeze({
         assets: [...(containerExtras.assets ?? []), embedded.value],
       };
       await registerAssetMedia(embedded.value.path, bytes, kind, bitmap);
+      availableSrcs.push(embedded.value.path);
       imported += 1;
     }
     update({
@@ -1208,6 +1394,90 @@ export const editorActions = Object.freeze({
             }`,
       error: null,
     });
+    return Object.freeze(availableSrcs);
+  },
+
+  /**
+   * Incorpora um SVG empacotado e já cria o nó correspondente. Descriptor e nó
+   * passam juntos pelo Command Bus; os bytes entram no container apenas depois
+   * de a transação ser aceita.
+   */
+  async addBundledSvgAsset(input: {
+    readonly name: string;
+    readonly svg: string;
+    readonly tags?: readonly string[];
+  }): Promise<string | null> {
+    const composition = selectedComposition();
+    const definition = nodeTypeRegistry.get("svg");
+    if (composition === undefined || definition === undefined) return null;
+    const root = composition.nodes[composition.root];
+    if (root === undefined) return null;
+
+    const bytes = new TextEncoder().encode(input.svg);
+    const embedded = createEmbeddedAsset(bytes, "svg");
+    if (!embedded.ok) {
+      update({ status: "Falha ao adicionar bandeira", error: embedded.error.message });
+      return null;
+    }
+    const existing = snapshot.document.assets.find((asset) => asset.src === embedded.value.path);
+    const bitmap = await createTextureBitmap(bytes, "svg");
+    const descriptor =
+      existing ??
+      buildAssetDescriptor({
+        id: ids("ast"),
+        kind: "svg",
+        src: embedded.value.path,
+        name: input.name,
+        mime: "image/svg+xml",
+        byteSize: bytes.byteLength,
+        ...(input.tags === undefined ? {} : { tags: input.tags }),
+        ...(bitmap === null ? {} : { width: bitmap.width, height: bitmap.height }),
+      });
+
+    const nodeId = ids("nd");
+    const node = createNodeFromDefinition(root, definition, nodeId, root.id, composition);
+    node.name = input.name;
+    node.props["assetId"] = {
+      value: descriptor.src,
+      keyframes: [],
+      expression: null,
+    };
+    const dimensions = assetDimensions(descriptor);
+    if (dimensions !== null) node.size = { mode: "screen", size: fitWithin(dimensions, 480) };
+
+    const added = runTransaction(`Adicionar ${input.name}`, () => {
+      if (existing === undefined) {
+        commandBus.dispatch({
+          type: "asset.add",
+          payload: { asset: descriptor },
+          source: "user",
+        });
+      }
+      commandBus.dispatch({
+        type: "node.create",
+        payload: { compositionId: composition.id, parentId: root.id, node },
+        source: "user",
+      });
+    });
+    if (!added) return null;
+
+    if (existing === undefined) {
+      const stored = containerExtras.assets ?? [];
+      containerExtras = {
+        ...containerExtras,
+        assets: stored.some(({ path }) => path === embedded.value.path)
+          ? stored
+          : [...stored, embedded.value],
+      };
+    }
+    await registerAssetMedia(descriptor.src, bytes, "svg", bitmap);
+    update({
+      selectedNodeId: nodeId,
+      selectedNodeIds: Object.freeze([nodeId]),
+      status: `${input.name} adicionada à cena`,
+      error: null,
+    });
+    return nodeId;
   },
 
   assetUsages(assetId: string): readonly AssetReference[] {
@@ -1215,10 +1485,49 @@ export const editorActions = Object.freeze({
     return asset === undefined ? [] : findAssetReferences(snapshot.document, asset.src);
   },
 
+  setReferenceAudio(assetSrc: string | null, startFrame = 0): boolean {
+    const composition = selectedComposition();
+    if (composition === undefined) return false;
+    if (
+      assetSrc !== null &&
+      !snapshot.document.assets.some((asset) => asset.src === assetSrc && asset.kind === "audio")
+    ) {
+      update({
+        status: "Áudio de referência inválido",
+        error: "Selecione um áudio da Biblioteca.",
+      });
+      return false;
+    }
+    return this.dispatch({
+      type: "composition.set-reference-audio",
+      payload: {
+        compositionId: composition.id,
+        referenceAudio:
+          assetSrc === null ? null : { assetSrc, startFrame: Math.max(0, Math.round(startFrame)) },
+      },
+      source: "user",
+    });
+  },
+
   removeAsset(assetId: string): boolean {
     const asset = snapshot.document.assets.find((entry) => entry.id === assetId);
     if (asset === undefined) return false;
-    const ok = this.dispatch({ type: "asset.remove", payload: { assetId }, source: "user" });
+    const audioCompositions = snapshot.document.compositions.filter(
+      (composition) => composition.referenceAudio?.assetSrc === asset.src,
+    );
+    const ok =
+      audioCompositions.length === 0
+        ? this.dispatch({ type: "asset.remove", payload: { assetId }, source: "user" })
+        : runTransaction("Remover áudio de referência", () => {
+            for (const composition of audioCompositions) {
+              this.dispatch({
+                type: "composition.set-reference-audio",
+                payload: { compositionId: composition.id, referenceAudio: null },
+                source: "user",
+              });
+            }
+            this.dispatch({ type: "asset.remove", payload: { assetId }, source: "user" });
+          });
     if (!ok) return false;
     containerExtras = {
       ...containerExtras,
@@ -1240,6 +1549,14 @@ export const editorActions = Object.freeze({
     });
   },
 
+  addPalette(palette: Palette): boolean {
+    return this.dispatch({
+      type: "palette.add",
+      payload: { palette },
+      source: "user",
+    });
+  },
+
   /**
    * Cria um nó `image`/`svg`/`model3d` com o asset aplicado, na composição
    * selecionada. Imagem/SVG ajustam o tamanho às dimensões reais (teto de
@@ -1250,7 +1567,7 @@ export const editorActions = Object.freeze({
     const composition =
       snapshot.document.compositions.find((item) => item.id === snapshot.selectedCompositionId) ??
       snapshot.document.compositions[0];
-    if (asset === undefined || composition === undefined) return null;
+    if (asset === undefined || composition === undefined || asset.kind === "audio") return null;
     const type = asset.kind === "svg" ? "svg" : asset.kind === "model" ? "model3d" : "image";
     const definition = nodeTypeRegistry.get(type);
     const root = composition.nodes[composition.root];
@@ -1705,6 +2022,55 @@ function selectedComposition() {
   return documentStore
     .get()
     .compositions.find((composition) => composition.id === snapshot.selectedCompositionId);
+}
+
+function sameMapCamera(left: CameraState, right: CameraState): boolean {
+  const epsilon = 1e-7;
+  const bearingDelta = ((((left.bearing - right.bearing + 180) % 360) + 360) % 360) - 180;
+  return (
+    Math.abs(left.center[0] - right.center[0]) <= epsilon &&
+    Math.abs(left.center[1] - right.center[1]) <= epsilon &&
+    Math.abs(left.zoom - right.zoom) <= epsilon &&
+    Math.abs(bearingDelta) <= epsilon &&
+    Math.abs(left.pitch - right.pitch) <= epsilon
+  );
+}
+
+function dispatchCameraProperty(
+  compositionId: string,
+  path: "center" | "zoom" | "bearing" | "pitch",
+  property: AnimatableProperty<unknown>,
+  value: unknown,
+  authoredFrame: number,
+): void {
+  const location = {
+    compositionId,
+    target: { kind: "camera" as const },
+    path: [path],
+  };
+  if (property.keyframes.length === 0) {
+    commandBus.dispatch({
+      type: "property.set",
+      payload: { ...location, value },
+      source: "user",
+    });
+    return;
+  }
+  const existing = property.keyframes.find((keyframe) => keyframe.frame === authoredFrame);
+  commandBus.dispatch({
+    type: "keyframe.set",
+    payload: {
+      ...location,
+      keyframe: {
+        id: existing?.id ?? ids("kf"),
+        frame: authoredFrame,
+        value,
+        in: existing?.in ?? { kind: "linear" },
+        out: existing?.out ?? { kind: "linear" },
+      },
+    },
+    source: "user",
+  });
 }
 
 function runTransaction(label: string, callback: () => void): boolean {

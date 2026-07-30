@@ -6,7 +6,12 @@
  * em CSS sem subir o processo main).
  */
 
-import { BRIDGE_KEY, type TheatrumBridge, type WorkspaceState } from "@theatrum/shell";
+import {
+  BRIDGE_KEY,
+  type ShortcutPreferences,
+  type TheatrumBridge,
+  type WorkspaceState,
+} from "@theatrum/shell";
 
 declare global {
   interface Window {
@@ -15,6 +20,7 @@ declare global {
 }
 
 let memoryWorkspace: WorkspaceState | null = null;
+let memoryPreferences: ShortcutPreferences | null = null;
 
 /** Fallback sem Electron: workspace vive na memória da aba e some ao recarregar. */
 const fallback: TheatrumBridge = {
@@ -29,6 +35,7 @@ const fallback: TheatrumBridge = {
         userDataPath: "",
         isPackaged: false,
       }),
+    metrics: () => Promise.resolve([]),
   },
   workspace: {
     load: () => Promise.resolve(memoryWorkspace),
@@ -43,6 +50,35 @@ const fallback: TheatrumBridge = {
       memoryWorkspace = null;
       return Promise.resolve();
     },
+  },
+  preferences: {
+    load: () => Promise.resolve(memoryPreferences),
+    save: (preferences) => {
+      memoryPreferences = preferences;
+      return Promise.resolve();
+    },
+    reset: () => {
+      memoryPreferences = null;
+      return Promise.resolve();
+    },
+  },
+  plugins: {
+    scan: () =>
+      Promise.resolve({
+        root: "",
+        plugins: [],
+        diagnostics: [
+          {
+            directory: "",
+            message: "Plugins locais exigem o aplicativo Electron.",
+          },
+        ],
+      }),
+    module: () =>
+      Promise.resolve({
+        ok: false,
+        message: "Plugins locais exigem o aplicativo Electron.",
+      }),
   },
   project: {
     open: () => Promise.resolve({ status: "cancelled" }),
@@ -88,8 +124,23 @@ const fallback: TheatrumBridge = {
         sha256: "",
         message: "Export exige o aplicativo Electron.",
       }),
+    verifyFrames: () =>
+      Promise.resolve({
+        ok: false,
+        verified: 0,
+        message: "Export exige o aplicativo Electron.",
+      }),
     append: () =>
       Promise.resolve({ ok: false, bytes: 0, message: "Export exige o aplicativo Electron." }),
+    finalize: (request) =>
+      Promise.resolve({
+        ok: false,
+        filename: request.action === "publish" ? request.finalFilename : request.temporaryFilename,
+        bytes: 0,
+        sha256: "",
+        temporaryDisposition: "preserved",
+        message: "Export exige o aplicativo Electron.",
+      }),
     encode: (request) =>
       Promise.resolve({
         ok: false,

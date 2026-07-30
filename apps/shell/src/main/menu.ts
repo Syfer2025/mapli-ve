@@ -5,7 +5,9 @@
  * fixar a estrutura e os atalhos desde já, porque mudar atalho depois que o
  * operador criou memória muscular custa mais que definir agora.
  *
- * Atalhos seguem o After Effects onde há equivalente (docs/07-CONVENTIONS.md § 10).
+ * Os aceleradores configuráveis são resolvidos pelo registry do renderer. Itens
+ * ativos não registram uma segunda combinação fixa aqui, pois ela contornaria
+ * um override do usuário; clicar no menu continua emitindo a mesma `MenuAction`.
  */
 
 import { app, Menu, type BrowserWindow, type MenuItemConstructorOptions } from "electron";
@@ -17,9 +19,8 @@ export interface MenuActions {
 }
 
 export function buildMenu(window: BrowserWindow, actions: MenuActions): Menu {
-  const soon = (label: string, accelerator?: string): MenuItemConstructorOptions => ({
+  const soon = (label: string): MenuItemConstructorOptions => ({
     label,
-    ...(accelerator === undefined ? {} : { accelerator }),
     enabled: false,
   });
 
@@ -29,14 +30,12 @@ export function buildMenu(window: BrowserWindow, actions: MenuActions): Menu {
       submenu: [
         {
           label: "Novo projeto",
-          accelerator: "CmdOrCtrl+N",
           click: () => {
             actions.perform("project:new");
           },
         },
         {
           label: "Abrir…",
-          accelerator: "CmdOrCtrl+O",
           click: () => {
             actions.perform("project:open");
           },
@@ -44,21 +43,19 @@ export function buildMenu(window: BrowserWindow, actions: MenuActions): Menu {
         { type: "separator" },
         {
           label: "Salvar",
-          accelerator: "CmdOrCtrl+S",
           click: () => {
             actions.perform("project:save");
           },
         },
         {
           label: "Salvar como…",
-          accelerator: "CmdOrCtrl+Shift+S",
           click: () => {
             actions.perform("project:save-as");
           },
         },
         { type: "separator" },
         soon("Importar Scene Script…"),
-        soon("Exportar…", "CmdOrCtrl+M"),
+        soon("Exportar…"),
         { type: "separator" },
         { role: "quit", label: "Sair" },
       ],
@@ -68,33 +65,31 @@ export function buildMenu(window: BrowserWindow, actions: MenuActions): Menu {
       submenu: [
         {
           label: "Desfazer",
-          accelerator: "CmdOrCtrl+Z",
           click: () => {
             actions.perform("history:undo");
           },
         },
         {
           label: "Refazer",
-          accelerator: "CmdOrCtrl+Shift+Z",
           click: () => {
             actions.perform("history:redo");
           },
         },
         { type: "separator" },
-        soon("Copiar", "CmdOrCtrl+C"),
-        soon("Colar", "CmdOrCtrl+V"),
-        soon("Duplicar", "CmdOrCtrl+D"),
+        soon("Copiar"),
+        soon("Colar"),
+        soon("Duplicar"),
         { type: "separator" },
-        soon("Selecionar tudo", "CmdOrCtrl+A"),
+        soon("Selecionar tudo"),
       ],
     },
     {
       label: "Composição",
       submenu: [
-        soon("Nova composição…", "CmdOrCtrl+Shift+N"),
-        soon("Configurações da composição…", "CmdOrCtrl+K"),
+        soon("Nova composição…"),
+        soon("Configurações da composição…"),
         { type: "separator" },
-        soon("Adicionar à fila de render", "CmdOrCtrl+Shift+M"),
+        soon("Adicionar à fila de render"),
       ],
     },
     {
