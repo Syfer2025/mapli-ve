@@ -10,7 +10,11 @@ release/
 data/basemap/*.pmtiles
 data/glyphs/
 data/natural-earth/*.geojson
-data/sprites/
+data/sprites/*
+!data/sprites/theatrum-ukraine.json
+!data/sprites/theatrum-ukraine.png
+!data/sprites/theatrum-ukraine@2x.json
+!data/sprites/theatrum-ukraine@2x.png
 data/raster/
 data/terrain/
 # malha compilada por tools/build-geo.ts — derivada da origem fixada por hash

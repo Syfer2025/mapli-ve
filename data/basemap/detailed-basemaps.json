@@ -9,13 +9,30 @@
       "focusBounds": [55.6, 25.3, 57.7, 27.8],
       "minZoom": 0,
       "maxZoom": 15,
-      "attribution": "<a href=\"https://github.com/protomaps/basemaps\">Protomaps</a> © <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap contributors</a>",
+      "attribution": "<a href=\"https://github.com/protomaps/basemaps\">Protomaps</a> © colaboradores do <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a>",
       "provenance": {
         "source": "https://build.protomaps.com/20260728.pmtiles",
         "extractedWith": "go-pmtiles 1.31.2",
         "bbox": "43,22,65,41",
         "bytes": 1562903814,
         "sha256": "c56fa5daacf51aabf90b6bfcf4c64f27f23ee69e00c6d96dfda1b2a602d489bf"
+      }
+    },
+    {
+      "id": "ukraine",
+      "label": "Detalhado · Ucrânia",
+      "source": "ukraine-20260728-z15.pmtiles",
+      "bounds": [21.5, 44, 41.5, 53],
+      "focusBounds": [21.5, 44, 41.5, 53],
+      "minZoom": 0,
+      "maxZoom": 15,
+      "attribution": "<a href=\"https://github.com/protomaps/basemaps\">Protomaps</a> © colaboradores do <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a>",
+      "provenance": {
+        "source": "https://build.protomaps.com/20260728.pmtiles",
+        "extractedWith": "go-pmtiles 1.31.2",
+        "bbox": "21.5,44,41.5,53",
+        "bytes": 4432141108,
+        "sha256": "afb4fff44f9e453b007d4e9028decaa3229456ed3ae9edeb01729a2908d0ef69"
       }
     }
   ]

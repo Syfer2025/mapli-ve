@@ -1,6 +1,7 @@
 import { layers as protomapsLayers, namedFlavor } from "@protomaps/basemaps";
 import { DATA_BASE_URL } from "@theatrum/shell";
 import type {
+  FilterSpecification,
   LayerSpecification,
   RasterSourceSpecification,
   StyleSpecification,
@@ -33,7 +34,367 @@ const LAKES_URL = `${DATA_BASE_URL}/natural-earth/ne_110m_lakes.geojson`;
 const RIVERS_URL = `${DATA_BASE_URL}/natural-earth/ne_110m_rivers_lake_centerlines.geojson`;
 const GLYPHS_URL = `${DATA_BASE_URL}/glyphs/{fontstack}/{range}.pbf`;
 const PROTOMAPS_SPRITE_URL = `${DATA_BASE_URL}/sprites/protomaps-light`;
+const UKRAINE_SPRITE_URL = `${DATA_BASE_URL}/sprites/theatrum-ukraine`;
 const DETAILED_SOURCE_ID = "regional-detail";
+const UKRAINE_FRONTLINE_SOURCE_ID = "ukraine-frontline-2026-07-30";
+const UKRAINE_FRONTLINE_URL = `${DATA_BASE_URL}/frontlines/ukraine-liveuamap-2026-07-30-z9.geojson`;
+const UKRAINE_POLITICAL_SOURCE_ID = "ukraine-political-control-2026-07-30";
+const UKRAINE_POLITICAL_URL = `${DATA_BASE_URL}/territories/ukraine-political-control-2026-07-30.geojson`;
+export const UKRAINE_WAR_TIMELINE_SOURCE_ID = "ukraine-war-timeline-2022-2026";
+const UKRAINE_WAR_TIMELINE_URL = `${DATA_BASE_URL}/territories/ukraine-war-timeline-2022-2026.geojson`;
+export const UKRAINE_WAR_TIMELINE_FRAME_STEP = 2;
+export const UKRAINE_WAR_TIMELINE_FINAL_STATE_FRAME = 570;
+export const UKRAINE_WAR_TIMELINE_LAST_FRAME = 599;
+
+export type DetailedPoiMode = "strategic" | "all" | "hidden";
+
+export interface DetailedPoiModeOption {
+  readonly id: DetailedPoiMode;
+  readonly label: string;
+}
+
+export const DEFAULT_DETAILED_POI_MODE: DetailedPoiMode = "strategic";
+
+export const DETAILED_POI_MODE_OPTIONS: readonly DetailedPoiModeOption[] = Object.freeze([
+  { id: "strategic", label: "Estratégicos" },
+  { id: "all", label: "Todos" },
+  { id: "hidden", label: "Ocultos" },
+]);
+
+/**
+ * Categorias que ajudam a ler infraestrutura crítica sem poluir o mapa com
+ * alimentação, comércio e lazer. O PMTiles preserva todas as outras feições:
+ * trocar o modo para `all` apenas restaura o filtro cartográfico original.
+ */
+export const STRATEGIC_POI_KINDS: readonly string[] = Object.freeze([
+  "aerodrome",
+  "airport",
+  "airfield",
+  "heliport",
+  "helipad",
+  "townhall",
+  "government",
+  "government_office",
+  "public_service",
+  "courthouse",
+  "embassy",
+  "consulate",
+  "police",
+  "fire_station",
+  "military",
+  "barracks",
+  "naval_base",
+  "air_force",
+  "fuel",
+  "gas",
+  "oil",
+  "oil_well",
+  "gas_well",
+  "petroleum",
+  "refinery",
+  "pipeline",
+  "power_plant",
+  "power_station",
+  "substation",
+  "station",
+  "ferry_terminal",
+  "port",
+  "harbour",
+  "hospital",
+]);
+
+const STRATEGIC_POI_FILTER: FilterSpecification = [
+  "all",
+  ["in", ["get", "kind"], ["literal", STRATEGIC_POI_KINDS]],
+  [">=", ["zoom"], ["+", ["get", "min_zoom"], 0]],
+];
+
+function configureDetailedPoiLayers(
+  layers: readonly LayerSpecification[],
+  mode: DetailedPoiMode,
+): LayerSpecification[] {
+  return layers.map((layer) => {
+    if (layer.id !== "pois" || layer.type !== "symbol") return layer;
+    if (mode === "all") return layer;
+    if (mode === "hidden") {
+      return {
+        ...layer,
+        layout: { ...layer.layout, visibility: "none" },
+      };
+    }
+    return {
+      ...layer,
+      filter: structuredClone(STRATEGIC_POI_FILTER),
+      layout: {
+        ...layer.layout,
+        "icon-image": [
+          "match",
+          ["get", "kind"],
+          "aerodrome",
+          "aerodrome",
+          "airport",
+          "aerodrome",
+          "airfield",
+          "aerodrome",
+          "station",
+          "train_station",
+          "ferry_terminal",
+          "ferry_terminal",
+          "building",
+        ],
+      },
+      paint: {
+        ...layer.paint,
+        "text-color": "#6f2430",
+      },
+    };
+  });
+}
+
+const UKRAINE_MAJOR_CITY_NAMES: readonly string[] = Object.freeze([
+  "Kyiv",
+  "Kharkiv",
+  "Odesa",
+  "Dnipro",
+  "Donetsk",
+  "Zaporizhzhia",
+  "Lviv",
+  "Kryvyi Rih",
+  "Mykolaiv",
+  "Mariupol",
+  "Luhansk",
+  "Vinnytsia",
+  "Kherson",
+  "Poltava",
+  "Chernihiv",
+  "Sumy",
+  "Sevastopol",
+  "Simferopol",
+]);
+
+const UKRAINE_MAJOR_LOCALITY_FILTER: FilterSpecification = [
+  "all",
+  ["==", ["get", "kind"], "locality"],
+  ["in", ["get", "name:en"], ["literal", UKRAINE_MAJOR_CITY_NAMES]],
+];
+
+/**
+ * Mantém estados/províncias e as cidades de maior hierarquia, mas remove
+ * bairros, distritos e localidades menores em qualquer nível de zoom.
+ */
+function configureDetailedPlaceLayers(
+  layers: readonly LayerSpecification[],
+  majorCitiesOnly: boolean,
+): LayerSpecification[] {
+  if (!majorCitiesOnly) return [...layers];
+  return layers.map((layer) => {
+    if (layer.id === "places_subplace" && layer.type === "symbol") {
+      return {
+        ...layer,
+        layout: { ...layer.layout, visibility: "none" },
+      };
+    }
+    if (layer.id === "places_locality" && layer.type === "symbol") {
+      return {
+        ...layer,
+        filter: structuredClone(UKRAINE_MAJOR_LOCALITY_FILTER),
+      };
+    }
+    return layer;
+  });
+}
+
+function detailedLayers(
+  poiMode: DetailedPoiMode,
+  options: {
+    readonly labelsOnly?: boolean;
+    readonly majorCitiesOnly?: boolean;
+  } = {},
+): LayerSpecification[] {
+  const { majorCitiesOnly = false, ...layerOptions } = options;
+  return configureDetailedPlaceLayers(
+    configureDetailedPoiLayers(
+      protomapsLayers(DETAILED_SOURCE_ID, namedFlavor("light"), {
+        ...layerOptions,
+        lang: "pt",
+      }) as unknown as LayerSpecification[],
+      poiMode,
+    ),
+    majorCitiesOnly,
+  );
+}
+
+function ukraineFrontlineLayers(): LayerSpecification[] {
+  return [
+    {
+      id: "ukraine-frontline-casing",
+      type: "line",
+      source: UKRAINE_FRONTLINE_SOURCE_ID,
+      minzoom: 4,
+      layout: {
+        "line-cap": "round",
+        "line-join": "round",
+      },
+      paint: {
+        "line-color": "#5c1018",
+        "line-opacity": 0,
+        "line-width": ["interpolate", ["linear"], ["zoom"], 4, 3, 8, 4, 12, 5.5, 15, 7],
+        "line-blur": 0.25,
+      },
+    },
+    {
+      id: "ukraine-frontline",
+      type: "line",
+      source: UKRAINE_FRONTLINE_SOURCE_ID,
+      minzoom: 4,
+      layout: {
+        "line-cap": "round",
+        "line-join": "round",
+      },
+      paint: {
+        "line-color": "#d71920",
+        "line-opacity": 0,
+        "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1.6, 8, 2.4, 12, 3.5, 15, 4.5],
+      },
+    },
+  ];
+}
+
+function ukrainePoliticalFillLayers(): LayerSpecification[] {
+  return [
+    {
+      id: "ukraine-russia-fill",
+      type: "fill",
+      source: UKRAINE_POLITICAL_SOURCE_ID,
+      filter: ["all", ["==", ["get", "kind"], "country"], ["==", ["get", "code"], "RUS"]],
+      paint: {
+        "fill-color": "#ef9999",
+        "fill-opacity": 0.72,
+      },
+    },
+    {
+      id: "ukraine-national-fill",
+      type: "fill",
+      source: UKRAINE_POLITICAL_SOURCE_ID,
+      filter: ["all", ["==", ["get", "kind"], "country"], ["==", ["get", "code"], "UKR"]],
+      paint: {
+        "fill-color": "#f8e69a",
+        "fill-opacity": 0.74,
+      },
+    },
+    {
+      id: "ukraine-invaded-regions-fill",
+      type: "fill",
+      source: UKRAINE_POLITICAL_SOURCE_ID,
+      filter: ["==", ["get", "kind"], "invaded_region"],
+      paint: {
+        "fill-color": "#e58f92",
+        "fill-opacity": 1,
+        "fill-outline-color": "#a84f58",
+      },
+    },
+    {
+      id: "ukraine-occupied-fill",
+      type: "fill",
+      source: UKRAINE_WAR_TIMELINE_SOURCE_ID,
+      filter: [
+        "all",
+        ["==", ["get", "kind"], "occupied_timeline"],
+        ["==", ["get", "frame"], 0],
+      ],
+      paint: {
+        "fill-color": "#d64c54",
+        "fill-opacity": 0.78,
+        "fill-outline-color": "#a62a32",
+      },
+    },
+    {
+      id: "ukraine-occupied-stripes",
+      type: "fill",
+      source: UKRAINE_WAR_TIMELINE_SOURCE_ID,
+      filter: [
+        "all",
+        ["==", ["get", "kind"], "occupied_timeline"],
+        ["==", ["get", "frame"], 0],
+      ],
+      paint: {
+        "fill-pattern": "occupation-stripes",
+        "fill-opacity": 0.88,
+      },
+    },
+  ];
+}
+
+function ukraineFlagLayers(): LayerSpecification[] {
+  return [
+    {
+      id: "ukraine-country-flags",
+      type: "symbol",
+      source: UKRAINE_POLITICAL_SOURCE_ID,
+      filter: ["==", ["get", "kind"], "flag"],
+      minzoom: 4,
+      layout: {
+        "icon-image": ["get", "icon"],
+        "icon-size": ["interpolate", ["linear"], ["zoom"], 4, 0.88, 8, 1.05, 12, 1.24],
+        "icon-allow-overlap": true,
+        "icon-ignore-placement": true,
+      },
+    },
+  ];
+}
+
+function insertBeforeLabels(
+  layers: readonly LayerSpecification[],
+  overlay: readonly LayerSpecification[],
+): LayerSpecification[] {
+  const firstSymbol = layers.findIndex((layer) => layer.type === "symbol");
+  if (firstSymbol < 0) return [...layers, ...overlay];
+  return [...layers.slice(0, firstSymbol), ...overlay, ...layers.slice(firstSymbol)];
+}
+
+function insertBeforeLayer(
+  layers: readonly LayerSpecification[],
+  overlay: readonly LayerSpecification[],
+  beforeLayerId: string,
+): LayerSpecification[] {
+  const index = layers.findIndex((layer) => layer.id === beforeLayerId);
+  if (index < 0) return [...layers, ...overlay];
+  return [...layers.slice(0, index), ...overlay, ...layers.slice(index)];
+}
+
+function detailedSources(basemap: DetailedBasemap) {
+  return {
+    [DETAILED_SOURCE_ID]: {
+      type: "vector" as const,
+      url: detailedBasemapSourceUrl(basemap),
+      minzoom: basemap.minZoom,
+      maxzoom: basemap.maxZoom,
+      attribution: basemap.attribution,
+    },
+    ...(basemap.id === "ukraine"
+      ? {
+          [UKRAINE_FRONTLINE_SOURCE_ID]: {
+            type: "geojson" as const,
+            data: UKRAINE_FRONTLINE_URL,
+            attribution:
+              'Linha de frente aproximada, recorte de 30/07/2026 baseado em <a href="https://liveuamap.com/">Liveuamap</a>',
+          },
+          [UKRAINE_POLITICAL_SOURCE_ID]: {
+            type: "geojson" as const,
+            data: UKRAINE_POLITICAL_URL,
+            attribution:
+              'Controle territorial aproximado de 30/07/2026 baseado em <a href="https://liveuamap.com/">Liveuamap</a> · limites administrativos do Natural Earth',
+          },
+          [UKRAINE_WAR_TIMELINE_SOURCE_ID]: {
+            type: "geojson" as const,
+            data: UKRAINE_WAR_TIMELINE_URL,
+            attribution:
+              'Progressão territorial histórica baseada nos mapas temporais do <a href="https://www.understandingwar.org/">Institute for the Study of War</a> · estado final baseado no Liveuamap',
+          },
+        }
+      : {}),
+  };
+}
 
 interface Palette {
   readonly ocean: string;
@@ -250,24 +611,28 @@ export function createMapStyle(styleId: MapStyleId): StyleSpecification {
  * províncias, cidades, ruas, edifícios, uso do solo, água e pontos de interesse.
  * Fonte, glifos e sprites continuam locais para o export ser reproduzível.
  */
-export function createDetailedMapStyle(basemap: DetailedBasemap): StyleSpecification {
+export function createDetailedMapStyle(
+  basemap: DetailedBasemap,
+  options: { readonly poiMode?: DetailedPoiMode } = {},
+): StyleSpecification {
+  const poiMode = options.poiMode ?? DEFAULT_DETAILED_POI_MODE;
+  const baseLayers = detailedLayers(poiMode, {
+    majorCitiesOnly: basemap.id === "ukraine",
+  });
+  const regionalLayers =
+    basemap.id === "ukraine"
+      ? insertBeforeLayer(baseLayers, ukrainePoliticalFillLayers(), "roads_runway")
+      : baseLayers;
   return {
     version: 8,
     name: basemap.label,
     glyphs: GLYPHS_URL,
-    sprite: PROTOMAPS_SPRITE_URL,
-    sources: {
-      [DETAILED_SOURCE_ID]: {
-        type: "vector",
-        url: detailedBasemapSourceUrl(basemap),
-        minzoom: basemap.minZoom,
-        maxzoom: basemap.maxZoom,
-        attribution: basemap.attribution,
-      },
-    },
-    layers: protomapsLayers(DETAILED_SOURCE_ID, namedFlavor("light"), {
-      lang: "en",
-    }) as unknown as LayerSpecification[],
+    sprite: basemap.id === "ukraine" ? UKRAINE_SPRITE_URL : PROTOMAPS_SPRITE_URL,
+    sources: detailedSources(basemap),
+    layers:
+      basemap.id === "ukraine"
+        ? insertBeforeLabels(regionalLayers, [...ukraineFrontlineLayers(), ...ukraineFlagLayers()])
+        : regionalLayers,
   };
 }
 
@@ -290,6 +655,7 @@ export function createSatelliteStyle(
     readonly opacity?: number;
     /** Quando cobre a mesma região, fornece ruas, províncias e cidades ao híbrido. */
     readonly labelsBasemap?: DetailedBasemap;
+    readonly poiMode?: DetailedPoiMode;
   } = { labels: true },
 ): StyleSpecification {
   const palette = PALETTES["dark-relief"];
@@ -310,10 +676,17 @@ export function createSatelliteStyle(
   const detailedLabels = options.labels ? options.labelsBasemap : undefined;
   const overlays =
     detailedLabels !== undefined
-      ? (protomapsLayers(DETAILED_SOURCE_ID, namedFlavor("light"), {
-          labelsOnly: true,
-          lang: "en",
-        }) as unknown as LayerSpecification[])
+      ? detailedLabels.id === "ukraine"
+        ? insertBeforeLabels(
+            detailedLayers(options.poiMode ?? DEFAULT_DETAILED_POI_MODE, {
+              labelsOnly: true,
+              majorCitiesOnly: true,
+            }),
+            ukraineFrontlineLayers(),
+          )
+        : detailedLayers(options.poiMode ?? DEFAULT_DETAILED_POI_MODE, {
+            labelsOnly: true,
+          })
       : options.labels
         ? layers(palette).filter((layer) =>
             ["country-borders", "country-labels", "cities", "city-labels"].includes(layer.id),
@@ -322,15 +695,7 @@ export function createSatelliteStyle(
 
   const overlaySources =
     detailedLabels !== undefined
-      ? {
-          [DETAILED_SOURCE_ID]: {
-            type: "vector" as const,
-            url: detailedBasemapSourceUrl(detailedLabels),
-            minzoom: detailedLabels.minZoom,
-            maxzoom: detailedLabels.maxZoom,
-            attribution: detailedLabels.attribution,
-          },
-        }
+      ? detailedSources(detailedLabels)
       : options.labels
         ? {
             "natural-earth": {

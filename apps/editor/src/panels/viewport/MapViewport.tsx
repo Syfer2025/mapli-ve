@@ -6,7 +6,10 @@ import {
   type GazetteerHit,
   type GazetteerResolution,
 } from "@theatrum/gis";
-import maplibregl, { type Map as MapLibreMap } from "maplibre-gl";
+import maplibregl, {
+  type FilterSpecification,
+  type Map as MapLibreMap,
+} from "maplibre-gl";
 import { Protocol } from "pmtiles";
 import {
   useCallback,
@@ -27,7 +30,13 @@ import {
   createDetailedMapStyle,
   createMapStyle,
   createSatelliteStyle,
+  DEFAULT_DETAILED_POI_MODE,
+  DETAILED_POI_MODE_OPTIONS,
   MAP_STYLE_OPTIONS,
+  type DetailedPoiMode,
+  UKRAINE_WAR_TIMELINE_FINAL_STATE_FRAME,
+  UKRAINE_WAR_TIMELINE_FRAME_STEP,
+  UKRAINE_WAR_TIMELINE_LAST_FRAME,
 } from "./map-styles.js";
 import {
   detailedBasemapById,
@@ -74,6 +83,7 @@ const DEFAULT_CAMERA: CameraState = {
 
 const protocol = new Protocol();
 let isPmtilesProtocolRegistered = false;
+const DETAILED_POI_STORAGE_KEY = "theatrum.map.detailed-poi-mode.v1";
 
 interface Phase2DebugSurface {
   readonly map: MapLibreMap;
@@ -89,6 +99,27 @@ function ensurePmtilesProtocol(): void {
   if (isPmtilesProtocolRegistered) return;
   maplibregl.addProtocol("pmtiles", protocol.tile);
   isPmtilesProtocolRegistered = true;
+}
+
+function isDetailedPoiMode(value: unknown): value is DetailedPoiMode {
+  return value === "strategic" || value === "all" || value === "hidden";
+}
+
+function loadDetailedPoiMode(): DetailedPoiMode {
+  try {
+    const stored = window.localStorage.getItem(DETAILED_POI_STORAGE_KEY);
+    return isDetailedPoiMode(stored) ? stored : DEFAULT_DETAILED_POI_MODE;
+  } catch {
+    return DEFAULT_DETAILED_POI_MODE;
+  }
+}
+
+function storeDetailedPoiMode(mode: DetailedPoiMode): void {
+  try {
+    window.localStorage.setItem(DETAILED_POI_STORAGE_KEY, mode);
+  } catch {
+    // Preferência local é útil, mas nunca deve impedir o mapa de funcionar.
+  }
 }
 
 function cameraFromMap(map: MapLibreMap): CameraState {
@@ -110,29 +141,83 @@ function formatTime(currentFrame: number, fps: number): string {
   return `00:${String(wholeSeconds).padStart(2, "0")}:${String(subframe).padStart(2, "0")}`;
 }
 
+function warTimelineDataFrame(playheadFrame: number): number {
+  const bounded = Math.max(0, Math.min(UKRAINE_WAR_TIMELINE_LAST_FRAME, playheadFrame));
+  if (bounded >= UKRAINE_WAR_TIMELINE_LAST_FRAME) return UKRAINE_WAR_TIMELINE_LAST_FRAME;
+  return Math.floor(bounded / UKRAINE_WAR_TIMELINE_FRAME_STEP) * UKRAINE_WAR_TIMELINE_FRAME_STEP;
+}
+
+/**
+ * O GeoJSON já contém um polígono interpolado a cada dois frames. Trocar apenas
+ * o filtro evita reconstruir e triangular a geometria durante a reprodução.
+ */
+function applyUkraineWarTimelineFrame(map: MapLibreMap, playheadFrame: number): number {
+  const dataFrame = warTimelineDataFrame(playheadFrame);
+  const filter: FilterSpecification = [
+    "all",
+    ["==", ["get", "kind"], "occupied_timeline"],
+    ["==", ["get", "frame"], dataFrame],
+  ];
+  if (map.getLayer("ukraine-occupied-fill") !== undefined) {
+    map.setFilter("ukraine-occupied-fill", filter);
+  }
+  if (map.getLayer("ukraine-occupied-stripes") !== undefined) {
+    map.setFilter("ukraine-occupied-stripes", filter);
+  }
+
+  const frontlineProgress = Math.max(
+    0,
+    Math.min(
+      1,
+      (playheadFrame - UKRAINE_WAR_TIMELINE_FINAL_STATE_FRAME) /
+        (UKRAINE_WAR_TIMELINE_LAST_FRAME - UKRAINE_WAR_TIMELINE_FINAL_STATE_FRAME),
+    ),
+  );
+  if (map.getLayer("ukraine-frontline-casing") !== undefined) {
+    map.setPaintProperty("ukraine-frontline-casing", "line-opacity", 0.76 * frontlineProgress);
+  }
+  if (map.getLayer("ukraine-frontline") !== undefined) {
+    map.setPaintProperty("ukraine-frontline", "line-opacity", 0.98 * frontlineProgress);
+  }
+  return dataFrame;
+}
+
 /**
  * Materializa a resolução já feita contra os recursos desta máquina.
  *
  * No fallback o documento continua intocado; só os pixels usam relevo escuro
  * enquanto a UI explica qual recurso está ausente (ADR-026).
  */
-function styleSpecFor(resolved: ResolvedDocumentMapStyle) {
+function styleSpecFor(resolved: ResolvedDocumentMapStyle, poiMode: DetailedPoiMode) {
   if (!resolved.available) return createMapStyle(resolved.fallbackStyleId);
   if (resolved.kind === "vector") return createMapStyle(resolved.styleId);
-  if (resolved.kind === "detailed") return createDetailedMapStyle(resolved.basemap);
+  if (resolved.kind === "detailed") {
+    return createDetailedMapStyle(resolved.basemap, { poiMode });
+  }
   const labelsBasemap = resolved.labels ? knownDetailedBasemaps()[0] : undefined;
   return createSatelliteStyle(resolved.basemap, {
     labels: resolved.labels,
+    poiMode,
     ...(labelsBasemap === undefined ? {} : { labelsBasemap }),
   });
 }
 
-function readyStatus(resolved: ResolvedDocumentMapStyle): string {
+function readyStatus(resolved: ResolvedDocumentMapStyle, poiMode: DetailedPoiMode): string {
   if (!resolved.available) {
     return `fallback visual · ${resolved.reason} · projeto preservado`;
   }
   if (resolved.kind === "detailed") {
-    return `offline detalhado · ruas e edifícios até z${resolved.basemap.maxZoom}`;
+    const seals =
+      poiMode === "strategic"
+        ? "selos estratégicos"
+        : poiMode === "all"
+          ? "todos os selos"
+          : "selos ocultos";
+    const ukraineSnapshot =
+      resolved.basemap.id === "ukraine"
+        ? " · principais cidades · progressão territorial 2022–2026 · linha de frente 30/07/2026"
+        : "";
+    return `offline detalhado · ruas e edifícios até z${resolved.basemap.maxZoom} · ${seals}${ukraineSnapshot} · português`;
   }
   if (resolved.kind === "satellite") {
     const labels =
@@ -142,8 +227,8 @@ function readyStatus(resolved: ResolvedDocumentMapStyle): string {
   return "offline pronto · mapa mundial z0–6";
 }
 
-function styleRenderKey(resolved: ResolvedDocumentMapStyle): string {
-  return `${resolved.available ? "available" : "fallback"}:${resolved.documentStyleId}`;
+function styleRenderKey(resolved: ResolvedDocumentMapStyle, poiMode: DetailedPoiMode): string {
+  return `${resolved.available ? "available" : "fallback"}:${resolved.documentStyleId}:${poiMode}`;
 }
 
 const USER_CAMERA_EVENT_DATA = Object.freeze({
@@ -188,6 +273,8 @@ export function MapViewport(): ReactNode {
   const documentCameraRef = useRef(documentCamera);
   /** Pacotes regionais de alta resolução realmente presentes no disco. */
   const [detailedBasemaps, setDetailedBasemaps] = useState<readonly DetailedBasemap[]>([]);
+  /** Preferência desta máquina: preserva todos os dados e troca apenas os selos visíveis. */
+  const [detailedPoiMode, setDetailedPoiMode] = useState<DetailedPoiMode>(loadDetailedPoiMode);
   /** Imagens de satélite achadas nesta máquina; vazio esconde as opções. */
   const [rasters, setRasters] = useState<readonly RasterBasemap[]>([]);
   const resolvedStyle = useMemo(
@@ -195,6 +282,9 @@ export function MapViewport(): ReactNode {
     [detailedBasemaps, documentStyleId, rasters],
   );
   const resolvedStyleRef = useRef(resolvedStyle);
+  const detailedPoiModeRef = useRef(detailedPoiMode);
+  const playheadFrameRef = useRef(session.playheadFrame);
+  const appliedWarTimelineFrameRef = useRef<number | null>(null);
   const mapResourceErrorRef = useRef<string | null>(null);
   const appliedStyleKeyRef = useRef<string | null>(null);
   const [mapInstance, setMapInstance] = useState<MapLibreMap | null>(null);
@@ -208,6 +298,8 @@ export function MapViewport(): ReactNode {
 
   documentCameraRef.current = documentCamera;
   resolvedStyleRef.current = resolvedStyle;
+  detailedPoiModeRef.current = detailedPoiMode;
+  playheadFrameRef.current = session.playheadFrame;
 
   /**
    * Durante um export o mapa vai ao tamanho da composição ([ADR-022](../../../../../docs/adr/ADR-022-export-resolution-from-composition.md)).
@@ -265,7 +357,7 @@ export function MapViewport(): ReactNode {
 
     const map = new maplibregl.Map({
       container,
-      style: styleSpecFor(resolvedStyleRef.current),
+      style: styleSpecFor(resolvedStyleRef.current, detailedPoiModeRef.current),
       center: [documentCameraRef.current.center[0], documentCameraRef.current.center[1]],
       zoom: documentCameraRef.current.zoom,
       bearing: documentCameraRef.current.bearing,
@@ -321,7 +413,10 @@ export function MapViewport(): ReactNode {
        */
       canvasContextAttributes: { preserveDrawingBuffer: true, antialias: false },
     });
-    appliedStyleKeyRef.current = styleRenderKey(resolvedStyleRef.current);
+    appliedStyleKeyRef.current = styleRenderKey(
+      resolvedStyleRef.current,
+      detailedPoiModeRef.current,
+    );
     mapRef.current = map;
     setMapInstance(map);
     const releaseMapExportReadiness = bindMapExportReadiness(map, () => {
@@ -371,7 +466,7 @@ export function MapViewport(): ReactNode {
         if (mapResourceErrorRef.current !== null) return;
         if (result.settled) {
           setMapStatus(
-            `${readyStatus(resolvedStyleRef.current)} · settle ${(
+            `${readyStatus(resolvedStyleRef.current, detailedPoiModeRef.current)} · settle ${(
               performance.now() - startedAt
             ).toFixed(0)} ms`,
           );
@@ -382,12 +477,16 @@ export function MapViewport(): ReactNode {
     };
     const onStyleData = (): void => {
       if (map.isStyleLoaded() && mapResourceErrorRef.current === null) {
-        setMapStatus(readyStatus(resolvedStyleRef.current));
+        setMapStatus(readyStatus(resolvedStyleRef.current, detailedPoiModeRef.current));
       }
     };
     // Camada 3D volta a cada setStyle: trocar de estilo descarta custom layers.
     const onStyleLoad = (): void => {
       attachScene3dLayer(map);
+      appliedWarTimelineFrameRef.current = applyUkraineWarTimelineFrame(
+        map,
+        playheadFrameRef.current,
+      );
     };
     const onError = (event: { readonly error?: Error }): void => {
       const message = event.error?.message ?? "falha desconhecida";
@@ -468,20 +567,45 @@ export function MapViewport(): ReactNode {
     }
   }, [documentCamera, mapInstance]);
 
+  /** Playhead → snapshot territorial, sem alterar o documento nem a câmera. */
+  useEffect(() => {
+    const map = mapRef.current;
+    if (map === null) return;
+    const dataFrame = warTimelineDataFrame(session.playheadFrame);
+    const frontlineIsFading =
+      session.playheadFrame >= UKRAINE_WAR_TIMELINE_FINAL_STATE_FRAME;
+    if (appliedWarTimelineFrameRef.current === dataFrame && !frontlineIsFading) return;
+    appliedWarTimelineFrameRef.current = applyUkraineWarTimelineFrame(
+      map,
+      session.playheadFrame,
+    );
+  }, [mapInstance, session.playheadFrame]);
+
   /** Estilo persistido → recurso local, com fallback visual explícito. */
   useEffect(() => {
     const map = mapRef.current;
     if (map === null) return;
-    const nextKey = styleRenderKey(resolvedStyle);
+    const nextKey = styleRenderKey(resolvedStyle, detailedPoiMode);
     if (appliedStyleKeyRef.current === nextKey) {
-      if (mapResourceErrorRef.current === null) setMapStatus(readyStatus(resolvedStyle));
+      if (mapResourceErrorRef.current === null) {
+        setMapStatus(readyStatus(resolvedStyle, detailedPoiMode));
+      }
       return;
     }
     appliedStyleKeyRef.current = nextKey;
     mapResourceErrorRef.current = null;
-    setMapStatus(resolvedStyle.available ? "aplicando estilo local…" : readyStatus(resolvedStyle));
-    map.setStyle(styleSpecFor(resolvedStyle), { diff: false });
-  }, [mapInstance, resolvedStyle]);
+    setMapStatus(
+      resolvedStyle.available
+        ? "aplicando estilo local…"
+        : readyStatus(resolvedStyle, detailedPoiMode),
+    );
+    map.once("style.load", () => {
+      if (appliedStyleKeyRef.current === nextKey && mapResourceErrorRef.current === null) {
+        setMapStatus(readyStatus(resolvedStyle, detailedPoiMode));
+      }
+    });
+    map.setStyle(styleSpecFor(resolvedStyle, detailedPoiMode), { diff: false });
+  }, [detailedPoiMode, mapInstance, resolvedStyle]);
 
   const selectStyle = (nextStyle: StyleChoice): void => {
     if (!editorActions.setMapStyle(nextStyle)) return;
@@ -511,6 +635,12 @@ export function MapViewport(): ReactNode {
         );
       }
     }
+  };
+
+  const selectDetailedPoiMode = (nextMode: DetailedPoiMode): void => {
+    setDetailedPoiMode(nextMode);
+    storeDetailedPoiMode(nextMode);
+    setMapStatus("aplicando selos do mapa…");
   };
 
   const goToHit = useCallback((hit: GazetteerHit) => {
@@ -550,6 +680,10 @@ export function MapViewport(): ReactNode {
     resolvedStyle.available && resolvedStyle.kind === "vector"
       ? resolvedStyle.styleId
       : documentStyleId;
+  const showUkrainePoliticalLegend =
+    resolvedStyle.available &&
+    resolvedStyle.kind === "detailed" &&
+    resolvedStyle.basemap.id === "ukraine";
   const timelineMax = Math.max(0, (composition?.duration ?? 1) - 1);
   const timelineFps = composition?.fps ?? 60;
 
@@ -601,6 +735,21 @@ export function MapViewport(): ReactNode {
           </select>
         </label>
 
+        <label className="map-viewport__field">
+          <span>Selos</span>
+          <select
+            value={detailedPoiMode}
+            onChange={(event) => selectDetailedPoiMode(event.target.value as DetailedPoiMode)}
+            aria-label="Selos do mapa"
+          >
+            {DETAILED_POI_MODE_OPTIONS.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
         <form className="map-viewport__search" onSubmit={submitSearch}>
           <input
             value={query}
@@ -634,6 +783,27 @@ export function MapViewport(): ReactNode {
               ))}
             </div>
           )}
+        </aside>
+      )}
+
+      {showUkrainePoliticalLegend && (
+        <aside className="map-viewport__legend" aria-label="Legenda territorial">
+          <span className="map-viewport__legend-item">
+            <span className="map-viewport__legend-swatch map-viewport__legend-swatch--ukraine" />
+            Ucrânia
+          </span>
+          <span className="map-viewport__legend-item">
+            <span className="map-viewport__legend-swatch map-viewport__legend-swatch--invaded" />
+            Região invadida
+          </span>
+          <span className="map-viewport__legend-item">
+            <span className="map-viewport__legend-swatch map-viewport__legend-swatch--behind-front" />
+            Atrás da linha de frente
+          </span>
+          <span className="map-viewport__legend-item">
+            <span className="map-viewport__legend-swatch map-viewport__legend-swatch--russia" />
+            Rússia
+          </span>
         </aside>
       )}
 
