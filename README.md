@@ -41,7 +41,7 @@ assets importados, não procedurais.
 
 O monorepo, os guardrails arquiteturais, o núcleo matemático/temporal, o shell
 Electron e o workspace dockável estão implementados. O viewport já é um painel
-real: MapLibre + PMTiles offline, três estilos mundiais, mapa regional detalhado
+real: MapLibre + PMTiles offline, quatro estilos mundiais, mapa regional detalhado
 Irã–Hormuz, satélite local, busca geográfica e câmera animável com transporte.
 `composition.map.styleId` e `composition.camera` persistem no documento; gestos
 do mapa passam pelo Command Bus e salvar, reabrir, desfazer e refazer preservam a
@@ -211,7 +211,7 @@ pnpm data:fetch
 pnpm dev
 ```
 
-`data:fetch` é o único comando que usa rede. Depois dele, `dev`, os três estilos,
+`data:fetch` é o único comando que usa rede. Depois dele, `dev`, os quatro estilos,
 o gazetteer e a animação de câmera funcionam somente com arquivos locais.
 
 Execute todas as verificações:

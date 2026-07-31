@@ -40,6 +40,12 @@ describe("vista do mapa derivada do documento", () => {
       styleId: "minimal-political",
       legacy: false,
     });
+    expect(resolveDocumentMapStyle("strategic-war-room", [], [])).toMatchObject({
+      available: true,
+      kind: "vector",
+      styleId: "strategic-war-room",
+      legacy: false,
+    });
     expect(resolveDocumentMapStyle("style_minimal_political", [], [])).toMatchObject({
       available: true,
       kind: "vector",

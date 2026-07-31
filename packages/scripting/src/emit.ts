@@ -395,17 +395,30 @@ function makeTimelineRoute(
     }
   }
   if (pathId === undefined) return null;
-  const color = source.do === "supply.line" ? "#4ade80ff" : "#ef4444ff";
+  const requestedColor =
+    source.do === "arrow.draw" && typeof source.style?.["color"] === "string"
+      ? source.style["color"]
+      : undefined;
+  const requestedWidth =
+    source.do === "arrow.draw" && typeof source.style?.["width"] === "number"
+      ? source.style["width"]
+      : undefined;
+  const color = source.do === "supply.line" ? "#4ade80ff" : (requestedColor ?? "#ef4444ff");
   const node = makeRouteNode(
     context.ids("nd"),
     composition.root,
     composition.duration,
     pathId,
     color,
-    source.do.startsWith("frontline.") ? 5 : 4,
+    source.do.startsWith("frontline.") ? 5 : (requestedWidth ?? 4),
     source.do === "supply.line" ? [10, 8] : undefined,
   );
   node.name = source.do;
+  if (source.do.startsWith("frontline.")) {
+    node.props["arrowSize"] = animatable(0);
+    node.props["dashPx"] = animatable(14);
+    node.props["gapPx"] = animatable(8);
+  }
   node.timeRange = {
     in: context.entry.startFrame,
     out: Math.min(
@@ -422,6 +435,12 @@ function makeTimelineRoute(
       easing(source.ease ?? "cinematic"),
     ),
   ]);
+  node.transform.opacity = timedOpacity(
+    context.ids,
+    context.entry.startFrame,
+    Math.min(composition.duration, Math.max(context.entry.startFrame + 1, context.entry.endFrame)),
+    composition.fps,
+  );
   return node;
 }
 
@@ -473,6 +492,7 @@ function emitMovementAction(
           : source.do === "unit.attack"
             ? "attack"
             : "intercept";
+  const unitKind = context.scene.units?.find((unit) => unit.id === source.unit)?.kind;
   owner.actions.push({
     id: context.ids("act"),
     type: actionType,
@@ -483,10 +503,10 @@ function emitMovementAction(
       pathId,
       speedKmh,
       cycles: source.do === "unit.patrol" ? (source.cycles ?? 1) : 1,
-      autoOrient: true,
+      autoOrient: unitKind === "air" || unitKind === "missile",
       showRoute: source.do === "unit.advance" ? (source.trail ?? false) : true,
       color: "#f2a13cff",
-      sceneDurationFrames: context.entry.durationFrames,
+      durationFrames: context.entry.durationFrames,
     },
   });
 }
@@ -535,7 +555,7 @@ function emitProjectileAction(
       count: "count" in source ? (source.count ?? 5) : source.do === "siege" ? 8 : 1,
       color: "#fb923cff",
       arcMeters: source.do === "missile.launch" ? 180_000 : 35_000,
-      shake: true,
+      shake: false,
     },
   });
 }
@@ -570,24 +590,51 @@ function makeTimelineVisual(context: EmitContext): Node | null {
             : source.do === "text.counter"
               ? counterText(source.label, source.from, counterDecimals(source.from, source.to))
               : source.items.map((item) => String(item["label"] ?? "Item")).join("\n");
-    const position = screenPosition(
-      "position" in source ? source.position : undefined,
-      composition.width,
-      composition.height,
-    );
-    const props = textProps(text, scene.defaults?.textFont, source.do === "text.title" ? 72 : 30);
+    const positionName = "position" in source ? source.position : undefined;
+    const position = screenPosition(positionName, composition.width, composition.height);
+    const fontSize =
+      source.do === "text.title"
+        ? 72
+        : source.do === "text.counter"
+          ? 58
+          : source.do === "legend.show"
+            ? 28
+            : 30;
+    const maxWidth =
+      source.do === "text.title"
+        ? Math.min(1_700, composition.width - 120)
+        : source.do === "legend.show"
+          ? 620
+          : source.do === "text.date"
+            ? 640
+            : source.do === "text.counter"
+              ? 720
+              : 920;
+    const align = positionName?.includes("left")
+      ? "left"
+      : positionName?.includes("right")
+        ? "right"
+        : "center";
+    const props = textProps(text, scene.defaults?.textFont, fontSize, { align, maxWidth });
     if (source.do === "text.counter") {
       props["text"] = counterTextTrack(context, source);
     }
-    return makeNode({
+    const node = makeNode({
       ...base,
       type: source.do === "text.title" ? "text.title" : "text.label",
       name: text.slice(0, 80),
-      anchor: { space: "comp", position: [0, 0] },
-      size: { mode: "screen", size: [Math.min(1_200, composition.width), 240] },
-      position,
+      anchor: { space: "comp", position },
+      size: { mode: "screen", size: [maxWidth, 260] },
+      anchorPoint: [0.5, 0.5],
       props,
     });
+    node.transform.opacity = timedOpacity(
+      ids,
+      base.timeRange.in,
+      base.timeRange.out,
+      composition.fps,
+    );
+    return node;
   }
 
   if (source.do === "text.callout" || source.do === "label.place") {
@@ -597,14 +644,38 @@ function makeTimelineVisual(context: EmitContext): Node | null {
         : context.resolved.coordinates.get(pointer(["timeline", entry.index, "place"]));
     if (place === undefined) return null;
     const text = source.do === "text.callout" ? source.text : String(source.place);
-    return makeNode({
+    const style = source.do === "label.place" ? source.style : undefined;
+    const fontSize = typeof style?.["fontSize"] === "number" ? style["fontSize"] : 24;
+    const maxWidth = typeof style?.["maxWidth"] === "number" ? style["maxWidth"] : 380;
+    const offsetValue = style?.["offset"];
+    const offset =
+      Array.isArray(offsetValue) &&
+      offsetValue.length === 2 &&
+      typeof offsetValue[0] === "number" &&
+      typeof offsetValue[1] === "number"
+        ? ([offsetValue[0], offsetValue[1]] as const)
+        : ([0, 0] as const);
+    const props = textProps(text, scene.defaults?.textFont, fontSize, { maxWidth });
+    if (typeof style?.["color"] === "string") {
+      props["color"] = animatable(style["color"]);
+    }
+    const node = makeNode({
       ...base,
       type: "text.label",
       name: text.slice(0, 80),
       anchor: { space: "geo", lngLat: [place[0], place[1]] },
       size: { mode: "screen", size: [420, 96] },
-      props: textProps(text, scene.defaults?.textFont, 24),
+      anchorPoint: [0.5, 0.5],
+      position: offset,
+      props,
     });
+    node.transform.opacity = timedOpacity(
+      ids,
+      base.timeRange.in,
+      base.timeRange.out,
+      composition.fps,
+    );
+    return node;
   }
 
   if (
@@ -615,9 +686,11 @@ function makeTimelineVisual(context: EmitContext): Node | null {
   ) {
     const geoId = source.do === "border.show" ? source.dataset : (source.region ?? "");
     const color =
-      source.do === "area.transfer"
-        ? factionColor(scene, source.to)
-        : factionColor(scene, source.do === "area.highlight" ? source.faction : undefined);
+      source.do === "border.show"
+        ? "#aebdceff"
+        : source.do === "area.transfer"
+          ? factionColor(scene, source.to)
+          : factionColor(scene, source.do === "area.highlight" ? source.faction : undefined);
     const fill =
       source.do === "area.transfer"
         ? transferColorTrack(
@@ -627,8 +700,12 @@ function makeTimelineVisual(context: EmitContext): Node | null {
           )
         : animatable(color);
     const fillAlpha =
-      source.do === "area.highlight" ? highlightAlphaTrack(context, source.fade) : animatable(0.35);
-    return makeNode({
+      source.do === "border.show"
+        ? animatable(0)
+        : source.do === "area.highlight"
+          ? highlightAlphaTrack(context, source.fade)
+          : animatable(0.35);
+    const node = makeNode({
       ...base,
       type: "geo.region",
       name: geoId,
@@ -646,37 +723,76 @@ function makeTimelineVisual(context: EmitContext): Node | null {
                 factionColor(scene, source.to),
               )
             : animatable(color),
-        strokeWidth: animatable(2),
+        strokeWidth: animatable(source.do === "border.show" ? 2.5 : 2.25),
         strokeAlpha: animatable(1),
         sceneVerb: source.do,
       },
     });
+    node.transform.opacity = timedOpacity(
+      ids,
+      base.timeRange.in,
+      base.timeRange.out,
+      composition.fps,
+    );
+    return node;
   }
 
   const place = timelineAnchor(context);
   if (place === undefined) return null;
   const label = "label" in source && typeof source.label === "string" ? source.label : source.do;
-  return makeNode({
+  const eventColor =
+    source.do === "battle"
+      ? "#f59e0bd9"
+      : source.do === "bombard"
+        ? "#f97316d9"
+        : source.do === "airstrike"
+          ? "#fb923cd9"
+          : source.do === "missile.launch"
+            ? "#ef4444d9"
+            : source.do === "siege"
+              ? "#f97316d9"
+              : source.do === "airdrop"
+                ? "#a78bfad9"
+                : source.do === "naval.blockade"
+                  ? "#0ea5e9d9"
+                  : source.do === "encircle"
+                    ? "#f97316d9"
+                    : factionColor(
+                        scene,
+                        "faction" in source && typeof source.faction === "string"
+                          ? source.faction
+                          : undefined,
+                      );
+  const node = makeNode({
     ...base,
     type: SHAPE_CIRCLE_NODE_TYPE.type,
     name: label,
     anchor: { space: "geo", lngLat: [place[0], place[1]] },
     size: { mode: "screen", size: [160, 160] },
+    anchorPoint: [0.5, 0.5],
     props: {
       radius: animatable(
-        source.do === "naval.blockade" ? Math.min(90, Math.max(20, source.radius)) : 48,
+        source.do === "naval.blockade"
+          ? Math.min(90, Math.max(20, source.radius))
+          : source.do === "battle"
+            ? 36
+            : source.do === "bombard" || source.do === "airstrike" || source.do === "missile.launch"
+              ? 30
+              : 48,
       ),
-      fill: animatable(
-        factionColor(
-          scene,
-          "faction" in source && typeof source.faction === "string" ? source.faction : undefined,
-        ),
-      ),
+      fill: animatable(eventColor),
       stroke: animatable("#ffffffff"),
       strokeWidth: animatable(2),
       sceneVerb: source.do,
     },
   });
+  node.transform.opacity = timedOpacity(
+    ids,
+    base.timeRange.in,
+    base.timeRange.out,
+    composition.fps,
+  );
+  return node;
 }
 
 function timelineAnchor(context: EmitContext): LngLat | undefined {
@@ -693,6 +809,8 @@ function timelineAnchor(context: EmitContext): LngLat | undefined {
 
 function emitCameraEntry(context: EmitContext): void {
   const source = context.entry.entry;
+  const composition = context.document.compositions[0];
+  if (composition === undefined) return;
   const current = context.cameraPoints.at(-1) ?? {
     frame: 0,
     ease: "linear",
@@ -785,7 +903,7 @@ function emitCameraEntry(context: EmitContext): void {
     if (points.length === 0) return;
     next = {
       center: [...centerOf(points)],
-      zoom: frameZoom(points, source.padding ?? 0.15),
+      zoom: frameZoom(points, source.padding ?? 0.15, composition.width, composition.height),
       bearing: current.bearing,
       pitch: current.pitch,
     };
@@ -905,6 +1023,7 @@ interface MakeNodeOptions {
   readonly props: Record<string, unknown>;
   readonly timeRange?: Node["timeRange"];
   readonly position?: readonly [number, number];
+  readonly anchorPoint?: readonly [number, number];
   readonly rotation?: number;
 }
 
@@ -929,7 +1048,7 @@ function makeNode(options: MakeNodeOptions): Node {
       rotation: animatable(options.rotation ?? 0),
       scale: animatable([1, 1]),
       opacity: animatable(1),
-      anchorPoint: animatable([0, 0]),
+      anchorPoint: animatable([...(options.anchorPoint ?? [0, 0])] as [number, number]),
       skew: animatable([0, 0]),
       rotationReference: options.anchor.space === "geo" ? "geo-bearing" : "screen",
     },
@@ -941,6 +1060,23 @@ function makeNode(options: MakeNodeOptions): Node {
     behaviors: [],
     actions: [],
   };
+}
+
+function timedOpacity(
+  ids: ReturnType<typeof createIdFactory>,
+  start: number,
+  end: number,
+  fps: number,
+): AnimatableProperty<number> {
+  const duration = Math.max(1, end - start);
+  if (duration < 3) return animatable(1);
+  const fadeFrames = Math.max(1, Math.min(Math.round(fps * 0.4), Math.floor(duration / 3)));
+  return animatable(1, [
+    keyframe(ids("kf"), start, 0, { kind: "linear" }),
+    keyframe(ids("kf"), Math.min(end, start + fadeFrames), 1, easing("smooth")),
+    keyframe(ids("kf"), Math.max(start, end - fadeFrames), 1, { kind: "linear" }),
+    keyframe(ids("kf"), end, 0, easing("smooth")),
+  ]);
 }
 
 function makeRouteNode(
@@ -1029,8 +1165,12 @@ function counterDecimals(from: number, to: number): number {
 
 function counterText(label: string | undefined, value: number, decimals: number): string {
   const number =
-    decimals === 0 ? String(Math.round(value)) : String(Number(value.toFixed(decimals)));
-  return label === undefined || label.trim().length === 0 ? number : `${label.trim()} ${number}`;
+    decimals === 0
+      ? Math.round(value)
+          .toString()
+          .replace(/\B(?=(\d{3})+(?!\d))/g, ".")
+      : String(Number(value.toFixed(decimals)));
+  return label === undefined || label.trim().length === 0 ? number : `${number}\n${label.trim()}`;
 }
 
 function transferColorTrack(
@@ -1050,43 +1190,48 @@ function highlightAlphaTrack(
   context: EmitContext,
   fade: "in" | "out" | "in-out" | undefined,
 ): AnimatableProperty<number> {
-  if (fade === undefined) return animatable(0.35);
+  if (fade === undefined) return animatable(0.16);
   const start = context.entry.startFrame;
   const end = Math.max(start + 1, context.entry.endFrame);
   if (fade === "in") {
-    return animatable(0.35, [
+    return animatable(0.16, [
       keyframe(context.ids("kf"), start, 0, { kind: "linear" }),
-      keyframe(context.ids("kf"), end, 0.35, easing(context.entry.entry.ease ?? "cinematic")),
+      keyframe(context.ids("kf"), end, 0.16, easing(context.entry.entry.ease ?? "cinematic")),
     ]);
   }
   if (fade === "out") {
-    return animatable(0.35, [
-      keyframe(context.ids("kf"), start, 0.35, { kind: "linear" }),
+    return animatable(0.16, [
+      keyframe(context.ids("kf"), start, 0.16, { kind: "linear" }),
       keyframe(context.ids("kf"), end, 0, easing(context.entry.entry.ease ?? "cinematic")),
     ]);
   }
-  if (end - start < 2) return animatable(0.35);
+  if (end - start < 2) return animatable(0.16);
   const middle = start + Math.floor((end - start) / 2);
-  return animatable(0.35, [
+  return animatable(0.16, [
     keyframe(context.ids("kf"), start, 0, { kind: "linear" }),
-    keyframe(context.ids("kf"), middle, 0.35, easing(context.entry.entry.ease ?? "cinematic")),
+    keyframe(context.ids("kf"), middle, 0.16, easing(context.entry.entry.ease ?? "cinematic")),
     keyframe(context.ids("kf"), end, 0, easing(context.entry.entry.ease ?? "cinematic")),
   ]);
 }
 
-function textProps(text: string, font = "Inter", size = 30): Record<string, unknown> {
+function textProps(
+  text: string,
+  font = "Inter",
+  size = 30,
+  options: { readonly align?: "left" | "center" | "right"; readonly maxWidth?: number } = {},
+): Record<string, unknown> {
   return {
     text: animatable(text),
     fontFamily: animatable(font),
     fontSize: animatable(size),
     fontWeight: animatable(size >= 60 ? 700 : 600),
     color: animatable("#ffffffff"),
-    align: animatable("center"),
+    align: animatable(options.align ?? "center"),
     lineHeight: animatable(1.2),
     tracking: animatable(0),
     halo: animatable("#0b1118e6"),
     haloWidth: animatable(2),
-    maxWidth: animatable(0),
+    maxWidth: animatable(options.maxWidth ?? 0),
   };
 }
 
@@ -1119,9 +1264,9 @@ function screenPosition(
   height: number,
 ): [number, number] {
   const horizontal = position?.includes("left")
-    ? width * 0.2
+    ? width * 0.26
     : position?.includes("right")
-      ? width * 0.8
+      ? width * 0.74
       : width * 0.5;
   const vertical = position?.includes("top")
     ? height * 0.16
@@ -1139,15 +1284,31 @@ function centerOf(points: readonly LngLat[]): LngLat {
   return [sum[0] / points.length, sum[1] / points.length];
 }
 
-function frameZoom(points: readonly LngLat[], padding: number): number {
+function frameZoom(
+  points: readonly LngLat[],
+  padding: number,
+  width: number,
+  height: number,
+): number {
   const longitudes = points.map((point) => point[0]);
-  const latitudes = points.map((point) => point[1]);
-  const span = Math.max(
-    Math.max(...longitudes) - Math.min(...longitudes),
-    Math.max(...latitudes) - Math.min(...latitudes),
-    0.01,
+  const mercatorLatitudes = points.map((point) => mercatorY(point[1]));
+  const usable = Math.max(0.05, 1 - Math.min(0.9, Math.max(0, padding)) * 2);
+  const longitudeSpan = Math.max(
+    0.000_001,
+    (Math.max(...longitudes) - Math.min(...longitudes)) / 360,
   );
-  return Math.max(0, Math.min(18, Math.log2(360 / span) - 1 - padding * 2));
+  const latitudeSpan = Math.max(
+    0.000_001,
+    Math.max(...mercatorLatitudes) - Math.min(...mercatorLatitudes),
+  );
+  const horizontalZoom = Math.log2((Math.max(1, width) * usable) / (512 * longitudeSpan));
+  const verticalZoom = Math.log2((Math.max(1, height) * usable) / (512 * latitudeSpan));
+  return Math.max(0, Math.min(18, Math.min(horizontalZoom, verticalZoom)));
+}
+
+function mercatorY(latitude: number): number {
+  const radians = (Math.max(-85.051_129, Math.min(85.051_129, latitude)) * Math.PI) / 180;
+  return (1 - Math.log(Math.tan(radians) + 1 / Math.cos(radians)) / Math.PI) / 2;
 }
 
 function polylineDegrees(points: readonly (readonly [number, number])[]): number {

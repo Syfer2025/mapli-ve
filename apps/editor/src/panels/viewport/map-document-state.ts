@@ -9,6 +9,7 @@ const VECTOR_STYLE_IDS = new Set<MapStyleId>([
   "dark-relief",
   "historical-parchment",
   "minimal-political",
+  "strategic-war-room",
 ]);
 
 /** Compatibilidade de leitura; projetos novos já gravam o id canônico. */

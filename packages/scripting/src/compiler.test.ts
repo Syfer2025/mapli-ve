@@ -537,15 +537,15 @@ describe("compileScene", () => {
       value: "#0000ffff",
       keyframes: [{ value: "#0000ffff" }, { value: "#ff0000ff" }],
     });
-    const counter = nodes.find((node) => node.name === "Vitórias 0");
+    const counter = nodes.find((node) => node.name === "0\nVitórias");
     const text = counter?.props["text"];
-    expect(text).toMatchObject({ value: "Vitórias 0" });
+    expect(text).toMatchObject({ value: "0\nVitórias" });
     const counterKeyframes = Array.isArray((text as { keyframes?: unknown } | undefined)?.keyframes)
       ? (text as { keyframes: { value: unknown }[] }).keyframes
       : [];
     expect(counterKeyframes.length).toBeGreaterThan(2);
-    expect(counterKeyframes[0]?.value).toBe("Vitórias 0");
-    expect(counterKeyframes.at(-1)?.value).toBe("Vitórias 100");
+    expect(counterKeyframes[0]?.value).toBe("0\nVitórias");
+    expect(counterKeyframes.at(-1)?.value).toBe("100\nVitórias");
   });
 
   it("rejeita projeção e terrain que o viewport não executa", async () => {

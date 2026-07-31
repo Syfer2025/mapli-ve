@@ -21,3 +21,9 @@ Os três arquivos são gerados deterministicamente por
 `docs/05-SCENE-SCRIPT.md`. Na barra superior, abra **Scene Script…**, escolha
 **Abrir JSON…** e então **Compilar e importar**. A cena resultante dura 1m30s e
 um único `Ctrl+Z` desfaz toda a importação.
+
+`ukraine-invasion-first-ten-days.scene.json` é o template de narrativa
+cartográfica diária: mapa político sem cidades automáticas, contexto territorial
+por cor, rótulos sob demanda e eventos encadeados depois do movimento de câmera.
+Ele também serve como prova de âncoras geográficas para marcadores, rotas,
+impactos e chamadas.
