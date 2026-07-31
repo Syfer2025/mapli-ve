@@ -11,9 +11,15 @@ Abra pelo botão **Abrir** na barra superior do Theatrum.
 3. **03 · Irã — linha de frente**  
    Revelação territorial sem assets externos. Edite o caminho e observe a linha
    acompanhar os vértices.
+4. **04 · Ucrânia — progressão da guerra**
+   Template de 10 segundos com a progressão territorial entre 2022 e 2026,
+   suavizada em 301 estados. Mantém a leitura política aprovada, as bandeiras e
+   a linha de frente atual no quadro final.
 
-Os três arquivos são gerados deterministicamente por
-`pnpm examples:build` e não precisam de rede.
+Os três primeiros arquivos são gerados deterministicamente por
+`pnpm examples:build` e não precisam de rede. O quarto preserva o projeto
+editável produzido no aplicativo e usa os dados cartográficos locais descritos
+em `data/README.md`.
 
 ## Scene Script
 

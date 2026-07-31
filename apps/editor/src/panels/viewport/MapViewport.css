@@ -88,7 +88,8 @@
 
 .map-viewport__toolbar,
 .map-viewport__readout,
-.map-viewport__search-result {
+.map-viewport__search-result,
+.map-viewport__legend {
   position: absolute;
   z-index: 2;
   border: 1px solid rgb(116 134 146 / 0.32);
@@ -96,6 +97,49 @@
   background: rgb(12 17 21 / 0.9);
   box-shadow: var(--shadow-panel);
   backdrop-filter: blur(8px);
+}
+
+.map-viewport__legend {
+  bottom: calc(var(--control-height-lg) + var(--space-4));
+  left: var(--space-4);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-4);
+  max-width: min(560px, calc(100% - 32px));
+  min-height: var(--control-height);
+  padding: var(--space-2) var(--space-4);
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+}
+
+.map-viewport__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.map-viewport__legend-swatch {
+  width: 20px;
+  height: 12px;
+  border: 1px solid rgb(65 46 46 / 0.56);
+  border-radius: 2px;
+}
+
+.map-viewport__legend-swatch--ukraine {
+  background: #f8e69a;
+}
+
+.map-viewport__legend-swatch--invaded {
+  background: #e58f92;
+}
+
+.map-viewport__legend-swatch--behind-front {
+  background: repeating-linear-gradient(-45deg, #d64c54 0, #d64c54 4px, #8b182b 4px, #8b182b 7px);
+}
+
+.map-viewport__legend-swatch--russia {
+  background: #ef9999;
 }
 
 .map-viewport__toolbar {
@@ -343,6 +387,11 @@
     left: var(--space-4);
     overflow: hidden;
     white-space: nowrap;
+  }
+
+  .map-viewport__legend {
+    right: var(--space-4);
+    max-width: none;
   }
 
   .map-viewport__route {

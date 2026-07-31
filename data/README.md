@@ -44,6 +44,51 @@ O tileset é um Produced Work de OpenStreetMap sob ODbL e recebe atribuição
 visível no mapa. O gerador de estilo `@protomaps/basemaps` é BSD-3-Clause; o
 desenho cartográfico é CC0.
 
+## Mapa detalhado da Ucrânia
+
+`basemap/ukraine-20260728-z15.pmtiles` cobre a caixa `21.5,44,41.5,53` até
+zoom 15. O recorte inclui a Ucrânia inteira e arredores, com limites
+administrativos, cidades, ruas, edifícios, água, uso do solo e pontos de
+interesse derivados do OpenStreetMap. O arquivo grande é local e não entra no
+Git; origem, limites, tamanho e SHA-256 ficam registrados em
+`basemap/detailed-basemaps.json`.
+
+`territories/ukraine-political-control-2026-07-30.geojson` acrescenta a leitura
+política desse recorte: Ucrânia em amarelo-claro, Rússia em vermelho-claro,
+oblasts invadidos com hachura em dois tons de vermelho. Os polígonos de controle
+exibidos pelo Liveuamap às 20:16:54 foram unidos e recortados pelo território
+internacionalmente reconhecido da Ucrânia; os limites administrativos vêm do
+Natural Earth. O mesmo arquivo guarda os pontos das bandeiras da Ucrânia e da
+Rússia.
+
+Somente Luhansk, Donetsk, Zaporíjia, Kherson, Crimeia e Sebastopol recebem a
+codificação territorial. Kharkiv, Sumy, Dnipropetrovsk e Mykolaiv permanecem
+com o amarelo-base da Ucrânia. Dentro dos seis estados, a base fica
+vermelho-claro e o território atrás da linha de frente recebe a hachura em dois
+tons de vermelho. A hachura também continua sobre qualquer trecho atrás da
+linha, no sentido da Rússia, que atravesse um estado mantido com a base amarela.
+
+`territories/ukraine-war-timeline-2022-2026.geojson` guarda a progressão
+territorial animada em 301 polígonos, um a cada dois quadros da composição de
+600 quadros. Os marcos históricos vêm das camadas temporais públicas do
+Institute for the Study of War: há amostragem diária entre 24/02 e 31/03/2022,
+marcos frequentes no restante de 2022 e amostragem mensal de 2023 a maio de
+2026. O quadro
+final não é inferido: ele reutiliza exatamente o polígono Liveuamap aprovado de
+30/07/2026.
+
+Os quadros intermediários são uma interpolação espacial por distância assinada,
+recortada pelo território internacionalmente reconhecido da Ucrânia. A
+temporização reserva os primeiros quatro segundos ao avanço inicial e comprime
+progressivamente os anos seguintes, preservando também os recuos e as
+contraofensivas. `tools/build-ukraine-war-timeline.py` documenta e reproduz a
+coleta, o recorte e a geração desses quadros.
+
+Os ícones das bandeiras e a hachura ficam no atlas local
+`sprites/theatrum-ukraine`, uma extensão do sprite Protomaps usada apenas por
+esse mapa. Os sprites Protomaps originais permanecem intactos e verificáveis
+pelo manifesto.
+
 ## Glyphs
 
 Os três ranges PBF de `Open Sans Semibold` também vêm de
@@ -78,3 +123,14 @@ O pacote regional satelital, por ser grande e opcional, é verificado à parte:
 ```powershell
 pnpm satellite:hormuz:verify
 ```
+
+## Linha de frente da Ucrânia
+
+`frontlines/ukraine-liveuamap-2026-07-30-z9.geojson` é um recorte cartográfico
+aproximado da camada de controle exibida pelo Liveuamap em 30/07/2026
+(atualização indicada pela página: 20:16:54). A geometria foi capturada em
+zoom 9, e os trechos contíguos foram unidos em uma linha principal, mais os
+setores separados de Sumy e Kharkiv. Fronteiras internacionais e litoral foram
+removidos para deixar apenas os setores de frente. O arquivo é datado de
+propósito: uma atualização futura deve gerar um novo recorte, sem sobrescrever
+silenciosamente este snapshot.

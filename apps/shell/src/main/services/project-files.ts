@@ -38,6 +38,11 @@ const PROJECT_EXAMPLES: readonly (ProjectExampleInfo & { readonly filename: stri
       label: "Irã · linha de frente",
       filename: "03-ira-linha-de-frente.theatrum",
     },
+    {
+      id: "ukraine-war-progression",
+      label: "Ucrânia · progressão da guerra",
+      filename: "04-ucrania-progressao-da-guerra.theatrum",
+    },
   ]);
 
 const authorizedFiles = new Map<string, string>();

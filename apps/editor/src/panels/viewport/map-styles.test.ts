@@ -28,6 +28,16 @@ const IRAN_HORMUZ: DetailedBasemap = {
   maxZoom: 15,
   attribution: "Protomaps © OpenStreetMap contributors",
 };
+const UKRAINE: DetailedBasemap = {
+  id: "ukraine",
+  label: "Detalhado · Ucrânia",
+  source: "ukraine.pmtiles",
+  bounds: [21.5, 44, 41.5, 53],
+  focusBounds: [21.5, 44, 41.5, 53],
+  minZoom: 0,
+  maxZoom: 15,
+  attribution: "Protomaps © OpenStreetMap contributors",
+};
 const SATELLITE: RasterBasemap = {
   id: "satellite",
   label: "Satélite local",
@@ -122,6 +132,75 @@ describe("estilos offline do mapa", () => {
     expect(style.glyphs).toBe(`${LOCAL_DATA_PREFIX}glyphs/{fontstack}/{range}.pbf`);
     expect(style.sprite).toBe(`${LOCAL_DATA_PREFIX}sprites/protomaps-light`);
     expect(serialized).not.toContain("access_token");
+    expect(serialized).toContain("name:pt");
+  });
+
+  it("mantém os dados de POI e alterna entre selos estratégicos, todos e ocultos", () => {
+    const strategic = createDetailedMapStyle(IRAN_HORMUZ);
+    const strategicPoi = strategic.layers.find((layer) => layer.id === "pois");
+    expect(strategicPoi).toMatchObject({ type: "symbol" });
+    if (strategicPoi?.type !== "symbol") throw new Error("Camada de POI ausente.");
+    expect(JSON.stringify(strategicPoi.filter)).toContain("aerodrome");
+    expect(JSON.stringify(strategicPoi.filter)).toContain("military");
+    expect(JSON.stringify(strategicPoi.filter)).toContain("fuel");
+    expect(JSON.stringify(strategicPoi.filter)).not.toContain("restaurant");
+
+    const all = createDetailedMapStyle(IRAN_HORMUZ, { poiMode: "all" });
+    const allPoi = all.layers.find((layer) => layer.id === "pois");
+    expect(JSON.stringify(allPoi)).toContain("restaurant");
+    expect(JSON.stringify(allPoi)).toContain("fast_food");
+
+    const hidden = createDetailedMapStyle(IRAN_HORMUZ, { poiMode: "hidden" });
+    expect(hidden.layers.find((layer) => layer.id === "pois")).toMatchObject({
+      layout: { visibility: "none" },
+    });
+  });
+
+  it("na Ucrânia mostra só as cidades principais e a linha de frente datada", () => {
+    const style = createDetailedMapStyle(UKRAINE);
+    const locality = style.layers.find((layer) => layer.id === "places_locality");
+    const subplace = style.layers.find((layer) => layer.id === "places_subplace");
+    const frontline = style.sources["ukraine-frontline-2026-07-30"] as
+      GeoJSONSourceSpecification | undefined;
+    const political = style.sources["ukraine-political-control-2026-07-30"] as
+      GeoJSONSourceSpecification | undefined;
+    const timeline = style.sources["ukraine-war-timeline-2022-2026"] as
+      GeoJSONSourceSpecification | undefined;
+
+    expect(locality).toMatchObject({ type: "symbol" });
+    if (locality?.type !== "symbol") throw new Error("Camada de cidades ausente.");
+    expect(JSON.stringify(locality.filter)).toContain("name:en");
+    expect(JSON.stringify(locality.filter)).toContain("Kyiv");
+    expect(JSON.stringify(locality.filter)).toContain("Mariupol");
+    expect(JSON.stringify(locality.filter)).not.toContain("Kramatorsk");
+    expect(subplace).toMatchObject({ layout: { visibility: "none" } });
+    expect(frontline).toMatchObject({
+      type: "geojson",
+      data: `${LOCAL_DATA_PREFIX}frontlines/ukraine-liveuamap-2026-07-30-z9.geojson`,
+    });
+    expect(political).toMatchObject({
+      type: "geojson",
+      data: `${LOCAL_DATA_PREFIX}territories/ukraine-political-control-2026-07-30.geojson`,
+    });
+    expect(timeline).toMatchObject({
+      type: "geojson",
+      data: `${LOCAL_DATA_PREFIX}territories/ukraine-war-timeline-2022-2026.geojson`,
+    });
+    expect(style.sprite).toBe(`${LOCAL_DATA_PREFIX}sprites/theatrum-ukraine`);
+    expect(style.layers.some((layer) => layer.id === "ukraine-russia-fill")).toBe(true);
+    expect(style.layers.some((layer) => layer.id === "ukraine-national-fill")).toBe(true);
+    expect(style.layers.some((layer) => layer.id === "ukraine-invaded-regions-fill")).toBe(true);
+    expect(style.layers.some((layer) => layer.id === "ukraine-occupied-fill")).toBe(true);
+    expect(style.layers.some((layer) => layer.id === "ukraine-occupied-stripes")).toBe(true);
+    expect(style.layers.find((layer) => layer.id === "ukraine-occupied-fill")).toMatchObject({
+      source: "ukraine-war-timeline-2022-2026",
+    });
+    expect(style.layers.find((layer) => layer.id === "ukraine-occupied-stripes")).toMatchObject({
+      source: "ukraine-war-timeline-2022-2026",
+    });
+    expect(style.layers.some((layer) => layer.id === "ukraine-country-flags")).toBe(true);
+    expect(style.layers.some((layer) => layer.id === "ukraine-frontline-casing")).toBe(true);
+    expect(style.layers.some((layer) => layer.id === "ukraine-frontline")).toBe(true);
   });
 
   it("o híbrido usa os rótulos detalhados sobre a imagem local", () => {
